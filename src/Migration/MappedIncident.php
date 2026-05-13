@@ -20,6 +20,7 @@ readonly class MappedIncident
         public array  $ticket,
         public array  $warnings,
         public array  $original,
+        public array  $followups = [],
     ) {
         if ($warnings === []) {
             $this->status = 'ok';

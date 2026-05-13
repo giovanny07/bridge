@@ -102,6 +102,24 @@ class SamanageNormalizer implements NormalizerInterface
         }
     }
 
+    /**
+     * Comment structure confirmed on servicios.daycohost.com (2026-05-13):
+     *   id, body (HTML), user.email, user.name, created_at, is_private,
+     *   attachments[], inline_attachments[], shared_attachments[]
+     */
+    public function commentToFollowup(array $comment): array
+    {
+        return [
+            'content'       => (string) ($comment['body'] ?? ''),
+            'date'          => $this->parseDate($comment['created_at'] ?? null),
+            'is_private'    => (bool) ($comment['is_private'] ?? false),
+            '_users_id'     => null, // resolved by IncidentMapper via GlpiResolver
+            '_author_email' => (string) ($comment['user']['email'] ?? ''),
+            '_author_name'  => (string) ($comment['user']['name']  ?? ''),
+            '_source_id'    => $comment['id'] ?? null,
+        ];
+    }
+
     public function incidentToTicket(array $incident): array
     {
         $state = (string) ($incident['state'] ?? '');

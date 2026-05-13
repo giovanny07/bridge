@@ -163,6 +163,74 @@ class IncidentMapperTest extends TestCase
     }
 
     // ------------------------------------------------------------------ //
+    // followups from comments
+    // ------------------------------------------------------------------ //
+
+    private function makeComment(array $overrides = []): array
+    {
+        return array_merge([
+            'id'         => 314608972,
+            'body'       => '<p>Resolved.</p>',
+            'user'       => ['email' => 'requester@client.com', 'name' => 'Requester'],
+            'created_at' => '2026-05-13T19:18:56.000-04:00',
+            'is_private' => false,
+        ], $overrides);
+    }
+
+    public function testMapWithCommentsProducesFollowups(): void
+    {
+        $mapper = new IncidentMapper($this->makeFullResolver(), $this->normalizer, 99, 88);
+        $result = $mapper->map($this->makeIncident(), [$this->makeComment()]);
+
+        $this->assertCount(1, $result->followups);
+    }
+
+    public function testFollowupContentIsMapped(): void
+    {
+        $mapper = new IncidentMapper($this->makeFullResolver(), $this->normalizer, 99, 88);
+        $result = $mapper->map($this->makeIncident(), [$this->makeComment()]);
+
+        $this->assertSame('<p>Resolved.</p>', $result->followups[0]['content']);
+    }
+
+    public function testFollowupUserResolvedByEmail(): void
+    {
+        $mapper = new IncidentMapper($this->makeFullResolver(), $this->normalizer, 99, 88);
+        $result = $mapper->map($this->makeIncident(), [$this->makeComment()]);
+
+        // requester@client.com is in the test resolver with id=5
+        $this->assertSame(5, $result->followups[0]['_users_id']);
+    }
+
+    public function testFollowupUserNullWhenEmailNotFound(): void
+    {
+        $mapper = new IncidentMapper($this->makeFullResolver(), $this->normalizer, 99, 88);
+        $result = $mapper->map(
+            $this->makeIncident(),
+            [$this->makeComment(['user' => ['email' => 'unknown@other.com', 'name' => 'X']])]
+        );
+
+        $this->assertNull($result->followups[0]['_users_id']);
+    }
+
+    public function testPrivateCommentMapsToPrivateFollowup(): void
+    {
+        $mapper = new IncidentMapper($this->makeFullResolver(), $this->normalizer, 99, 88);
+        $result = $mapper->map($this->makeIncident(), [$this->makeComment(['is_private' => true])]);
+
+        $this->assertTrue($result->followups[0]['is_private']);
+    }
+
+    public function testNoCommentsProducesEmptyFollowups(): void
+    {
+        $mapper = new IncidentMapper($this->makeFullResolver(), $this->normalizer, 99, 88);
+        $result = $mapper->map($this->makeIncident());
+
+        $this->assertSame([], $result->followups);
+    }
+
+
+    // ------------------------------------------------------------------ //
     // MappedIncident shape
     // ------------------------------------------------------------------ //
 

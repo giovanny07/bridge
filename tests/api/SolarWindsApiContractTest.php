@@ -447,6 +447,71 @@ class SolarWindsApiContractTest extends TestCase
         $this->assertNotEmpty($result['message']);
     }
 
+    public function testGetIncidentCommentsReturnsArray(): void
+    {
+        $this->requireCredentials();
+
+        // Find an incident with at least one comment
+        $res = $this->curl('/incidents.json?per_page=50&state=Closed');
+        $incident = null;
+        foreach ($res['json'] as $inc) {
+            if (($inc['number_of_comments'] ?? 0) > 0) {
+                $incident = $inc;
+                break;
+            }
+        }
+
+        if ($incident === null) {
+            $this->markTestSkipped('No incidents with comments found in sample.');
+        }
+
+        $comments = $this->client()->getIncidentComments((int) $incident['id']);
+
+        $this->assertIsArray($comments);
+        $this->assertNotEmpty($comments);
+
+        $first = $comments[0];
+        $this->assertArrayHasKey('id',         $first);
+        $this->assertArrayHasKey('body',        $first);
+        $this->assertArrayHasKey('user',        $first);
+        $this->assertArrayHasKey('created_at',  $first);
+        $this->assertArrayHasKey('is_private',  $first);
+        $this->assertArrayHasKey('attachments', $first);
+    }
+
+    public function testCommentIsMappableToFollowup(): void
+    {
+        $this->requireCredentials();
+
+        $res = $this->curl('/incidents.json?per_page=50&state=Closed');
+        $incident = null;
+        foreach ($res['json'] as $inc) {
+            if (($inc['number_of_comments'] ?? 0) > 0) {
+                $incident = $inc;
+                break;
+            }
+        }
+
+        if ($incident === null) {
+            $this->markTestSkipped('No incidents with comments found.');
+        }
+
+        $comments   = $this->client()->getIncidentComments((int) $incident['id']);
+        $normalizer = new SamanageNormalizer();
+
+        foreach ($comments as $comment) {
+            $followup = $normalizer->commentToFollowup($comment);
+
+            $this->assertArrayHasKey('content',       $followup);
+            $this->assertArrayHasKey('date',          $followup);
+            $this->assertArrayHasKey('is_private',    $followup);
+            $this->assertArrayHasKey('_author_email', $followup);
+            $this->assertArrayHasKey('_users_id',     $followup);
+            $this->assertIsBool($followup['is_private']);
+        }
+    }
+
+
     // ================================================================== //
     // Sub-resources
     // ================================================================== //

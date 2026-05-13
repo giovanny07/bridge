@@ -21,7 +21,13 @@ class IncidentMapper
         private readonly int                 $fallbackGroupId  = 0,
     ) {}
 
-    public function map(array $incident): MappedIncident
+    /**
+     * @param array $incident  Raw incident from the source system.
+     * @param array $comments  Raw comments (optional). Pass [] for dry-run
+     *                         to avoid extra API calls; pass the real list
+     *                         when doing the actual migration.
+     */
+    public function map(array $incident, array $comments = []): MappedIncident
     {
         $warnings = [];
 
@@ -84,13 +90,21 @@ class IncidentMapper
         // ── Assemble ticket input ────────────────────────────────────────
         $base   = $this->normalizer->incidentToTicket($incident);
         $ticket = array_merge($base, [
-            'entities_id'          => $entityId ?? 0,
-            'itilcategories_id'    => $categoryId ?? 0,
-            '_groups_id_assign'    => $groupId,
-            '_users_id_assign'     => $assigneeId,
-            '_users_id_requester'  => $requesterId,
+            'entities_id'         => $entityId ?? 0,
+            'itilcategories_id'   => $categoryId ?? 0,
+            '_groups_id_assign'   => $groupId,
+            '_users_id_assign'    => $assigneeId,
+            '_users_id_requester' => $requesterId,
         ]);
 
-        return new MappedIncident($ticket, $warnings, $incident);
+        // ── Map comments → followups ─────────────────────────────────────
+        $followups = [];
+        foreach ($comments as $comment) {
+            $followup  = $this->normalizer->commentToFollowup($comment);
+            $authorId  = $this->resolver->resolveUserByEmail($followup['_author_email']);
+            $followups[] = array_merge($followup, ['_users_id' => $authorId]);
+        }
+
+        return new MappedIncident($ticket, $warnings, $incident, $followups);
     }
 }

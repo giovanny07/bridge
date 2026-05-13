@@ -53,6 +53,7 @@ class DryRunPage
         echo '<th>' . self::h(__('Category', 'bridge')) . '</th>';
         echo '<th>' . self::h(__('Group / Assignee', 'bridge')) . '</th>';
         echo '<th>' . self::h(__('Requester', 'bridge')) . '</th>';
+        echo '<th class="text-center">' . self::h(__('Comments', 'bridge')) . '</th>';
         echo '<th>' . self::h(__('Status', 'bridge')) . '</th>';
         echo '</tr></thead><tbody>';
 
@@ -127,6 +128,12 @@ class DryRunPage
         echo '<td>' . $categoryText . '</td>';
         echo '<td>' . $assigneeText . '</td>';
         echo '<td>' . $requesterText . '</td>';
+        $commentCount = (int) ($inc['number_of_comments'] ?? 0);
+        echo '<td class="text-center">';
+        echo $commentCount > 0
+            ? '<span class="badge bg-info text-dark">' . $commentCount . '</span>'
+            : '<span class="text-muted">—</span>';
+        echo '</td>';
         echo '<td>' . $statusBadge . '</td>';
         echo '</tr>';
 

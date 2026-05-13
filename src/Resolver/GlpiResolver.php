@@ -100,7 +100,7 @@ class GlpiResolver
         if ($this->categoriesLoaded) {
             return;
         }
-        foreach ($this->db->request(['FROM' => 'glpi_itilcategories', 'WHERE' => ['is_deleted' => 0]]) as $row) {
+        foreach ($this->db->request(['FROM' => 'glpi_itilcategories']) as $row) {
             $key = $this->normalize((string) $row['name']);
             $this->categories[$key] = (int) $row['id'];
         }
@@ -112,7 +112,7 @@ class GlpiResolver
         if ($this->groupsLoaded) {
             return;
         }
-        foreach ($this->db->request(['FROM' => 'glpi_groups', 'WHERE' => ['is_deleted' => 0]]) as $row) {
+        foreach ($this->db->request(['FROM' => 'glpi_groups']) as $row) {
             $key = $this->normalize((string) $row['name']);
             $this->groups[$key] = (int) $row['id'];
         }

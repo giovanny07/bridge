@@ -31,6 +31,12 @@ interface ConnectorInterface
      */
     public function listIncidents(array $filters = [], int $page = 1, int $perPage = 50): array;
 
+    /**
+     * Fetches all comments for a single incident.
+     * Returns an array of raw comment objects from the source system.
+     */
+    public function getIncidentComments(int $incidentId): array;
+
     /** Factory method — builds the connector from a stored Connection record. */
     public static function fromConnection(Connection $connection): static;
 }

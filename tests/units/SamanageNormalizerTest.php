@@ -2,7 +2,7 @@
 
 namespace GlpiPlugin\Bridge\Tests\Units;
 
-use GlpiPlugin\Bridge\Normalizer\SamanageNormalizer;
+use GlpiPlugin\Bridge\Connector\SolarWinds\SamanageNormalizer;
 use PHPUnit\Framework\TestCase;
 
 class SamanageNormalizerTest extends TestCase
@@ -224,21 +224,76 @@ class SamanageNormalizerTest extends TestCase
     public function testIncidentToTicketPreservesSamanageId(): void
     {
         $ticket = $this->normalizer->incidentToTicket($this->makeIncident());
-        $this->assertSame(181695325, $ticket['_samanage_id']);
-        $this->assertSame(191723, $ticket['_samanage_number']);
+        $this->assertSame(181695325, $ticket['_source_id']);
+        $this->assertSame(191723, $ticket['_source_number']);
     }
 
     public function testIncidentToTicketPreservesHref(): void
     {
         $ticket = $this->normalizer->incidentToTicket($this->makeIncident());
-        $this->assertStringContainsString('181695325', $ticket['_samanage_href']);
+        $this->assertStringContainsString('181695325', $ticket['_source_href']);
     }
 
     public function testIncidentToTicketIncludesRawPayload(): void
     {
         $incident = $this->makeIncident();
         $ticket   = $this->normalizer->incidentToTicket($incident);
-        $this->assertSame($incident, $ticket['_samanage_raw']);
+        $this->assertSame($incident, $ticket['_source_raw']);
+    }
+
+    // ------------------------------------------------------------------ //
+    // commentToFollowup
+    // ------------------------------------------------------------------ //
+
+    private function makeComment(array $overrides = []): array
+    {
+        return array_merge([
+            'id'         => 314608972,
+            'body'       => '<p>Problem resolved in 12m.</p>',
+            'user'       => ['email' => 'tech@daycohost.com', 'name' => 'Tech Support'],
+            'created_at' => '2026-05-13T19:18:56.000-04:00',
+            'is_private' => false,
+        ], $overrides);
+    }
+
+    public function testCommentToFollowupMapsBody(): void
+    {
+        $f = $this->normalizer->commentToFollowup($this->makeComment());
+        $this->assertSame('<p>Problem resolved in 12m.</p>', $f['content']);
+    }
+
+    public function testCommentToFollowupMapsDate(): void
+    {
+        $f = $this->normalizer->commentToFollowup($this->makeComment());
+        $this->assertSame('2026-05-13 23:18:56', $f['date']);
+    }
+
+    public function testCommentToFollowupMapsIsPrivate(): void
+    {
+        $pub  = $this->normalizer->commentToFollowup($this->makeComment(['is_private' => false]));
+        $priv = $this->normalizer->commentToFollowup($this->makeComment(['is_private' => true]));
+        $this->assertFalse($pub['is_private']);
+        $this->assertTrue($priv['is_private']);
+    }
+
+    public function testCommentToFollowupPreservesAuthorEmail(): void
+    {
+        $f = $this->normalizer->commentToFollowup($this->makeComment());
+        $this->assertSame('tech@daycohost.com', $f['_author_email']);
+    }
+
+    public function testCommentToFollowupUsersIdIsNullInitially(): void
+    {
+        $f = $this->normalizer->commentToFollowup($this->makeComment());
+        $this->assertNull($f['_users_id']);
+    }
+
+    public function testCommentToFollowupHandlesMissingFields(): void
+    {
+        $f = $this->normalizer->commentToFollowup([]);
+        $this->assertSame('', $f['content']);
+        $this->assertNull($f['date']);
+        $this->assertFalse($f['is_private']);
     }
 
     public function testIncidentToTicketHandlesMissingFieldsGracefully(): void

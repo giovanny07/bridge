@@ -34,4 +34,11 @@ interface NormalizerInterface
      * Returns null when the input is empty or unparseable.
      */
     public function parseDate(?string $date): ?string;
+
+    /**
+     * Maps a source comment to a partial GLPI ITILFollowup input array.
+     * Must include: content, date, is_private, _author_email, _source_id.
+     * _users_id is left null — resolved by IncidentMapper via GlpiResolver.
+     */
+    public function commentToFollowup(array $comment): array;
 }
