@@ -151,6 +151,7 @@ class Connection extends CommonDBTM
                 `auth_secret` text,
                 `custom_header_name` varchar(255) DEFAULT NULL,
                 `entities_id` int {$default_key_sign} NOT NULL DEFAULT 0,
+                `default_groups_id` int {$default_key_sign} NOT NULL DEFAULT 0,
                 `is_active` tinyint NOT NULL DEFAULT 1,
                 `comment` text,
                 `date_creation` timestamp NULL DEFAULT NULL,
@@ -159,11 +160,20 @@ class Connection extends CommonDBTM
                 KEY `name` (`name`),
                 KEY `system_type` (`system_type`),
                 KEY `entities_id` (`entities_id`),
+                KEY `default_groups_id` (`default_groups_id`),
                 KEY `is_active` (`is_active`)
             ) ENGINE=InnoDB DEFAULT CHARSET={$default_charset} COLLATE={$default_collation} ROW_FORMAT=DYNAMIC;
             SQL;
 
             $DB->doQueryOrDie($query, $DB->error());
+        }
+
+        // Upgrade: add default_groups_id if missing (existing installations)
+        if (!$DB->fieldExists($table, 'default_groups_id')) {
+            $migration->displayMessage("Upgrading $table: adding default_groups_id");
+            $migration->addField($table, 'default_groups_id', "int {$default_key_sign} NOT NULL DEFAULT 0");
+            $migration->addKey($table, 'default_groups_id');
+            $migration->executeMigration();
         }
     }
 
@@ -183,6 +193,7 @@ class Connection extends CommonDBTM
             'auth_user'          => trim((string) ($input['auth_user'] ?? '')),
             'custom_header_name' => trim((string) ($input['custom_header_name'] ?? '')),
             'entities_id'        => (int) ($input['entities_id'] ?? 0),
+            'default_groups_id'  => (int) ($input['default_groups_id'] ?? 0),
             'is_active'          => isset($input['is_active']) ? 1 : 0,
             'comment'            => trim((string) ($input['comment'] ?? '')),
         ];

@@ -148,3 +148,51 @@ msgstr "Testar conexão"
 
 msgid "Testing…"
 msgstr "Testando…"
+
+msgid "Dry-run"
+msgstr "Simulação"
+
+msgid "sample of %d / %s total incidents"
+msgstr "amostra de %d / %s incidentes totais"
+
+msgid "Fully resolved"
+msgstr "Totalmente resolvido"
+
+msgid "Partial (fallback used)"
+msgstr "Parcial (padrão usado)"
+
+msgid "Unresolved"
+msgstr "Não resolvido"
+
+msgid "Incident resolution preview"
+msgstr "Pré-visualização da resolução"
+
+msgid "Incident"
+msgstr "Incidente"
+
+msgid "Entity"
+msgstr "Entidade"
+
+msgid "Category"
+msgstr "Categoria"
+
+msgid "Group / Assignee"
+msgstr "Grupo / Responsável"
+
+msgid "Requester"
+msgstr "Solicitante"
+
+msgid "Unresolved names (configure fallbacks or check spelling)"
+msgstr "Nomes não resolvidos (configure padrões ou verifique a ortografia)"
+
+msgid "Fallback entity"
+msgstr "Entidade padrão"
+
+msgid "Used when a site cannot be matched by name."
+msgstr "Usada quando um site não pode ser resolvido pelo nome."
+
+msgid "Fallback group"
+msgstr "Grupo padrão"
+
+msgid "Used when an assignee group cannot be matched by name."
+msgstr "Usado quando o grupo responsável não pode ser resolvido pelo nome."

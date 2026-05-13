@@ -1,7 +1,7 @@
 <?php
 
 use GlpiPlugin\Bridge\Connection;
-use GlpiPlugin\Bridge\Connector\SolarWindsClient;
+use GlpiPlugin\Bridge\Connector\ConnectorFactory;
 
 Session::checkRight('config', UPDATE);
 
@@ -20,7 +20,7 @@ if (($connection->fields['system_type'] ?? '') !== Connection::TYPE_SOLARWINDS) 
     exit;
 }
 
-$client = SolarWindsClient::fromConnection($connection);
+$client = ConnectorFactory::make($connection);
 $result = $client->testConnection();
 
 echo json_encode($result);

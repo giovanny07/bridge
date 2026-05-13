@@ -45,8 +45,8 @@
 namespace GlpiPlugin\Bridge\Tests\Api;
 
 use GlpiPlugin\Bridge\Connection;
-use GlpiPlugin\Bridge\Connector\SolarWindsClient;
-use GlpiPlugin\Bridge\Normalizer\SamanageNormalizer;
+use GlpiPlugin\Bridge\Connector\SolarWinds\SolarWindsClient;
+use GlpiPlugin\Bridge\Connector\SolarWinds\SamanageNormalizer;
 use PHPUnit\Framework\TestCase;
 
 #[\PHPUnit\Framework\Attributes\Group('api')]
@@ -275,14 +275,14 @@ class SolarWindsApiContractTest extends TestCase
 
         $known = [
             'Pending Assignment', 'En Proceso', 'Pendiente Acción Cliente',
-            'Solucionado', 'Closed',
+            'Solucionado', 'Closed', 'Gestión Proveedor',
             // English variants for other instances
             'New', 'Assigned', 'Waiting for Customer', 'Resolved', 'Open',
         ];
 
         foreach ($states as $state) {
             $this->assertContains($state, $known,
-                "Unexpected state '$state' — add it to SamanageNormalizer::STATE_MAP.");
+                "Unexpected state '$state' — add it to SamanageNormalizer::STATE_MAP (in Connector/SolarWinds/).");
         }
     }
 
@@ -296,7 +296,7 @@ class SolarWindsApiContractTest extends TestCase
 
         foreach ($priorities as $p) {
             $this->assertContains($p, $known,
-                "Unexpected priority '$p' — add it to SamanageNormalizer::PRIORITY_MAP.");
+                "Unexpected priority '$p' — add it to SamanageNormalizer::PRIORITY_MAP (in Connector/SolarWinds/).");
         }
     }
 
@@ -310,7 +310,7 @@ class SolarWindsApiContractTest extends TestCase
 
         foreach ($origins as $o) {
             $this->assertContains($o, $known,
-                "Unexpected origin '$o' — add it to SamanageNormalizer::ORIGIN_MAP.");
+                "Unexpected origin '$o' — add it to SamanageNormalizer::ORIGIN_MAP (in Connector/SolarWinds/).");
         }
     }
 
@@ -409,7 +409,7 @@ class SolarWindsApiContractTest extends TestCase
         $result = $this->client()->scanIncidents(3);
 
         foreach ($result['records'] as $incident) {
-            $ticket = SamanageNormalizer::incidentToTicket($incident);
+            $ticket = (new SamanageNormalizer())->incidentToTicket($incident);
 
             $this->assertNotEmpty($ticket['name'],       'Ticket name must not be empty.');
             $this->assertIsInt($ticket['status'],        'status must be int.');

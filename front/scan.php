@@ -1,7 +1,7 @@
 <?php
 
 use GlpiPlugin\Bridge\Connection;
-use GlpiPlugin\Bridge\Connector\SolarWindsClient;
+use GlpiPlugin\Bridge\Connector\ConnectorFactory;
 use GlpiPlugin\Bridge\Page\ConfigPage;
 
 Session::checkRight('config', UPDATE);
@@ -17,7 +17,7 @@ if (!$id || !$connection->getFromDB($id)) {
 Html::header(__('Bridge scan', 'bridge'), '', 'config', 'plugins');
 
 try {
-    $client = SolarWindsClient::fromConnection($connection);
+    $client = ConnectorFactory::make($connection);
     $result = $client->scanIncidents(10);
     ConfigPage::showScanResult($connection, $result);
 } catch (Throwable $e) {

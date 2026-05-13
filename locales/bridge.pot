@@ -154,3 +154,51 @@ msgstr ""
 
 msgid "Testing…"
 msgstr ""
+
+msgid "Dry-run"
+msgstr ""
+
+msgid "sample of %d / %s total incidents"
+msgstr ""
+
+msgid "Fully resolved"
+msgstr ""
+
+msgid "Partial (fallback used)"
+msgstr ""
+
+msgid "Unresolved"
+msgstr ""
+
+msgid "Incident resolution preview"
+msgstr ""
+
+msgid "Incident"
+msgstr ""
+
+msgid "Entity"
+msgstr ""
+
+msgid "Category"
+msgstr ""
+
+msgid "Group / Assignee"
+msgstr ""
+
+msgid "Requester"
+msgstr ""
+
+msgid "Unresolved names (configure fallbacks or check spelling)"
+msgstr ""
+
+msgid "Fallback entity"
+msgstr ""
+
+msgid "Used when a site cannot be matched by name."
+msgstr ""
+
+msgid "Fallback group"
+msgstr ""
+
+msgid "Used when an assignee group cannot be matched by name."
+msgstr ""

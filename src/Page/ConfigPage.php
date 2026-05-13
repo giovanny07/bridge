@@ -98,8 +98,9 @@ class ConfigPage
         global $DB;
 
         $rows    = iterator_to_array($DB->request(['FROM' => Connection::getTable(), 'ORDER' => ['name ASC']]));
-        $ajaxUrl = self::h(Plugin::getWebDir('bridge', true) . '/ajax/test_connection.php');
-        $scanUrl = self::h(Connection::getScanURL());
+        $ajaxUrl   = self::h(Plugin::getWebDir('bridge', true) . '/ajax/test_connection.php');
+        $scanUrl   = self::h(Connection::getScanURL());
+        $dryRunUrl = self::h(Plugin::getWebDir('bridge', true) . '/front/dryrun.php');
 
         echo '<div class="card h-100">';
         echo '<div class="card-header fw-semibold">';
@@ -160,6 +161,16 @@ class ConfigPage
                 echo ' title="' . self::h(__('Test connection', 'bridge')) . '">';
                 echo '<i class="ti ti-plug"></i>';
                 echo '</button>';
+
+                // Dry-run button
+                echo '<form method="post" action="' . $dryRunUrl . '" class="d-inline me-1">';
+                echo Html::hidden('_glpi_csrf_token', ['value' => Session::getNewCSRFToken()]);
+                echo Html::hidden('id', ['value' => $id]);
+                echo '<button type="submit" class="btn btn-sm btn-outline-warning"';
+                echo ' title="' . self::h(__('Dry-run', 'bridge')) . '">';
+                echo '<i class="ti ti-list-check"></i>';
+                echo '</button>';
+                echo '</form>';
 
                 // Scan button (form POST)
                 echo '<form method="post" action="' . $scanUrl . '" class="d-inline">';
@@ -248,6 +259,7 @@ class ConfigPage
             'auth_user'          => '',
             'custom_header_name' => '',
             'entities_id'        => $_SESSION['glpiactive_entity'] ?? 0,
+            'default_groups_id'  => 0,
             'is_active'          => 1,
             'comment'            => '',
             'auth_secret'        => '',
@@ -299,11 +311,21 @@ class ConfigPage
         echo '</div>';
 
         echo '<div class="col-md-6">';
-        echo '<label class="form-label">' . self::h(__('Default target entity', 'bridge')) . '</label>';
+        echo '<label class="form-label">' . self::h(__('Fallback entity', 'bridge')) . '</label>';
+        echo '<div class="form-text text-muted mb-1" style="font-size:.78rem">' . self::h(__('Used when a site cannot be matched by name.', 'bridge')) . '</div>';
         Entity::dropdown([
             'name'   => 'entities_id',
             'value'  => (int) ($fields['entities_id'] ?? 0),
             'entity' => $_SESSION['glpiactiveentities'] ?? -1,
+        ]);
+        echo '</div>';
+
+        echo '<div class="col-md-6">';
+        echo '<label class="form-label">' . self::h(__('Fallback group', 'bridge')) . '</label>';
+        echo '<div class="form-text text-muted mb-1" style="font-size:.78rem">' . self::h(__('Used when an assignee group cannot be matched by name.', 'bridge')) . '</div>';
+        \Group::dropdown([
+            'name'  => 'default_groups_id',
+            'value' => (int) ($fields['default_groups_id'] ?? 0),
         ]);
         echo '</div>';
 
