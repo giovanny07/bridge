@@ -196,3 +196,15 @@ msgstr "Grupo padrão"
 
 msgid "Used when an assignee group cannot be matched by name."
 msgstr "Usado quando o grupo responsável não pode ser resolvido pelo nome."
+
+msgid "Choose the resource type to preview before migrating."
+msgstr "Escolha o tipo de recurso para pré-visualizar antes de migrar."
+
+msgid "Not implemented yet"
+msgstr "Ainda não implementado"
+
+msgid "migration is not implemented yet. Check back in a future version."
+msgstr "a migração ainda não foi implementada. Disponível em versão futura."
+
+msgid "sample of %d / %s total"
+msgstr "amostra de %d / %s no total"

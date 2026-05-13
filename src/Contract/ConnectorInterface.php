@@ -32,6 +32,17 @@ interface ConnectorInterface
     public function listIncidents(array $filters = [], int $page = 1, int $perPage = 50): array;
 
     /**
+     * Returns all resource types this connector is aware of and whether
+     * each one is implemented for migration.
+     *
+     * Shape: [ 'incidents' => ['label' => 'Incidents', 'implemented' => true], ... ]
+     *
+     * Unimplemented entries appear in the selector UI as disabled with a
+     * "not implemented yet" badge so users know what's coming.
+     */
+    public function getResourceTypes(): array;
+
+    /**
      * Fetches all comments for a single incident.
      * Returns an array of raw comment objects from the source system.
      */

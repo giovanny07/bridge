@@ -3,7 +3,7 @@
 namespace GlpiPlugin\Bridge\Tests\Units;
 
 use GlpiPlugin\Bridge\Connection;
-use GlpiPlugin\Bridge\Connector\SolarWindsClient;
+use GlpiPlugin\Bridge\Connector\SolarWinds\SolarWindsClient;
 use PHPUnit\Framework\TestCase;
 use ReflectionClass;
 
@@ -180,6 +180,47 @@ class SolarWindsClientTest extends TestCase
 
         SolarWindsClient::fromConnection($conn);
     }
+
+    // ------------------------------------------------------------------ //
+    // getResourceTypes
+    // ------------------------------------------------------------------ //
+
+    public function testGetResourceTypesReturnsArray(): void
+    {
+        $client = $this->makeClient('https://example.com');
+        $types  = $client->getResourceTypes();
+
+        $this->assertIsArray($types);
+        $this->assertNotEmpty($types);
+    }
+
+    public function testGetResourceTypesHasIncidents(): void
+    {
+        $client = $this->makeClient('https://example.com');
+        $types  = $client->getResourceTypes();
+
+        $this->assertArrayHasKey('incidents', $types);
+        $this->assertTrue($types['incidents']['implemented'], 'incidents must be implemented');
+    }
+
+    public function testGetResourceTypesHasLabelForEachEntry(): void
+    {
+        $client = $this->makeClient('https://example.com');
+        foreach ($client->getResourceTypes() as $key => $meta) {
+            $this->assertArrayHasKey('label',       $meta, "$key must have label");
+            $this->assertArrayHasKey('implemented', $meta, "$key must have implemented flag");
+        }
+    }
+
+    public function testUnimplementedTypesArePresent(): void
+    {
+        $client = $this->makeClient('https://example.com');
+        $types  = $client->getResourceTypes();
+
+        $unimplemented = array_filter($types, fn($m) => !$m['implemented']);
+        $this->assertNotEmpty($unimplemented, 'Should have at least one future resource type listed');
+    }
+
 
     // ------------------------------------------------------------------ //
     // request — missing secret guard

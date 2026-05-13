@@ -202,3 +202,15 @@ msgstr ""
 
 msgid "Used when an assignee group cannot be matched by name."
 msgstr ""
+
+msgid "Choose the resource type to preview before migrating."
+msgstr ""
+
+msgid "Not implemented yet"
+msgstr ""
+
+msgid "migration is not implemented yet. Check back in a future version."
+msgstr ""
+
+msgid "sample of %d / %s total"
+msgstr ""

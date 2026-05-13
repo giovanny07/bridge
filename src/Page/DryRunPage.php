@@ -8,9 +8,82 @@ use GlpiPlugin\Bridge\Migration\MappedIncident;
 class DryRunPage
 {
     /**
+     * Step 1 — resource type selector.
+     * $resourceTypes comes from ConnectorInterface::getResourceTypes().
+     */
+    public static function showSelector(Connection $connection, array $resourceTypes, string $dryRunUrl): void
+    {
+        $connId = (int) $connection->fields['id'];
+
+        echo '<div class="container-fluid p-3" style="max-width:640px">';
+        echo '<div class="d-flex align-items-center justify-content-between mb-3">';
+        echo '<h4 class="m-0"><i class="ti ti-list-check me-2 text-warning"></i>';
+        echo self::h(__('Dry-run', 'bridge')) . '</h4>';
+        echo '<a class="btn btn-outline-secondary btn-sm" href="' . self::h(Connection::getConfigURL($connId)) . '">';
+        echo '<i class="ti ti-arrow-left me-1"></i>' . self::h(__('Back', 'bridge')) . '</a>';
+        echo '</div>';
+
+        echo '<div class="card">';
+        echo '<div class="card-header fw-semibold">';
+        echo '<i class="ti ti-plug me-1"></i>' . self::h($connection->fields['name']);
+        echo '</div>';
+        echo '<div class="card-body">';
+        echo '<p class="text-muted mb-3">' . self::h(__('Choose the resource type to preview before migrating.', 'bridge')) . '</p>';
+
+        foreach ($resourceTypes as $key => $meta) {
+            $implemented = (bool) ($meta['implemented'] ?? false);
+            $label       = (string) ($meta['label'] ?? $key);
+
+            echo '<div class="mb-2">';
+            if ($implemented) {
+                echo '<form method="post" action="' . self::h($dryRunUrl) . '">';
+                echo \Html::hidden('_glpi_csrf_token', ['value' => \Session::getNewCSRFToken()]);
+                echo \Html::hidden('id',            ['value' => $connId]);
+                echo \Html::hidden('resource_type', ['value' => $key]);
+                echo '<button type="submit" class="btn btn-outline-primary w-100 text-start">';
+                echo '<i class="ti ti-arrow-right me-2"></i>';
+                echo self::h($label);
+                echo '</button>';
+                echo '</form>';
+            } else {
+                echo '<div class="btn btn-outline-secondary w-100 text-start disabled d-flex justify-content-between align-items-center">';
+                echo '<span><i class="ti ti-lock me-2 text-muted"></i>' . self::h($label) . '</span>';
+                echo '<span class="badge bg-secondary">' . self::h(__('Not implemented yet', 'bridge')) . '</span>';
+                echo '</div>';
+            }
+            echo '</div>';
+        }
+
+        echo '</div>';
+        echo '</div>';
+        echo '</div>';
+    }
+
+    /**
+     * Shown when a valid but unimplemented resource type is submitted directly.
+     */
+    public static function showNotImplemented(Connection $connection, string $resourceType): void
+    {
+        echo '<div class="container-fluid p-3" style="max-width:640px">';
+        echo '<div class="alert alert-info d-flex align-items-center gap-2">';
+        echo '<i class="ti ti-clock" style="font-size:1.5rem"></i>';
+        echo '<div>';
+        echo '<strong>' . self::h($resourceType) . '</strong> — ';
+        echo self::h(__('migration is not implemented yet. Check back in a future version.', 'bridge'));
+        echo '</div>';
+        echo '</div>';
+        echo '<a class="btn btn-outline-secondary btn-sm" href="' . self::h(Connection::getConfigURL((int) $connection->fields['id'])) . '">';
+        echo '<i class="ti ti-arrow-left me-1"></i>' . self::h(__('Back', 'bridge'));
+        echo '</a>';
+        echo '</div>';
+    }
+
+    /**
+     * Step 2 — resolution results table.
+     *
      * @param MappedIncident[] $results
      */
-    public static function show(Connection $connection, array $results, int $total): void
+    public static function show(Connection $connection, array $results, int $total, string $resourceType = 'incidents'): void
     {
         $ok          = count(array_filter($results, fn($r) => $r->status === 'ok'));
         $partial     = count(array_filter($results, fn($r) => $r->status === 'partial'));
@@ -26,7 +99,8 @@ class DryRunPage
         echo self::h(__('Dry-run', 'bridge')) . '</h4>';
         echo '<div class="text-muted small mt-1">';
         echo '<i class="ti ti-plug me-1"></i>' . self::h($connection->fields['name']);
-        echo ' &mdash; ' . self::h(sprintf(__('sample of %d / %s total incidents', 'bridge'), $sample, number_format($total)));
+        echo ' &mdash; <span class="badge bg-primary me-1">' . self::h(ucfirst($resourceType)) . '</span>';
+        echo self::h(sprintf(__('sample of %d / %s total', 'bridge'), $sample, number_format($total)));
         echo '</div>';
         echo '</div>';
         echo '<a class="btn btn-outline-secondary btn-sm" href="' . self::h(Connection::getConfigURL((int) $connection->fields['id'])) . '">';

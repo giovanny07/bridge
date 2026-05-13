@@ -196,3 +196,15 @@ msgstr "Fallback group"
 
 msgid "Used when an assignee group cannot be matched by name."
 msgstr "Used when an assignee group cannot be matched by name."
+
+msgid "Choose the resource type to preview before migrating."
+msgstr "Choose the resource type to preview before migrating."
+
+msgid "Not implemented yet"
+msgstr "Not implemented yet"
+
+msgid "migration is not implemented yet. Check back in a future version."
+msgstr "migration is not implemented yet. Check back in a future version."
+
+msgid "sample of %d / %s total"
+msgstr "sample of %d / %s total"

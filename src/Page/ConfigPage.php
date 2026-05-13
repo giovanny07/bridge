@@ -162,15 +162,12 @@ class ConfigPage
                 echo '<i class="ti ti-plug"></i>';
                 echo '</button>';
 
-                // Dry-run button
-                echo '<form method="post" action="' . $dryRunUrl . '" class="d-inline me-1">';
-                echo Html::hidden('_glpi_csrf_token', ['value' => Session::getNewCSRFToken()]);
-                echo Html::hidden('id', ['value' => $id]);
-                echo '<button type="submit" class="btn btn-sm btn-outline-warning"';
+                // Dry-run button — GET to selector page (read-only, no CSRF needed)
+                echo '<a href="' . $dryRunUrl . '?id=' . $id . '"';
+                echo ' class="btn btn-sm btn-outline-warning me-1"';
                 echo ' title="' . self::h(__('Dry-run', 'bridge')) . '">';
                 echo '<i class="ti ti-list-check"></i>';
-                echo '</button>';
-                echo '</form>';
+                echo '</a>';
 
                 // Scan button (form POST)
                 echo '<form method="post" action="' . $scanUrl . '" class="d-inline">';

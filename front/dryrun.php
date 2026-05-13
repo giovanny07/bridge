@@ -8,7 +8,7 @@ use GlpiPlugin\Bridge\Resolver\GlpiResolver;
 
 Session::checkRight('config', UPDATE);
 
-$id         = (int) ($_POST['id'] ?? 0);
+$id         = (int) ($_REQUEST['id'] ?? 0);
 $connection = new Connection();
 
 if (!$id || !$connection->getFromDB($id)) {
@@ -19,24 +19,47 @@ if (!$id || !$connection->getFromDB($id)) {
 Html::header(__('Dry-run', 'bridge'), '', 'config', 'plugins');
 
 try {
-    $client     = ConnectorFactory::make($connection);
-    $normalizer = ConnectorFactory::makeNormalizer((string) $connection->fields['system_type']);
-    $scan       = $client->scanIncidents(20);
+    $client       = ConnectorFactory::make($connection);
+    $resourceTypes = $client->getResourceTypes();
+    $dryRunUrl    = Plugin::getWebDir('bridge', true) . '/front/dryrun.php';
+    $resourceType = (string) ($_POST['resource_type'] ?? '');
 
-    $resolver = GlpiResolver::create();
-    $mapper   = new IncidentMapper(
+    // ── Step 1: no resource type selected → show selector ────────────────
+    if ($resourceType === '' || !isset($resourceTypes[$resourceType])) {
+        DryRunPage::showSelector($connection, $resourceTypes, $dryRunUrl);
+        Html::footer();
+        exit;
+    }
+
+    // ── Step 2a: type not implemented → show message ──────────────────────
+    if (!($resourceTypes[$resourceType]['implemented'] ?? false)) {
+        DryRunPage::showNotImplemented($connection, $resourceTypes[$resourceType]['label'] ?? $resourceType);
+        Html::footer();
+        exit;
+    }
+
+    // ── Step 2b: implemented → run dry-run ───────────────────────────────
+    $normalizer = ConnectorFactory::makeNormalizer((string) $connection->fields['system_type']);
+    $resolver   = GlpiResolver::create();
+    $mapper     = new IncidentMapper(
         $resolver,
         $normalizer,
         (int) $connection->fields['entities_id'],
         (int) ($connection->fields['default_groups_id'] ?? 0)
     );
 
+    // Route by resource type (new types added here as they're implemented)
+    $scan = match ($resourceType) {
+        'incidents' => $client->scanIncidents(20),
+        default     => throw new RuntimeException("No scanner for: $resourceType"),
+    };
+
     $results = [];
     foreach ($scan['records'] as $incident) {
         $results[] = $mapper->map($incident);
     }
 
-    DryRunPage::show($connection, $results, $scan['total']);
+    DryRunPage::show($connection, $results, $scan['total'], $resourceType);
 } catch (Throwable $e) {
     echo '<div class="alert alert-danger m-3">';
     echo htmlspecialchars($e->getMessage(), ENT_QUOTES, 'UTF-8');

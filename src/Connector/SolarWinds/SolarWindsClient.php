@@ -102,6 +102,15 @@ class SolarWindsClient implements ConnectorInterface
         ];
     }
 
+    public function getResourceTypes(): array
+    {
+        return [
+            'incidents' => ['label' => 'Incidents',  'implemented' => true],
+            'changes'   => ['label' => 'Changes',    'implemented' => false],
+            'problems'  => ['label' => 'Problems',   'implemented' => false],
+        ];
+    }
+
     public function getIncidentComments(int $incidentId): array
     {
         $response = $this->request("/incidents/{$incidentId}/comments.json");
