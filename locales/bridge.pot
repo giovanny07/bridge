@@ -1,0 +1,156 @@
+# Bridge plugin for GLPI
+# Copyright (C) 2025 Imagunet
+# This file is distributed under the GPLv3+ license.
+#
+msgid ""
+msgstr ""
+"Project-Id-Version: bridge 0.1.0\n"
+"Report-Msgid-Bugs-To: giovanny.rodriguez@imagunet.com\n"
+"POT-Creation-Date: 2026-05-13 00:00+0000\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: LANGUAGE <LL@li.org>\n"
+"Language: \n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+
+#: src/Config.php
+msgid "Bridge"
+msgstr ""
+
+#: src/Connection.php
+msgid "Bridge connection"
+msgstr ""
+
+msgid "Connection created."
+msgstr ""
+
+msgid "Connection updated."
+msgstr ""
+
+msgid "Name and base URL are required."
+msgstr ""
+
+msgid "Unsupported source system."
+msgstr ""
+
+msgid "Unsupported authentication type."
+msgstr ""
+
+#: src/Page/ConfigPage.php
+msgid "SolarWinds scan"
+msgstr ""
+
+msgid "Back"
+msgstr ""
+
+msgid "Summary"
+msgstr ""
+
+msgid "Endpoint"
+msgstr ""
+
+msgid "HTTP status"
+msgstr ""
+
+msgid "Records found"
+msgstr ""
+
+msgid "Raw sample"
+msgstr ""
+
+msgid "Copied"
+msgstr ""
+
+msgid "Copy"
+msgstr ""
+
+msgid "Read-only discovery data. Migration is not implemented yet."
+msgstr ""
+
+msgid "Connections"
+msgstr ""
+
+msgid "No connections configured yet."
+msgstr ""
+
+msgid "Use the form on the right to add one."
+msgstr ""
+
+msgid "Edit connection"
+msgstr ""
+
+msgid "New connection"
+msgstr ""
+
+msgid "Name"
+msgstr ""
+
+msgid "e.g. SolarWinds Production"
+msgstr ""
+
+msgid "Source system"
+msgstr ""
+
+msgid "Base URL"
+msgstr ""
+
+msgid "Authentication"
+msgstr ""
+
+msgid "User"
+msgstr ""
+
+msgid "Required for Basic auth"
+msgstr ""
+
+msgid "Secret / token (leave blank to keep current)"
+msgstr ""
+
+msgid "Secret or token"
+msgstr ""
+
+msgid "Custom header name"
+msgstr ""
+
+msgid "Required for Custom header auth"
+msgstr ""
+
+msgid "Default target entity"
+msgstr ""
+
+msgid "Active"
+msgstr ""
+
+msgid "Notes"
+msgstr ""
+
+msgid "Save"
+msgstr ""
+
+msgid "Delete this connection?"
+msgstr ""
+
+msgid "Delete"
+msgstr ""
+
+msgid "Scan incidents"
+msgstr ""
+
+msgid "Fetches the first page of incidents — read only."
+msgstr ""
+
+#: front/scan.php
+msgid "Bridge scan"
+msgstr ""
+
+msgid "Connection not found."
+msgstr ""
+
+msgid "Test connection"
+msgstr ""
+
+msgid "Testing…"
+msgstr ""

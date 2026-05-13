@@ -1,0 +1,150 @@
+# Bridge plugin for GLPI — Português (Brasil)
+# Copyright (C) 2025 Imagunet
+#
+msgid ""
+msgstr ""
+"Project-Id-Version: bridge 0.1.0\n"
+"POT-Creation-Date: 2026-05-13 00:00+0000\n"
+"PO-Revision-Date: 2026-05-13 00:00+0000\n"
+"Last-Translator: Imagunet <giovanny.rodriguez@imagunet.com>\n"
+"Language-Team: Portuguese (Brazil)\n"
+"Language: pt_BR\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n > 1);\n"
+
+msgid "Bridge"
+msgstr "Bridge"
+
+msgid "Bridge connection"
+msgstr "Conexão Bridge"
+
+msgid "Connection created."
+msgstr "Conexão criada."
+
+msgid "Connection updated."
+msgstr "Conexão atualizada."
+
+msgid "Name and base URL are required."
+msgstr "Nome e URL base são obrigatórios."
+
+msgid "Unsupported source system."
+msgstr "Sistema de origem não suportado."
+
+msgid "Unsupported authentication type."
+msgstr "Tipo de autenticação não suportado."
+
+msgid "SolarWinds scan"
+msgstr "Varredura SolarWinds"
+
+msgid "Back"
+msgstr "Voltar"
+
+msgid "Summary"
+msgstr "Resumo"
+
+msgid "Endpoint"
+msgstr "Endpoint"
+
+msgid "HTTP status"
+msgstr "Status HTTP"
+
+msgid "Records found"
+msgstr "Registros encontrados"
+
+msgid "Raw sample"
+msgstr "Amostra bruta"
+
+msgid "Copied"
+msgstr "Copiado"
+
+msgid "Copy"
+msgstr "Copiar"
+
+msgid "Read-only discovery data. Migration is not implemented yet."
+msgstr "Dados de descoberta somente leitura. A migração ainda não está implementada."
+
+msgid "Connections"
+msgstr "Conexões"
+
+msgid "No connections configured yet."
+msgstr "Nenhuma conexão configurada ainda."
+
+msgid "Use the form on the right to add one."
+msgstr "Use o formulário à direita para adicionar uma."
+
+msgid "Edit connection"
+msgstr "Editar conexão"
+
+msgid "New connection"
+msgstr "Nova conexão"
+
+msgid "Name"
+msgstr "Nome"
+
+msgid "e.g. SolarWinds Production"
+msgstr "Ex. SolarWinds Produção"
+
+msgid "Source system"
+msgstr "Sistema de origem"
+
+msgid "Base URL"
+msgstr "URL base"
+
+msgid "Authentication"
+msgstr "Autenticação"
+
+msgid "User"
+msgstr "Usuário"
+
+msgid "Required for Basic auth"
+msgstr "Obrigatório para autenticação Básica"
+
+msgid "Secret / token (leave blank to keep current)"
+msgstr "Segredo / token (deixe em branco para manter o atual)"
+
+msgid "Secret or token"
+msgstr "Segredo ou token"
+
+msgid "Custom header name"
+msgstr "Nome do cabeçalho personalizado"
+
+msgid "Required for Custom header auth"
+msgstr "Obrigatório para autenticação por cabeçalho personalizado"
+
+msgid "Default target entity"
+msgstr "Entidade de destino padrão"
+
+msgid "Active"
+msgstr "Ativo"
+
+msgid "Notes"
+msgstr "Notas"
+
+msgid "Save"
+msgstr "Salvar"
+
+msgid "Delete this connection?"
+msgstr "Excluir esta conexão?"
+
+msgid "Delete"
+msgstr "Excluir"
+
+msgid "Scan incidents"
+msgstr "Varrer incidentes"
+
+msgid "Fetches the first page of incidents — read only."
+msgstr "Obtém a primeira página de incidentes — somente leitura."
+
+msgid "Bridge scan"
+msgstr "Varredura Bridge"
+
+msgid "Connection not found."
+msgstr "Conexão não encontrada."
+
+msgid "Test connection"
+msgstr "Testar conexão"
+
+msgid "Testing…"
+msgstr "Testando…"

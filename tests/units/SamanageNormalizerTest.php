@@ -1,0 +1,246 @@
+<?php
+
+namespace GlpiPlugin\Bridge\Tests\Units;
+
+use GlpiPlugin\Bridge\Normalizer\SamanageNormalizer;
+use PHPUnit\Framework\TestCase;
+
+class SamanageNormalizerTest extends TestCase
+{
+    // ------------------------------------------------------------------ //
+    // mapState
+    // ------------------------------------------------------------------ //
+
+    #[\PHPUnit\Framework\Attributes\DataProvider('knownStateProvider')]
+    public function testMapStateKnownValues(string $samanage, int $expectedGlpi): void
+    {
+        $this->assertSame($expectedGlpi, SamanageNormalizer::mapState($samanage));
+    }
+
+    public static function knownStateProvider(): array
+    {
+        return [
+            // Spanish states observed on servicios.daycohost.com (2026-05-13)
+            ['Pending Assignment',       SamanageNormalizer::GLPI_STATUS_NEW],
+            ['En Proceso',               SamanageNormalizer::GLPI_STATUS_ASSIGNED],
+            ['Pendiente Acción Cliente', SamanageNormalizer::GLPI_STATUS_PENDING],
+            ['Solucionado',              SamanageNormalizer::GLPI_STATUS_SOLVED],
+            ['Closed',                   SamanageNormalizer::GLPI_STATUS_CLOSED],
+            // English equivalents for other Samanage instances
+            ['New',                      SamanageNormalizer::GLPI_STATUS_NEW],
+            ['Assigned',                 SamanageNormalizer::GLPI_STATUS_ASSIGNED],
+            ['Waiting for Customer',     SamanageNormalizer::GLPI_STATUS_PENDING],
+            ['Resolved',                 SamanageNormalizer::GLPI_STATUS_SOLVED],
+        ];
+    }
+
+    public function testMapStateUnknownValueFallsBackToNew(): void
+    {
+        $this->assertSame(SamanageNormalizer::GLPI_STATUS_NEW, SamanageNormalizer::mapState('Whatever'));
+    }
+
+    public function testMapStateEmptyStringFallsBackToNew(): void
+    {
+        $this->assertSame(SamanageNormalizer::GLPI_STATUS_NEW, SamanageNormalizer::mapState(''));
+    }
+
+    // ------------------------------------------------------------------ //
+    // mapPriority
+    // ------------------------------------------------------------------ //
+
+    #[\PHPUnit\Framework\Attributes\DataProvider('knownPriorityProvider')]
+    public function testMapPriorityKnownValues(string $samanage, int $expectedGlpi): void
+    {
+        $this->assertSame($expectedGlpi, SamanageNormalizer::mapPriority($samanage));
+    }
+
+    public static function knownPriorityProvider(): array
+    {
+        return [
+            // Observed on servicios.daycohost.com (2026-05-13)
+            ['Low',      SamanageNormalizer::GLPI_PRIORITY_LOW],
+            ['Medium',   SamanageNormalizer::GLPI_PRIORITY_MEDIUM],
+            ['High',     SamanageNormalizer::GLPI_PRIORITY_HIGH],
+            ['Critical', SamanageNormalizer::GLPI_PRIORITY_VERY_HIGH],
+        ];
+    }
+
+    public function testMapPriorityUnknownFallsBackToMedium(): void
+    {
+        $this->assertSame(SamanageNormalizer::GLPI_PRIORITY_MEDIUM, SamanageNormalizer::mapPriority('Urgent'));
+    }
+
+    // ------------------------------------------------------------------ //
+    // mapOrigin
+    // ------------------------------------------------------------------ //
+
+    #[\PHPUnit\Framework\Attributes\DataProvider('knownOriginProvider')]
+    public function testMapOriginKnownValues(string $samanage, int $expectedGlpi): void
+    {
+        $this->assertSame($expectedGlpi, SamanageNormalizer::mapOrigin($samanage));
+    }
+
+    public static function knownOriginProvider(): array
+    {
+        return [
+            // Observed on servicios.daycohost.com (2026-05-13)
+            ['web',      SamanageNormalizer::GLPI_ORIGIN_HELPDESK],
+            ['api',      SamanageNormalizer::GLPI_ORIGIN_OTHER],
+            ['external', SamanageNormalizer::GLPI_ORIGIN_OTHER],
+            ['email',    SamanageNormalizer::GLPI_ORIGIN_EMAIL],
+            // Case-insensitive
+            ['Web',      SamanageNormalizer::GLPI_ORIGIN_HELPDESK],
+            ['API',      SamanageNormalizer::GLPI_ORIGIN_OTHER],
+        ];
+    }
+
+    public function testMapOriginUnknownFallsBackToOther(): void
+    {
+        $this->assertSame(SamanageNormalizer::GLPI_ORIGIN_OTHER, SamanageNormalizer::mapOrigin('portal'));
+    }
+
+    // ------------------------------------------------------------------ //
+    // parseDate
+    // ------------------------------------------------------------------ //
+
+    public function testParseDateConvertsIso8601ToMysqlUtc(): void
+    {
+        // "2026-05-13T16:40:26.000-04:00" → UTC is 2026-05-13 20:40:26
+        $result = SamanageNormalizer::parseDate('2026-05-13T16:40:26.000-04:00');
+        $this->assertSame('2026-05-13 20:40:26', $result);
+    }
+
+    public function testParseDateReturnsNullForNull(): void
+    {
+        $this->assertNull(SamanageNormalizer::parseDate(null));
+    }
+
+    public function testParseDateReturnsNullForEmptyString(): void
+    {
+        $this->assertNull(SamanageNormalizer::parseDate(''));
+    }
+
+    public function testParseDateReturnsNullForGarbage(): void
+    {
+        $this->assertNull(SamanageNormalizer::parseDate('not-a-date'));
+    }
+
+    public function testParseDateHandlesUtcOffset(): void
+    {
+        $result = SamanageNormalizer::parseDate('2026-01-15T10:00:00.000+00:00');
+        $this->assertSame('2026-01-15 10:00:00', $result);
+    }
+
+    // ------------------------------------------------------------------ //
+    // incidentToTicket
+    // ------------------------------------------------------------------ //
+
+    private function makeIncident(array $overrides = []): array
+    {
+        return array_merge([
+            'id'                  => 181695325,
+            'number'              => 191723,
+            'name'                => 'Memory critical on VDCPMWEM2',
+            'description'         => '<p>High memory usage detected.</p>',
+            'description_no_html' => 'High memory usage detected.',
+            'state'               => 'En Proceso',
+            'priority'            => 'High',
+            'origin'              => 'api',
+            'created_at'          => '2026-05-13T16:40:26.000-04:00',
+            'updated_at'          => '2026-05-13T16:40:37.000-04:00',
+            'href'                => 'https://servicios.daycohost.com/incidents/181695325',
+        ], $overrides);
+    }
+
+    public function testIncidentToTicketMapsName(): void
+    {
+        $ticket = SamanageNormalizer::incidentToTicket($this->makeIncident());
+        $this->assertSame('Memory critical on VDCPMWEM2', $ticket['name']);
+    }
+
+    public function testIncidentToTicketPrefersDescriptionNoHtml(): void
+    {
+        $ticket = SamanageNormalizer::incidentToTicket($this->makeIncident());
+        $this->assertSame('High memory usage detected.', $ticket['content']);
+        $this->assertStringNotContainsString('<p>', $ticket['content']);
+    }
+
+    public function testIncidentToTicketFallsBackToDescriptionWhenNoHtmlMissing(): void
+    {
+        $incident = $this->makeIncident(['description_no_html' => null]);
+        $ticket   = SamanageNormalizer::incidentToTicket($incident);
+        $this->assertSame('<p>High memory usage detected.</p>', $ticket['content']);
+    }
+
+    public function testIncidentToTicketMapsStatus(): void
+    {
+        $ticket = SamanageNormalizer::incidentToTicket($this->makeIncident(['state' => 'En Proceso']));
+        $this->assertSame(SamanageNormalizer::GLPI_STATUS_ASSIGNED, $ticket['status']);
+    }
+
+    public function testIncidentToTicketMapsPriority(): void
+    {
+        $ticket = SamanageNormalizer::incidentToTicket($this->makeIncident(['priority' => 'High']));
+        $this->assertSame(SamanageNormalizer::GLPI_PRIORITY_HIGH, $ticket['priority']);
+    }
+
+    public function testIncidentToTicketMapsDate(): void
+    {
+        $ticket = SamanageNormalizer::incidentToTicket($this->makeIncident());
+        $this->assertSame('2026-05-13 20:40:26', $ticket['date']);
+    }
+
+    public function testIncidentToTicketSolveDateSetWhenSolucionado(): void
+    {
+        $ticket = SamanageNormalizer::incidentToTicket($this->makeIncident(['state' => 'Solucionado']));
+        $this->assertNotNull($ticket['solvedate']);
+    }
+
+    public function testIncidentToTicketSolveDateNullWhenOpen(): void
+    {
+        $ticket = SamanageNormalizer::incidentToTicket($this->makeIncident(['state' => 'En Proceso']));
+        $this->assertNull($ticket['solvedate']);
+    }
+
+    public function testIncidentToTicketCloseDateSetWhenClosed(): void
+    {
+        $ticket = SamanageNormalizer::incidentToTicket($this->makeIncident(['state' => 'Closed']));
+        $this->assertNotNull($ticket['closedate']);
+    }
+
+    public function testIncidentToTicketCloseDateNullWhenNotClosed(): void
+    {
+        $ticket = SamanageNormalizer::incidentToTicket($this->makeIncident(['state' => 'En Proceso']));
+        $this->assertNull($ticket['closedate']);
+    }
+
+    public function testIncidentToTicketPreservesSamanageId(): void
+    {
+        $ticket = SamanageNormalizer::incidentToTicket($this->makeIncident());
+        $this->assertSame(181695325, $ticket['_samanage_id']);
+        $this->assertSame(191723, $ticket['_samanage_number']);
+    }
+
+    public function testIncidentToTicketPreservesHref(): void
+    {
+        $ticket = SamanageNormalizer::incidentToTicket($this->makeIncident());
+        $this->assertStringContainsString('181695325', $ticket['_samanage_href']);
+    }
+
+    public function testIncidentToTicketIncludesRawPayload(): void
+    {
+        $incident = $this->makeIncident();
+        $ticket   = SamanageNormalizer::incidentToTicket($incident);
+        $this->assertSame($incident, $ticket['_samanage_raw']);
+    }
+
+    public function testIncidentToTicketHandlesMissingFieldsGracefully(): void
+    {
+        $ticket = SamanageNormalizer::incidentToTicket([]);
+        $this->assertSame('', $ticket['name']);
+        $this->assertSame('', $ticket['content']);
+        $this->assertSame(SamanageNormalizer::GLPI_STATUS_NEW, $ticket['status']);
+        $this->assertSame(SamanageNormalizer::GLPI_PRIORITY_MEDIUM, $ticket['priority']);
+        $this->assertNull($ticket['date']);
+    }
+}

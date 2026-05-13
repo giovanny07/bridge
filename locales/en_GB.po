@@ -1,0 +1,150 @@
+# Bridge plugin for GLPI — English (GB)
+# Copyright (C) 2025 Imagunet
+#
+msgid ""
+msgstr ""
+"Project-Id-Version: bridge 0.1.0\n"
+"POT-Creation-Date: 2026-05-13 00:00+0000\n"
+"PO-Revision-Date: 2026-05-13 00:00+0000\n"
+"Last-Translator: Imagunet <giovanny.rodriguez@imagunet.com>\n"
+"Language-Team: English\n"
+"Language: en_GB\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+
+msgid "Bridge"
+msgstr "Bridge"
+
+msgid "Bridge connection"
+msgstr "Bridge connection"
+
+msgid "Connection created."
+msgstr "Connection created."
+
+msgid "Connection updated."
+msgstr "Connection updated."
+
+msgid "Name and base URL are required."
+msgstr "Name and base URL are required."
+
+msgid "Unsupported source system."
+msgstr "Unsupported source system."
+
+msgid "Unsupported authentication type."
+msgstr "Unsupported authentication type."
+
+msgid "SolarWinds scan"
+msgstr "SolarWinds scan"
+
+msgid "Back"
+msgstr "Back"
+
+msgid "Summary"
+msgstr "Summary"
+
+msgid "Endpoint"
+msgstr "Endpoint"
+
+msgid "HTTP status"
+msgstr "HTTP status"
+
+msgid "Records found"
+msgstr "Records found"
+
+msgid "Raw sample"
+msgstr "Raw sample"
+
+msgid "Copied"
+msgstr "Copied"
+
+msgid "Copy"
+msgstr "Copy"
+
+msgid "Read-only discovery data. Migration is not implemented yet."
+msgstr "Read-only discovery data. Migration is not implemented yet."
+
+msgid "Connections"
+msgstr "Connections"
+
+msgid "No connections configured yet."
+msgstr "No connections configured yet."
+
+msgid "Use the form on the right to add one."
+msgstr "Use the form on the right to add one."
+
+msgid "Edit connection"
+msgstr "Edit connection"
+
+msgid "New connection"
+msgstr "New connection"
+
+msgid "Name"
+msgstr "Name"
+
+msgid "e.g. SolarWinds Production"
+msgstr "e.g. SolarWinds Production"
+
+msgid "Source system"
+msgstr "Source system"
+
+msgid "Base URL"
+msgstr "Base URL"
+
+msgid "Authentication"
+msgstr "Authentication"
+
+msgid "User"
+msgstr "User"
+
+msgid "Required for Basic auth"
+msgstr "Required for Basic auth"
+
+msgid "Secret / token (leave blank to keep current)"
+msgstr "Secret / token (leave blank to keep current)"
+
+msgid "Secret or token"
+msgstr "Secret or token"
+
+msgid "Custom header name"
+msgstr "Custom header name"
+
+msgid "Required for Custom header auth"
+msgstr "Required for Custom header auth"
+
+msgid "Default target entity"
+msgstr "Default target entity"
+
+msgid "Active"
+msgstr "Active"
+
+msgid "Notes"
+msgstr "Notes"
+
+msgid "Save"
+msgstr "Save"
+
+msgid "Delete this connection?"
+msgstr "Delete this connection?"
+
+msgid "Delete"
+msgstr "Delete"
+
+msgid "Scan incidents"
+msgstr "Scan incidents"
+
+msgid "Fetches the first page of incidents — read only."
+msgstr "Fetches the first page of incidents — read only."
+
+msgid "Bridge scan"
+msgstr "Bridge scan"
+
+msgid "Connection not found."
+msgstr "Connection not found."
+
+msgid "Test connection"
+msgstr "Test connection"
+
+msgid "Testing…"
+msgstr "Testing…"
