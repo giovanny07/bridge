@@ -136,7 +136,7 @@ class SamanageNormalizer implements NormalizerInterface
             return null;
         }
 
-        // 1. resolution_description is the authoritative solution text when present
+        // 1. resolution_description — authoritative solution text written by a technician
         $desc = trim(strip_tags((string) ($incident['resolution_description'] ?? '')));
         if ($desc !== '') {
             return [
@@ -148,26 +148,22 @@ class SamanageNormalizer implements NormalizerInterface
             ];
         }
 
-        // 2. Fall back to last comment as solution
-        if (!empty($comments)) {
-            $last = end($comments);
+        // 2. resolution_code — brief label set by the technician (e.g. "Alarma Mitigada")
+        $code = trim((string) ($incident['resolution_code'] ?? ''));
+        if ($code !== '') {
             return [
-                'content'          => (string) ($last['body'] ?? ''),
-                'date'             => $this->parseDate($last['created_at'] ?? null),
-                '_author_email'    => (string) ($last['user']['email'] ?? ''),
+                'content'          => $code,
+                'date'             => $this->parseDate($incident['updated_at'] ?? null),
+                '_author_email'    => '',
                 '_users_id'        => null,
-                '_skip_comment_id' => $last['id'] ?? null,
+                '_skip_comment_id' => null,
             ];
         }
 
-        // 3. Closed with no comments — minimal solution record
-        return [
-            'content'          => (string) ($incident['name'] ?? 'Closed'),
-            'date'             => $this->parseDate($incident['updated_at'] ?? null),
-            '_author_email'    => '',
-            '_users_id'        => null,
-            '_skip_comment_id' => null,
-        ];
+        // 3. Auto-closed alerts (Zabbix, API) have no explicit resolution.
+        // Return null so all comments stay as followups and the ticket is
+        // simply closed by status=6 without a formal ITILSolution record.
+        return null;
     }
 
     public function incidentToTicket(array $incident): array

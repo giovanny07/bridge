@@ -234,30 +234,28 @@ class IncidentMapperTest extends TestCase
     // solution extraction in map()
     // ------------------------------------------------------------------ //
 
-    public function testClosedIncidentWithCommentsHasSolution(): void
+    public function testClosedIncidentWithResolutionDescriptionHasSolution(): void
     {
         $mapper   = new IncidentMapper($this->makeFullResolver(), $this->normalizer, 99, 88);
-        $incident = $this->makeIncident(['state' => 'Closed']);
+        $incident = $this->makeIncident(['state' => 'Closed', 'resolution_description' => 'Se restauró el servicio.']);
         $result   = $mapper->map($incident, [$this->makeComment()]);
 
         $this->assertNotNull($result->solution);
-        $this->assertArrayHasKey('content', $result->solution);
+        $this->assertStringContainsString('restauró', $result->solution['content']);
     }
 
-    public function testSolutionCommentIsNotAlsoAddedAsFollowup(): void
+    public function testAllCommentsAreFollowupsWhenNoResolution(): void
     {
         $mapper   = new IncidentMapper($this->makeFullResolver(), $this->normalizer, 99, 88);
-        $incident = $this->makeIncident(['state' => 'Closed', 'resolution_description' => null]);
+        $incident = $this->makeIncident(['state' => 'Closed', 'resolution_description' => null, 'resolution_code' => null]);
         $comments = [
             $this->makeComment(['id' => 1, 'body' => '<p>First followup</p>']),
-            $this->makeComment(['id' => 2, 'body' => '<p>Resolution</p>']),
+            $this->makeComment(['id' => 2, 'body' => '<p>Second followup</p>']),
         ];
         $result = $mapper->map($incident, $comments);
 
-        // Solution = comment #2, followups = only comment #1
-        $this->assertCount(1, $result->followups);
-        $this->assertStringContainsString('First followup', $result->followups[0]['content']);
-        $this->assertStringContainsString('Resolution', $result->solution['content']);
+        $this->assertNull($result->solution);
+        $this->assertCount(2, $result->followups);
     }
 
     public function testOpenIncidentHasNoSolution(): void
@@ -266,7 +264,19 @@ class IncidentMapperTest extends TestCase
         $result = $mapper->map($this->makeIncident(['state' => 'En Proceso']), [$this->makeComment()]);
 
         $this->assertNull($result->solution);
-        $this->assertCount(1, $result->followups); // comment is a followup, not a solution
+        $this->assertCount(1, $result->followups);
+    }
+
+    public function testAutoClosedWithoutResolutionHasNoSolution(): void
+    {
+        // Auto-closed tickets (Zabbix) have no resolution_description/code.
+        // All comments stay as followups — no ITILSolution created.
+        $mapper   = new IncidentMapper($this->makeFullResolver(), $this->normalizer, 99, 88);
+        $incident = $this->makeIncident(['state' => 'Closed']);
+        $result   = $mapper->map($incident, [$this->makeComment(['body' => 'Problem resolved at 10:00'])]);
+
+        $this->assertNull($result->solution);
+        $this->assertCount(1, $result->followups);
     }
 
     public function testResolutionDescriptionTakesPriorityOverLastComment(): void

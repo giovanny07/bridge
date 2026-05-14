@@ -58,6 +58,7 @@ try {
 
     $options = [
         'limit'               => max(1, min(500, (int) ($_POST['limit'] ?? 50))),
+        'start_page'          => max(1, (int) ($_POST['start_page'] ?? 1)),
         'state'               => (string) ($_POST['state'] ?? ''),
         'created_after'       => (string) ($_POST['created_after'] ?? ''),
         'updated_after'       => (string) ($_POST['updated_after'] ?? ''),

@@ -189,32 +189,29 @@ class SamanageNormalizerTest extends TestCase
         $this->assertNull($result['_skip_comment_id']);
     }
 
-    public function testExtractSolutionUsesLastCommentWhenNoResolutionDescription(): void
+    public function testExtractSolutionReturnsNullWhenNoResolutionAndNoCode(): void
     {
-        $incident = $this->makeIncident(['state' => 'Closed', 'resolution_description' => null]);
+        // Auto-closed alerts have no resolution_description or resolution_code.
+        // All comments should remain as followups — no ITILSolution created.
+        $incident = $this->makeIncident(['state' => 'Closed', 'resolution_description' => null, 'resolution_code' => null]);
         $comments = [
-            ['id' => 1, 'body' => '<p>First comment</p>', 'user' => ['email' => 'a@b.com', 'name' => 'A'], 'created_at' => '2026-05-13T10:00:00.000-04:00', 'is_private' => false, 'attachments' => []],
-            ['id' => 2, 'body' => '<p>Resolution comment</p>', 'user' => ['email' => 'tech@b.com', 'name' => 'T'], 'created_at' => '2026-05-13T12:00:00.000-04:00', 'is_private' => false, 'attachments' => []],
+            ['id' => 1, 'body' => 'Problem resolved at 10:00', 'user' => ['email' => 'a@b.com', 'name' => 'A'], 'created_at' => '2026-05-13T10:00:00.000-04:00', 'is_private' => false, 'attachments' => []],
         ];
 
         $result = $this->normalizer->extractSolution($incident, $comments);
 
-        $this->assertNotNull($result);
-        $this->assertStringContainsString('Resolution', $result['content']);
-        $this->assertSame(2, $result['_skip_comment_id']);
+        $this->assertNull($result);
     }
 
-    public function testExtractSolutionSkipCommentIdMatchesLastComment(): void
+    public function testExtractSolutionUsesResolutionCode(): void
     {
-        $incident = $this->makeIncident(['state' => 'Solucionado', 'resolution_description' => '']);
-        $comments = [
-            ['id' => 10, 'body' => 'A', 'user' => ['email' => 'a@b.com', 'name' => 'A'], 'created_at' => '2026-05-13T10:00:00.000-04:00', 'is_private' => false, 'attachments' => []],
-            ['id' => 20, 'body' => 'B', 'user' => ['email' => 'b@b.com', 'name' => 'B'], 'created_at' => '2026-05-13T11:00:00.000-04:00', 'is_private' => false, 'attachments' => []],
-        ];
+        $incident = $this->makeIncident(['state' => 'Closed', 'resolution_description' => null, 'resolution_code' => 'Requerimiento Completado']);
 
-        $result = $this->normalizer->extractSolution($incident, $comments);
+        $result = $this->normalizer->extractSolution($incident, []);
 
-        $this->assertSame(20, $result['_skip_comment_id']);
+        $this->assertNotNull($result);
+        $this->assertSame('Requerimiento Completado', $result['content']);
+        $this->assertNull($result['_skip_comment_id']);
     }
 
 

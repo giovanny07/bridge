@@ -42,6 +42,7 @@ class MigrationEngine
         $includeComm = (bool) ($options['include_comments'] ?? true);
         $includeAtt  = (bool) ($options['include_attachments'] ?? false);
         $isDryRun    = (bool) ($options['dry_run'] ?? false);
+        $startPage   = max(1, (int) ($options['start_page'] ?? 1));
         $filters     = $this->buildFilters($options);
 
         $mapper = new IncidentMapper(
@@ -54,7 +55,7 @@ class MigrationEngine
 
         $result          = new MigrationResult();
         $result->isDryRun = $isDryRun;
-        $page            = 1;
+        $page            = $startPage;
 
         while ($result->total() < $limit) {
             $remaining = $limit - $result->total();

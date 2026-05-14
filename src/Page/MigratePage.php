@@ -120,6 +120,14 @@ class MigratePage
         echo '<div class="form-text">' . self::h(__('Max records per run.', 'bridge')) . '</div>';
         echo '</div>';
 
+        echo '<div class="col-md-4">';
+        echo '<label class="form-label">' . self::h(__('Start from page', 'bridge')) . '</label>';
+        echo '<input type="number" class="form-control" name="start_page" value="1" min="1">';
+        echo '<div class="form-text text-muted" style="font-size:.75rem">';
+        echo self::h(__('API returns newest first. Use ~200 for April 2026, ~1870 for April 2024.', 'bridge'));
+        echo '</div>';
+        echo '</div>';
+
         // Options
         echo '<div class="col-12"><hr class="my-1"></div>';
         echo '<div class="col-12"><p class="fw-semibold mb-1">' . self::h(__('Content', 'bridge')) . '</p></div>';
