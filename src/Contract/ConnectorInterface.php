@@ -48,6 +48,14 @@ interface ConnectorInterface
      */
     public function getIncidentComments(int $incidentId): array;
 
+    /**
+     * Downloads a file attachment from the source system using the connector's
+     * own authentication. Returns null on failure (network error, 4xx, etc.).
+     *
+     * Return shape: ['content' => string, 'filename' => string, 'mime' => string]
+     */
+    public function downloadAttachment(string $url): ?array;
+
     /** Factory method — builds the connector from a stored Connection record. */
     public static function fromConnection(Connection $connection): static;
 }

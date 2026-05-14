@@ -98,9 +98,11 @@ class ConfigPage
         global $DB;
 
         $rows    = iterator_to_array($DB->request(['FROM' => Connection::getTable(), 'ORDER' => ['name ASC']]));
-        $ajaxUrl   = self::h(Plugin::getWebDir('bridge', true) . '/ajax/test_connection.php');
-        $scanUrl   = self::h(Connection::getScanURL());
-        $dryRunUrl = self::h(Plugin::getWebDir('bridge', true) . '/front/dryrun.php');
+        $ajaxUrl    = self::h(Plugin::getWebDir('bridge', true) . '/ajax/test_connection.php');
+        $scanUrl    = self::h(Connection::getScanURL());
+        $dryRunUrl  = self::h(Plugin::getWebDir('bridge', true) . '/front/dryrun.php');
+        $migrateUrl = self::h(Plugin::getWebDir('bridge', true) . '/front/migrate.php');
+        $historyUrl = self::h(Plugin::getWebDir('bridge', true) . '/front/migration_history.php');
 
         echo '<div class="card h-100">';
         echo '<div class="card-header fw-semibold">';
@@ -161,6 +163,20 @@ class ConfigPage
                 echo ' title="' . self::h(__('Test connection', 'bridge')) . '">';
                 echo '<i class="ti ti-plug"></i>';
                 echo '</button>';
+
+                // Migrate button
+                echo '<a href="' . $migrateUrl . '?id=' . $id . '"';
+                echo ' class="btn btn-sm btn-primary me-1"';
+                echo ' title="' . self::h(__('Migrate', 'bridge')) . '">';
+                echo '<i class="ti ti-database-import"></i>';
+                echo '</a>';
+
+                // History button
+                echo '<a href="' . $historyUrl . '?id=' . $id . '"';
+                echo ' class="btn btn-sm btn-outline-secondary me-1"';
+                echo ' title="' . self::h(__('Migration history', 'bridge')) . '">';
+                echo '<i class="ti ti-history"></i>';
+                echo '</a>';
 
                 // Dry-run button — GET to selector page (read-only, no CSRF needed)
                 echo '<a href="' . $dryRunUrl . '?id=' . $id . '"';

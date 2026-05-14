@@ -110,13 +110,17 @@ class SamanageNormalizer implements NormalizerInterface
     public function commentToFollowup(array $comment): array
     {
         return [
-            'content'       => (string) ($comment['body'] ?? ''),
-            'date'          => $this->parseDate($comment['created_at'] ?? null),
-            'is_private'    => (bool) ($comment['is_private'] ?? false),
-            '_users_id'     => null, // resolved by IncidentMapper via GlpiResolver
-            '_author_email' => (string) ($comment['user']['email'] ?? ''),
-            '_author_name'  => (string) ($comment['user']['name']  ?? ''),
-            '_source_id'    => $comment['id'] ?? null,
+            'content'              => (string) ($comment['body'] ?? ''),
+            'date'                 => $this->parseDate($comment['created_at'] ?? null),
+            'is_private'           => (bool) ($comment['is_private'] ?? false),
+            '_users_id'            => null, // resolved by IncidentMapper via GlpiResolver
+            '_author_email'        => (string) ($comment['user']['email'] ?? ''),
+            '_author_name'         => (string) ($comment['user']['name']  ?? ''),
+            '_source_id'           => $comment['id'] ?? null,
+            // Attachments preserved so MigrationEngine can download them
+            '_attachments'         => $comment['attachments']        ?? [],
+            '_inline_attachments'  => $comment['inline_attachments'] ?? [],
+            '_shared_attachments'  => $comment['shared_attachments'] ?? [],
         ];
     }
 

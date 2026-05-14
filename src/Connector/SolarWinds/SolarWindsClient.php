@@ -111,6 +111,38 @@ class SolarWindsClient implements ConnectorInterface
         ];
     }
 
+    public function downloadAttachment(string $url): ?array
+    {
+        if ($url === '' || !function_exists('curl_init')) {
+            return null;
+        }
+
+        $filename = basename((string) parse_url($url, PHP_URL_PATH)) ?: 'attachment';
+        $curl     = curl_init($url);
+        curl_setopt_array($curl, [
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_HTTPHEADER     => $this->buildAuthHeaders(),
+            CURLOPT_CONNECTTIMEOUT => 15,
+            CURLOPT_TIMEOUT        => 60,
+            CURLOPT_FOLLOWLOCATION => true,
+        ]);
+
+        $content  = curl_exec($curl);
+        $status   = (int) curl_getinfo($curl, CURLINFO_RESPONSE_CODE);
+        $mime     = (string) curl_getinfo($curl, CURLINFO_CONTENT_TYPE);
+        curl_close($curl);
+
+        if ($content === false || $content === '' || $status < 200 || $status >= 300) {
+            return null;
+        }
+
+        return [
+            'content'  => $content,
+            'filename' => $filename,
+            'mime'     => trim(explode(';', $mime)[0] ?? 'application/octet-stream'),
+        ];
+    }
+
     public function getIncidentComments(int $incidentId): array
     {
         $response = $this->request("/incidents/{$incidentId}/comments.json");
