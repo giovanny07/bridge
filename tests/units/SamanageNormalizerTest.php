@@ -110,11 +110,15 @@ class SamanageNormalizerTest extends TestCase
     // parseDate
     // ------------------------------------------------------------------ //
 
-    public function testParseDateConvertsIso8601ToMysqlUtc(): void
+    public function testParseDateConvertsToServerLocalTime(): void
     {
-        // "2026-05-13T16:40:26.000-04:00" → UTC is 2026-05-13 20:40:26
+        // Result depends on server timezone. In UTC (test env): 2026-05-13 20:40:26.
+        // On Venezuela server (-04:00): 2026-05-13 16:40:26 (local time).
         $result = $this->normalizer->parseDate('2026-05-13T16:40:26.000-04:00');
-        $this->assertSame('2026-05-13 20:40:26', $result);
+        $expected = (new \DateTimeImmutable('2026-05-13T16:40:26.000-04:00'))
+            ->setTimezone(new \DateTimeZone(date_default_timezone_get()))
+            ->format('Y-m-d H:i:s');
+        $this->assertSame($expected, $result);
     }
 
     public function testParseDateReturnsNullForNull(): void
