@@ -122,7 +122,7 @@ class SolarWindsClient implements ConnectorInterface
             $url = rtrim($this->baseUrl, '/') . $url;
         }
 
-        $filename = basename((string) parse_url($url, PHP_URL_PATH)) ?: 'attachment';
+        $filename = urldecode(basename((string) parse_url($url, PHP_URL_PATH)) ?: 'attachment');
         $curl     = curl_init($url);
         curl_setopt_array($curl, [
             CURLOPT_RETURNTRANSFER => true,

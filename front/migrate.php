@@ -63,8 +63,9 @@ try {
         'state'               => (string) ($_POST['state'] ?? ''),
         'created_after'       => (string) ($_POST['created_after'] ?? ''),
         'updated_after'       => (string) ($_POST['updated_after'] ?? ''),
-        'include_comments'    => isset($_POST['include_comments']),
-        'include_attachments' => isset($_POST['include_attachments']),
+        'include_comments'      => isset($_POST['include_comments']),
+        'include_attachments'   => isset($_POST['include_attachments']),
+        'keep_private_comments' => isset($_POST['keep_private_comments']),
         'dry_run'             => $action === 'dryrun',
     ];
 

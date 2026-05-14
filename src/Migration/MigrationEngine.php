@@ -43,8 +43,9 @@ class MigrationEngine
     public function run(array $options): MigrationResult
     {
         $limit       = max(1, (int) ($options['limit'] ?? 50));
-        $includeComm = (bool) ($options['include_comments'] ?? true);
-        $includeAtt  = (bool) ($options['include_attachments'] ?? false);
+        $includeComm    = (bool) ($options['include_comments'] ?? true);
+        $includeAtt     = (bool) ($options['include_attachments'] ?? false);
+        $keepPrivate    = (bool) ($options['keep_private_comments'] ?? false);
         $isDryRun    = (bool) ($options['dry_run'] ?? false);
         $startPage   = max(1, (int) ($options['start_page'] ?? 1));
         $rawIds      = trim((string) ($options['source_ids'] ?? ''));
@@ -69,7 +70,7 @@ class MigrationEngine
                     $result->addFailed(['id' => $rawId, 'number' => $rawId, 'name' => "ID $rawId"], $e->getMessage());
                     continue;
                 }
-                $this->processIncident($incident, $mapper, $includeComm, $includeAtt, $isDryRun, $result);
+                $this->processIncident($incident, $mapper, $includeComm, $includeAtt, $keepPrivate, $isDryRun, $result);
             }
             return $result;
         }
@@ -91,7 +92,7 @@ class MigrationEngine
                 if ($result->total() >= $limit) {
                     break;
                 }
-                $this->processIncident($incident, $mapper, $includeComm, $includeAtt, $isDryRun, $result);
+                $this->processIncident($incident, $mapper, $includeComm, $includeAtt, $keepPrivate, $isDryRun, $result);
             }
 
             if (count($batch['records']) < $perPage) {
@@ -113,6 +114,7 @@ class MigrationEngine
         IncidentMapper  $mapper,
         bool            $includeComm,
         bool            $includeAtt,
+        bool            $keepPrivate,
         bool            $isDryRun,
         MigrationResult $result
     ): void {
@@ -146,7 +148,7 @@ class MigrationEngine
         }
 
         try {
-            $ticketId = $this->createTicket($mapped, $includeAtt);
+            $ticketId = $this->createTicket($mapped, $includeAtt, $keepPrivate);
             $result->addCreated($incident, $ticketId);
             MigrationRecord::log($this->connectionId, 'incidents', $sourceId, (string) ($incident['number'] ?? ''), MigrationRecord::STATUS_SUCCESS, $ticketId);
         } catch (\Throwable $e) {
@@ -159,7 +161,7 @@ class MigrationEngine
     // GLPI record creation
     // ------------------------------------------------------------------ //
 
-    private function createTicket(MappedIncident $mapped, bool $includeAttachments): int
+    private function createTicket(MappedIncident $mapped, bool $includeAttachments, bool $keepPrivate = false): int
     {
         $t      = $mapped->ticket;
         $ticket = new \Ticket();
@@ -177,7 +179,7 @@ class MigrationEngine
         $entityId = (int) ($t['entities_id'] ?? 0);
 
         foreach ($mapped->followups as $f) {
-            $this->createFollowup($f, $ticketId, $entityId, $includeAttachments);
+            $this->createFollowup($f, $ticketId, $entityId, $includeAttachments, $keepPrivate);
         }
 
         // Solution must be created after followups so it appears last
@@ -277,7 +279,7 @@ class MigrationEngine
         );
     }
 
-    private function createFollowup(array $f, int $ticketId, int $entityId, bool $includeAttachments): void
+    private function createFollowup(array $f, int $ticketId, int $entityId, bool $includeAttachments, bool $keepPrivate = false): void
     {
         $followup = new \ITILFollowup();
         $fId = (int) $followup->add([
@@ -285,7 +287,7 @@ class MigrationEngine
             'items_id'        => $ticketId,
             'content'         => $f['content'],
             'date'            => $f['date'] ?? date('Y-m-d H:i:s'),
-            'is_private'      => $f['is_private'] ? 1 : 0,
+            'is_private'      => ($keepPrivate && $f['is_private']) ? 1 : 0,
             'users_id'        => $f['_users_id'] ?? 0,
             'requesttypes_id' => 6,
             '_disablenotif'   => true,
