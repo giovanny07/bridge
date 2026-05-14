@@ -94,8 +94,11 @@ class SamanageNormalizer implements NormalizerInterface
             return null;
         }
         try {
+            // Return the datetime in the server's local timezone so GLPI stores
+            // and displays dates that match what SolarWinds shows to the user.
+            // Converting to UTC would cause a 4-hour offset on Venezuela servers.
             return (new \DateTimeImmutable($date))
-                ->setTimezone(new \DateTimeZone('UTC'))
+                ->setTimezone(new \DateTimeZone(date_default_timezone_get()))
                 ->format('Y-m-d H:i:s');
         } catch (\Throwable) {
             return null;

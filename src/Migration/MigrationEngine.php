@@ -235,6 +235,10 @@ class MigrationEngine
         }
         if (!empty($options['created_after'])) {
             $filters['created_after'] = $options['created_after'];
+            // Sort oldest-first so created_after retrieves historical records,
+            // not the most recent ones (Samanage default is newest-first).
+            $filters['sort_by']    = 'created_at';
+            $filters['sort_order'] = 'asc';
         }
         if (!empty($options['updated_after'])) {
             $filters['updated_after'] = $options['updated_after'];
