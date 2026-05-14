@@ -189,10 +189,10 @@ class SamanageNormalizerTest extends TestCase
         $this->assertNull($result['_skip_comment_id']);
     }
 
-    public function testExtractSolutionReturnsNullWhenNoResolutionAndNoCode(): void
+    public function testExtractSolutionUsesStateWhenNoResolutionAndNoCode(): void
     {
         // Auto-closed alerts have no resolution_description or resolution_code.
-        // All comments should remain as followups — no ITILSolution created.
+        // A minimal solution using the state name keeps the GLPI timeline consistent.
         $incident = $this->makeIncident(['state' => 'Closed', 'resolution_description' => null, 'resolution_code' => null]);
         $comments = [
             ['id' => 1, 'body' => 'Problem resolved at 10:00', 'user' => ['email' => 'a@b.com', 'name' => 'A'], 'created_at' => '2026-05-13T10:00:00.000-04:00', 'is_private' => false, 'attachments' => []],
@@ -200,7 +200,9 @@ class SamanageNormalizerTest extends TestCase
 
         $result = $this->normalizer->extractSolution($incident, $comments);
 
-        $this->assertNull($result);
+        $this->assertNotNull($result);
+        $this->assertSame('Closed', $result['content']);
+        $this->assertNull($result['_skip_comment_id']);
     }
 
     public function testExtractSolutionUsesResolutionCode(): void

@@ -254,7 +254,9 @@ class IncidentMapperTest extends TestCase
         ];
         $result = $mapper->map($incident, $comments);
 
-        $this->assertNull($result->solution);
+        // Minimal solution created from state name; comments remain as followups
+        $this->assertNotNull($result->solution);
+        $this->assertSame('Closed', $result->solution['content']);
         $this->assertCount(2, $result->followups);
     }
 
@@ -267,15 +269,16 @@ class IncidentMapperTest extends TestCase
         $this->assertCount(1, $result->followups);
     }
 
-    public function testAutoClosedWithoutResolutionHasNoSolution(): void
+    public function testAutoClosedWithoutResolutionGetsFallbackSolution(): void
     {
         // Auto-closed tickets (Zabbix) have no resolution_description/code.
-        // All comments stay as followups — no ITILSolution created.
+        // A minimal solution using the state name keeps the GLPI timeline consistent.
         $mapper   = new IncidentMapper($this->makeFullResolver(), $this->normalizer, 99, 88);
         $incident = $this->makeIncident(['state' => 'Closed']);
         $result   = $mapper->map($incident, [$this->makeComment(['body' => 'Problem resolved at 10:00'])]);
 
-        $this->assertNull($result->solution);
+        $this->assertNotNull($result->solution);
+        $this->assertSame('Closed', $result->solution['content']);
         $this->assertCount(1, $result->followups);
     }
 

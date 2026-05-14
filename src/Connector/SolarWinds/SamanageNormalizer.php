@@ -161,9 +161,15 @@ class SamanageNormalizer implements NormalizerInterface
         }
 
         // 3. Auto-closed alerts (Zabbix, API) have no explicit resolution.
-        // Return null so all comments stay as followups and the ticket is
-        // simply closed by status=6 without a formal ITILSolution record.
-        return null;
+        // Create a minimal solution using the state name so the GLPI timeline
+        // is consistent — a closed ticket without any ITILSolution looks broken.
+        return [
+            'content'          => $state,
+            'date'             => $this->parseDate($incident['updated_at'] ?? null),
+            '_author_email'    => '',
+            '_users_id'        => null,
+            '_skip_comment_id' => null,
+        ];
     }
 
     public function incidentToTicket(array $incident): array
