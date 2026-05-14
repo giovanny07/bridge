@@ -43,6 +43,13 @@ interface ConnectorInterface
     public function getResourceTypes(): array;
 
     /**
+     * Fetches a single incident by its source-system ID.
+     * Used for targeted migration by ID rather than paginated batches.
+     * Throws on failure (network error, not found, etc.).
+     */
+    public function getIncident(int $id): array;
+
+    /**
      * Fetches all comments for a single incident.
      * Returns an array of raw comment objects from the source system.
      */

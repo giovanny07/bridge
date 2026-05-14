@@ -68,7 +68,33 @@ class MigratePage
         echo '</div>';
         echo '</div>';
 
-        // Filters
+        // Migration mode toggle
+        echo '<div class="col-12"><hr class="my-1"></div>';
+        echo '<div class="col-12">';
+        echo '<label class="form-label fw-semibold">' . self::h(__('Migration mode', 'bridge')) . '</label>';
+        echo '<div class="d-flex gap-3">';
+        echo '<div class="form-check">';
+        echo '<input class="form-check-input" type="radio" name="migration_mode" id="mode_filters" value="filters" checked onchange="bridgeModeToggle()">';
+        echo '<label class="form-check-label" for="mode_filters">' . self::h(__('By filters / pagination', 'bridge')) . '</label>';
+        echo '</div>';
+        echo '<div class="form-check">';
+        echo '<input class="form-check-input" type="radio" name="migration_mode" id="mode_ids" value="ids" onchange="bridgeModeToggle()">';
+        echo '<label class="form-check-label" for="mode_ids">' . self::h(__('By specific source IDs', 'bridge')) . '</label>';
+        echo '</div>';
+        echo '</div>';
+        echo '</div>';
+
+        // --- Section: By IDs ---
+        echo '<div id="bridge_section_ids" class="col-12" style="display:none">';
+        echo '<label class="form-label">' . self::h(__('Source IDs (comma-separated)', 'bridge')) . '</label>';
+        echo '<input type="text" class="form-control font-monospace" name="source_ids" placeholder="181695325, 181695326, 181695327" autocomplete="off">';
+        echo '<div class="form-text">' . self::h(__('SolarWinds incident IDs to migrate. Overrides filters and pagination.', 'bridge')) . '</div>';
+        echo '</div>';
+
+        // --- Section: Filters ---
+        echo '<div id="bridge_section_filters">';
+        echo '<div class="row g-3">';
+
         echo '<div class="col-12"><hr class="my-1"></div>';
         echo '<div class="col-12"><p class="fw-semibold mb-1">' . self::h(__('Filters', 'bridge')) . '</p></div>';
 
@@ -128,6 +154,9 @@ class MigratePage
         echo '</div>';
         echo '</div>';
 
+        echo '</div>'; // inner row
+        echo '</div>'; // bridge_section_filters
+
         // Options
         echo '<div class="col-12"><hr class="my-1"></div>';
         echo '<div class="col-12"><p class="fw-semibold mb-1">' . self::h(__('Content', 'bridge')) . '</p></div>';
@@ -160,6 +189,15 @@ class MigratePage
 
         echo '</div>'; // row
         echo '</form>';
+
+        echo '<script>
+function bridgeModeToggle() {
+    var isIds = document.getElementById("mode_ids").checked;
+    document.getElementById("bridge_section_ids").style.display     = isIds ? "" : "none";
+    document.getElementById("bridge_section_filters").style.display = isIds ? "none" : "";
+}
+</script>';
+
         echo '</div>';
     }
 

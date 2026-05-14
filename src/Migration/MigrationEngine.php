@@ -15,6 +15,8 @@ use GlpiPlugin\Bridge\Resolver\GlpiResolver;
  *
  * Options array keys:
  *   limit               int    Max records to migrate in this run (default 50)
+ *   start_page          int    First API page to fetch (default 1)
+ *   source_ids          string Comma-separated source IDs — overrides filters/pagination
  *   state               string Source state filter (e.g. 'Closed'), empty = all
  *   created_after       string YYYY-MM-DD, filter by creation date
  *   updated_after       string YYYY-MM-DD, filter by last update date
@@ -24,7 +26,9 @@ use GlpiPlugin\Bridge\Resolver\GlpiResolver;
  */
 class MigrationEngine
 {
-    private const PER_PAGE = 50;
+    private const PER_PAGE     = 50;
+    private const STATUS_SOLVED = 5;
+    private const STATUS_CLOSED = 6;
 
     public function __construct(
         private readonly ConnectorInterface  $connector,
@@ -43,7 +47,8 @@ class MigrationEngine
         $includeAtt  = (bool) ($options['include_attachments'] ?? false);
         $isDryRun    = (bool) ($options['dry_run'] ?? false);
         $startPage   = max(1, (int) ($options['start_page'] ?? 1));
-        $filters     = $this->buildFilters($options);
+        $rawIds      = trim((string) ($options['source_ids'] ?? ''));
+        $sourceIds   = $rawIds !== '' ? array_values(array_filter(array_map('trim', explode(',', $rawIds)))) : [];
 
         $mapper = new IncidentMapper(
             $this->resolver,
@@ -53,9 +58,24 @@ class MigrationEngine
             $this->fallbackRequesterId,
         );
 
-        $result          = new MigrationResult();
+        $result           = new MigrationResult();
         $result->isDryRun = $isDryRun;
-        $page            = $startPage;
+
+        if (!empty($sourceIds)) {
+            foreach ($sourceIds as $rawId) {
+                try {
+                    $incident = $this->connector->getIncident((int) $rawId);
+                } catch (\Throwable $e) {
+                    $result->addFailed(['id' => $rawId, 'number' => $rawId, 'name' => "ID $rawId"], $e->getMessage());
+                    continue;
+                }
+                $this->processIncident($incident, $mapper, $includeComm, $includeAtt, $isDryRun, $result);
+            }
+            return $result;
+        }
+
+        $filters = $this->buildFilters($options);
+        $page    = $startPage;
 
         while ($result->total() < $limit) {
             $remaining = $limit - $result->total();
@@ -71,57 +91,68 @@ class MigrationEngine
                 if ($result->total() >= $limit) {
                     break;
                 }
-
-                $sourceId = (string) ($incident['id'] ?? '');
-
-                // Dedup — skip if already successfully migrated
-                if (!$isDryRun && MigrationRecord::isAlreadyMigrated($this->connectionId, 'incidents', $sourceId)) {
-                    $result->addSkipped($incident);
-                    continue;
-                }
-
-                // Fetch comments (non-fatal if it fails)
-                $comments = [];
-                if ($includeComm) {
-                    try {
-                        $comments = $this->connector->getIncidentComments((int) $sourceId);
-                    } catch (\Throwable) {
-                    }
-                }
-
-                $mapped = $mapper->map($incident, $comments);
-
-                if ($isDryRun) {
-                    // In dry-run just count as "would create"
-                    $result->addCreated($incident, 0);
-                    continue;
-                }
-
-                if (!$mapped->isCreatable()) {
-                    $error = 'Unresolved entity — configure a fallback entity in the connection settings.';
-                    $result->addFailed($incident, $error);
-                    MigrationRecord::log($this->connectionId, 'incidents', $sourceId, (string) ($incident['number'] ?? ''), MigrationRecord::STATUS_FAILED, 0, $error);
-                    continue;
-                }
-
-                try {
-                    $ticketId = $this->createTicket($mapped, $includeAtt);
-                    $result->addCreated($incident, $ticketId);
-                    MigrationRecord::log($this->connectionId, 'incidents', $sourceId, (string) ($incident['number'] ?? ''), MigrationRecord::STATUS_SUCCESS, $ticketId);
-                } catch (\Throwable $e) {
-                    $result->addFailed($incident, $e->getMessage());
-                    MigrationRecord::log($this->connectionId, 'incidents', $sourceId, (string) ($incident['number'] ?? ''), MigrationRecord::STATUS_FAILED, 0, $e->getMessage());
-                }
+                $this->processIncident($incident, $mapper, $includeComm, $includeAtt, $isDryRun, $result);
             }
 
             if (count($batch['records']) < $perPage) {
-                break; // Last page reached
+                break;
             }
 
             $page++;
         }
 
         return $result;
+    }
+
+    // ------------------------------------------------------------------ //
+    // Per-incident processing
+    // ------------------------------------------------------------------ //
+
+    private function processIncident(
+        array           $incident,
+        IncidentMapper  $mapper,
+        bool            $includeComm,
+        bool            $includeAtt,
+        bool            $isDryRun,
+        MigrationResult $result
+    ): void {
+        $sourceId = (string) ($incident['id'] ?? '');
+
+        if (!$isDryRun && MigrationRecord::isAlreadyMigrated($this->connectionId, 'incidents', $sourceId)) {
+            $result->addSkipped($incident);
+            return;
+        }
+
+        $comments = [];
+        if ($includeComm) {
+            try {
+                $comments = $this->connector->getIncidentComments((int) $sourceId);
+            } catch (\Throwable) {
+            }
+        }
+
+        $mapped = $mapper->map($incident, $comments);
+
+        if ($isDryRun) {
+            $result->addCreated($incident, 0);
+            return;
+        }
+
+        if (!$mapped->isCreatable()) {
+            $error = 'Unresolved entity — configure a fallback entity in the connection settings.';
+            $result->addFailed($incident, $error);
+            MigrationRecord::log($this->connectionId, 'incidents', $sourceId, (string) ($incident['number'] ?? ''), MigrationRecord::STATUS_FAILED, 0, $error);
+            return;
+        }
+
+        try {
+            $ticketId = $this->createTicket($mapped, $includeAtt);
+            $result->addCreated($incident, $ticketId);
+            MigrationRecord::log($this->connectionId, 'incidents', $sourceId, (string) ($incident['number'] ?? ''), MigrationRecord::STATUS_SUCCESS, $ticketId);
+        } catch (\Throwable $e) {
+            $result->addFailed($incident, $e->getMessage());
+            MigrationRecord::log($this->connectionId, 'incidents', $sourceId, (string) ($incident['number'] ?? ''), MigrationRecord::STATUS_FAILED, 0, $e->getMessage());
+        }
     }
 
     // ------------------------------------------------------------------ //
@@ -154,7 +185,45 @@ class MigrationEngine
             $this->createSolution($mapped->solution, $ticketId);
         }
 
+        // GLPI's ITILSolution::add() may reset ticket to SOLVED (5) and put the
+        // solution into WAITING (2) when entity-level validation is configured.
+        // For a migration we force the exact source status and accept the solution.
+        $targetStatus = (int) ($t['status'] ?? 1);
+        if ($targetStatus === self::STATUS_SOLVED || $targetStatus === self::STATUS_CLOSED) {
+            $this->forceTicketFinalStatus($ticketId, $targetStatus, $t);
+        }
+
         return $ticketId;
+    }
+
+    /**
+     * Forces the correct status/dates on a ticket after GLPI business-rule
+     * overrides. Also force-accepts any solution that got stuck in WAITING.
+     */
+    private function forceTicketFinalStatus(int $ticketId, int $status, array $ticketFields): void
+    {
+        global $DB;
+
+        $update = ['status' => $status];
+
+        if (!empty($ticketFields['solvedate'])) {
+            $update['solvedate'] = $ticketFields['solvedate'];
+        }
+        if ($status === self::STATUS_CLOSED) {
+            $update['closedate'] = $ticketFields['closedate']
+                ?? $ticketFields['solvedate']
+                ?? $ticketFields['date']
+                ?? date('Y-m-d H:i:s');
+        }
+
+        $DB->update('glpi_tickets', $update, ['id' => $ticketId]);
+
+        // Accept any solution that validation rules set to WAITING
+        $DB->update(
+            'glpi_itilsolutions',
+            ['status' => 3],
+            ['items_id' => $ticketId, 'itemtype' => 'Ticket']
+        );
     }
 
     private function createFollowup(array $f, int $ticketId, int $entityId, bool $includeAttachments): void

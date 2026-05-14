@@ -50,6 +50,7 @@ class MigrationEngineTest extends TestCase
             public function listIncidents(array $filters = [], int $page = 1, int $perPage = 50): array {
                 return ['endpoint' => '/incidents.json', 'status_code' => 200, 'total' => count($this->incidents), 'page' => $page, 'per_page' => $perPage, 'count' => count($this->incidents), 'records' => $this->incidents];
             }
+            public function getIncident(int $id): array { return $this->incidents[0] ?? []; }
             public function getIncidentComments(int $id): array { return []; }
             public function downloadAttachment(string $url): ?array { return null; }
             public static function fromConnection($c): static { return new static([], false); }
@@ -171,5 +172,32 @@ class MigrationEngineTest extends TestCase
         $result = $engine->run(['dry_run' => true, 'limit' => 1]);
 
         $this->assertTrue($result->isFullSuccess());
+    }
+
+    // ------------------------------------------------------------------ //
+    // source_ids — targeted migration by ID
+    // ------------------------------------------------------------------ //
+
+    public function testSourceIdsSkipsPaginationAndFetchesByIdInDryRun(): void
+    {
+        $incident = $this->makeIncident(['id' => 181695325, 'number' => 191723]);
+        $engine   = $this->makeEngine([$incident]);
+
+        // source_ids overrides limit/pagination
+        $result = $engine->run(['dry_run' => true, 'source_ids' => '181695325']);
+
+        $this->assertCount(1, $result->created);
+        $this->assertSame('191723', $result->created[0]['number']);
+    }
+
+    public function testSourceIdsMultipleIds(): void
+    {
+        $incident = $this->makeIncident(['id' => 1, 'number' => 100]);
+        $engine   = $this->makeEngine([$incident]);
+
+        $result = $engine->run(['dry_run' => true, 'source_ids' => '1, 2, 3']);
+
+        // Stub always returns incidents[0]; 3 IDs → 3 results
+        $this->assertSame(3, $result->total());
     }
 }
