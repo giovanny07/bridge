@@ -102,7 +102,7 @@ class IncidentMapperTest extends TestCase
         $result = $mapper->map($this->makeIncident());
 
         $this->assertSame(28, $result->ticket['_groups_id_assign']);
-        $this->assertNull($result->ticket['_users_id_assign']);
+        $this->assertSame(0, $result->ticket['_users_id_assign']);
     }
 
     public function testMapResolvesRequester(): void

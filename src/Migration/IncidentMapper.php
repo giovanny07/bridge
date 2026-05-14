@@ -98,9 +98,12 @@ class IncidentMapper
         $ticket = array_merge($base, [
             'entities_id'         => $entityId ?? 0,
             'itilcategories_id'   => $categoryId ?? 0,
-            '_groups_id_assign'   => $groupId,
-            '_users_id_assign'    => $assigneeId,
-            '_users_id_requester' => $requesterId,
+            // Pass 0 (not null) for unresolved actors: null triggers a GLPI
+            // E_USER_WARNING that causes the session admin to be used as fallback.
+            // GLPI explicitly skips items_id=0 as "empty value".
+            '_groups_id_assign'   => $groupId     ?? 0,
+            '_users_id_assign'    => $assigneeId  ?? 0,
+            '_users_id_requester' => $requesterId ?? 0,
         ]);
 
         // ── Extract solution (last comment or resolution_description) ────
