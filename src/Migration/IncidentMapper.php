@@ -17,8 +17,9 @@ class IncidentMapper
     public function __construct(
         private readonly GlpiResolver        $resolver,
         private readonly NormalizerInterface $normalizer,
-        private readonly int                 $fallbackEntityId = 0,
-        private readonly int                 $fallbackGroupId  = 0,
+        private readonly int                 $fallbackEntityId  = 0,
+        private readonly int                 $fallbackGroupId   = 0,
+        private readonly int                 $fallbackRequesterId = 0,
     ) {}
 
     /**
@@ -84,7 +85,12 @@ class IncidentMapper
         $requesterId    = $this->resolver->resolveUserByEmail($requesterEmail);
 
         if ($requesterId === null && $requesterEmail !== '') {
-            $warnings[] = "Requester not found: «{$requesterEmail}»";
+            if ($this->fallbackRequesterId > 0) {
+                $requesterId = $this->fallbackRequesterId;
+                $warnings[] = "Requester not found: «{$requesterEmail}» → fallback user used";
+            } else {
+                $warnings[] = "Requester not found: «{$requesterEmail}»";
+            }
         }
 
         // ── Assemble ticket input ────────────────────────────────────────

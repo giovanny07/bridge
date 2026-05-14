@@ -33,6 +33,7 @@ class MigrationEngine
         private readonly int                 $connectionId,
         private readonly int                 $fallbackEntityId,
         private readonly int                 $fallbackGroupId,
+        private readonly int                 $fallbackRequesterId = 0,
     ) {}
 
     public function run(array $options): MigrationResult
@@ -47,7 +48,8 @@ class MigrationEngine
             $this->resolver,
             $this->normalizer,
             $this->fallbackEntityId,
-            $this->fallbackGroupId
+            $this->fallbackGroupId,
+            $this->fallbackRequesterId,
         );
 
         $result          = new MigrationResult();

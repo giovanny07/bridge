@@ -52,7 +52,8 @@ try {
         $resolver,
         $id,
         (int) $connection->fields['entities_id'],
-        (int) ($connection->fields['default_groups_id'] ?? 0)
+        (int) ($connection->fields['default_groups_id'] ?? 0),
+        (int) ($_POST['default_requesters_id'] ?? 0),
     );
 
     $options = [

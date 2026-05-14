@@ -100,6 +100,16 @@ class MigratePage
         echo '<input type="date" class="form-control" name="updated_after">';
         echo '</div>';
 
+        echo '<div class="col-md-4">';
+        echo '<label class="form-label">' . self::h(__('Default requester', 'bridge')) . '</label>';
+        echo '<div class="form-text text-muted mb-1" style="font-size:.78rem">' . self::h(__('Used for external requesters not found in GLPI.', 'bridge')) . '</div>';
+        \User::dropdown([
+            'name'  => 'default_requesters_id',
+            'value' => 0,
+            'width' => '100%',
+        ]);
+        echo '</div>';
+
         // Batch
         echo '<div class="col-12"><hr class="my-1"></div>';
         echo '<div class="col-12"><p class="fw-semibold mb-1">' . self::h(__('Batch', 'bridge')) . '</p></div>';
