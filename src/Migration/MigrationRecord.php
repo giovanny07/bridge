@@ -24,7 +24,7 @@ class MigrationRecord extends CommonDBTM
     public const STATUS_FAILED  = 'failed';
     public const STATUS_SKIPPED = 'skipped';
 
-    public static function getTable(): string
+    public static function getTable($classname = null): string
     {
         return 'glpi_plugin_bridge_migrations';
     }
