@@ -172,7 +172,7 @@ class IncidentMapperTest extends TestCase
             'id'         => 314608972,
             'body'       => '<p>Resolved.</p>',
             'user'       => ['email' => 'requester@client.com', 'name' => 'Requester'],
-            'created_at' => '2026-05-13T19:18:56.000-04:00',
+            'created_at' => '2026-05-13T10:00:00.000-04:00',
             'is_private' => false,
         ], $overrides);
     }

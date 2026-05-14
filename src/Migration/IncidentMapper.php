@@ -117,10 +117,22 @@ class IncidentMapper
         }
 
         // ── Map remaining comments → followups (skip the solution comment) ─
+        // Also skip any comment dated after the solution — those are admin close
+        // notifications that would appear after the solution in the timeline.
+        $solutionTs = ($solution !== null && !empty($solution['date']))
+            ? strtotime($solution['date'])
+            : null;
+
         $followups = [];
         foreach ($comments as $comment) {
             if ($skipCommentId !== null && ($comment['id'] ?? null) == $skipCommentId) {
-                continue; // This comment became the ITILSolution
+                continue;
+            }
+            if ($solutionTs !== null) {
+                $commentTs = strtotime((string) ($comment['created_at'] ?? ''));
+                if ($commentTs !== false && $commentTs > $solutionTs) {
+                    continue; // Post-solution admin note — skip
+                }
             }
             $followup    = $this->normalizer->commentToFollowup($comment);
             $authorId    = $this->resolver->resolveUserByEmail($followup['_author_email']);

@@ -193,7 +193,58 @@ class MigrationEngine
             $this->forceTicketFinalStatus($ticketId, $targetStatus, $t);
         }
 
+        // Assign actors directly — GLPI's updateActors() validates users against
+        // User::getSqlSearchResult() which filters out users without a profile in
+        // the ticket's entity. Imported users fail this check silently.
+        $this->forceAssignActors($ticketId, $t);
+
         return $ticketId;
+    }
+
+    /**
+     * Inserts ticket actors directly, bypassing GLPI's entity-profile validation.
+     * GLPI rejects users without a profile in the ticket's entity, which excludes
+     * most imported users. Direct DB insert is the correct approach for migration.
+     */
+    private function forceAssignActors(int $ticketId, array $ticketFields): void
+    {
+        global $DB;
+
+        $requesterId = (int) ($ticketFields['_users_id_requester'] ?? 0);
+        $assigneeId  = (int) ($ticketFields['_users_id_assign']    ?? 0);
+        $groupId     = (int) ($ticketFields['_groups_id_assign']   ?? 0);
+
+        // Remove default actors GLPI added during creation (e.g. session user as requester)
+        $DB->delete('glpi_tickets_users',  ['tickets_id' => $ticketId]);
+        $DB->delete('glpi_groups_tickets', ['tickets_id' => $ticketId]);
+
+        if ($requesterId > 0) {
+            $DB->insert('glpi_tickets_users', [
+                'tickets_id'        => $ticketId,
+                'users_id'          => $requesterId,
+                'type'              => 1, // REQUESTER
+                'use_notification'  => 0,
+                'alternative_email' => '',
+            ]);
+        }
+
+        if ($assigneeId > 0) {
+            $DB->insert('glpi_tickets_users', [
+                'tickets_id'        => $ticketId,
+                'users_id'          => $assigneeId,
+                'type'              => 2, // ASSIGN
+                'use_notification'  => 0,
+                'alternative_email' => '',
+            ]);
+        }
+
+        if ($groupId > 0) {
+            $DB->insert('glpi_groups_tickets', [
+                'tickets_id' => $ticketId,
+                'groups_id'  => $groupId,
+                'type'       => 2, // ASSIGN
+            ]);
+        }
     }
 
     /**
