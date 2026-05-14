@@ -148,6 +148,11 @@ class MigrationEngine
             $this->createFollowup($f, $ticketId, $entityId, $includeAttachments);
         }
 
+        // Solution must be created after followups so it appears last
+        if ($mapped->solution !== null) {
+            $this->createSolution($mapped->solution, $ticketId);
+        }
+
         return $ticketId;
     }
 
@@ -168,6 +173,20 @@ class MigrationEngine
         if ($includeAttachments && $fId > 0) {
             $this->attachFilesFromComment($f, $ticketId, $fId, $entityId);
         }
+    }
+
+    private function createSolution(array $solution, int $ticketId): void
+    {
+        $s = new \ITILSolution();
+        $s->add([
+            'itemtype'      => 'Ticket',
+            'items_id'      => $ticketId,
+            'content'       => $solution['content'] ?? '',
+            'date_creation' => $solution['date'] ?? date('Y-m-d H:i:s'),
+            'users_id'      => $solution['_users_id'] ?? 0,
+            'status'        => 3, // ITILValidation::ACCEPTED
+            '_disablenotif' => true,
+        ]);
     }
 
     private function attachFilesFromComment(array $followup, int $ticketId, int $followupId, int $entityId): void

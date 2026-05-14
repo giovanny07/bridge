@@ -127,6 +127,49 @@ class SamanageNormalizer implements NormalizerInterface
         ];
     }
 
+    public function extractSolution(array $incident, array $comments): ?array
+    {
+        $state    = (string) ($incident['state'] ?? '');
+        $isSolved = in_array($state, ['Solucionado', 'Closed', 'Resolved'], true);
+
+        if (!$isSolved) {
+            return null;
+        }
+
+        // 1. resolution_description is the authoritative solution text when present
+        $desc = trim(strip_tags((string) ($incident['resolution_description'] ?? '')));
+        if ($desc !== '') {
+            return [
+                'content'          => (string) $incident['resolution_description'],
+                'date'             => $this->parseDate($incident['updated_at'] ?? null),
+                '_author_email'    => (string) ($incident['resolved_by']['email'] ?? ''),
+                '_users_id'        => null,
+                '_skip_comment_id' => null,
+            ];
+        }
+
+        // 2. Fall back to last comment as solution
+        if (!empty($comments)) {
+            $last = end($comments);
+            return [
+                'content'          => (string) ($last['body'] ?? ''),
+                'date'             => $this->parseDate($last['created_at'] ?? null),
+                '_author_email'    => (string) ($last['user']['email'] ?? ''),
+                '_users_id'        => null,
+                '_skip_comment_id' => $last['id'] ?? null,
+            ];
+        }
+
+        // 3. Closed with no comments — minimal solution record
+        return [
+            'content'          => (string) ($incident['name'] ?? 'Closed'),
+            'date'             => $this->parseDate($incident['updated_at'] ?? null),
+            '_author_email'    => '',
+            '_users_id'        => null,
+            '_skip_comment_id' => null,
+        ];
+    }
+
     public function incidentToTicket(array $incident): array
     {
         $state = (string) ($incident['state'] ?? '');

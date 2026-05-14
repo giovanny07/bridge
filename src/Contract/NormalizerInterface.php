@@ -41,4 +41,14 @@ interface NormalizerInterface
      * _users_id is left null — resolved by IncidentMapper via GlpiResolver.
      */
     public function commentToFollowup(array $comment): array;
+
+    /**
+     * Extracts the resolution/solution from a solved or closed incident.
+     *
+     * Returns null when the incident is not solved/closed.
+     * Returns an array with: content, date, _author_email, _users_id (null),
+     * and _skip_comment_id (the comment ID that became the solution, so the
+     * mapper does NOT also add it as a followup).
+     */
+    public function extractSolution(array $incident, array $comments): ?array;
 }

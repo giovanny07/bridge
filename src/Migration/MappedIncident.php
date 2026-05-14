@@ -21,6 +21,7 @@ readonly class MappedIncident
         public array  $warnings,
         public array  $original,
         public array  $followups = [],
+        public ?array $solution  = null,
     ) {
         if ($warnings === []) {
             $this->status = 'ok';

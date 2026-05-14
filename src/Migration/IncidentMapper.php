@@ -103,14 +103,30 @@ class IncidentMapper
             '_users_id_requester' => $requesterId,
         ]);
 
-        // ── Map comments → followups ─────────────────────────────────────
+        // ── Extract solution (last comment or resolution_description) ────
+        $solution        = null;
+        $skipCommentId   = null;
+
+        if (!empty($comments)) {
+            $rawSolution = $this->normalizer->extractSolution($incident, $comments);
+            if ($rawSolution !== null) {
+                $skipCommentId = $rawSolution['_skip_comment_id'];
+                $solutionUser  = $this->resolver->resolveUserByEmail($rawSolution['_author_email']);
+                $solution = array_merge($rawSolution, ['_users_id' => $solutionUser]);
+            }
+        }
+
+        // ── Map remaining comments → followups (skip the solution comment) ─
         $followups = [];
         foreach ($comments as $comment) {
-            $followup  = $this->normalizer->commentToFollowup($comment);
-            $authorId  = $this->resolver->resolveUserByEmail($followup['_author_email']);
+            if ($skipCommentId !== null && ($comment['id'] ?? null) == $skipCommentId) {
+                continue; // This comment became the ITILSolution
+            }
+            $followup    = $this->normalizer->commentToFollowup($comment);
+            $authorId    = $this->resolver->resolveUserByEmail($followup['_author_email']);
             $followups[] = array_merge($followup, ['_users_id' => $authorId]);
         }
 
-        return new MappedIncident($ticket, $warnings, $incident, $followups);
+        return new MappedIncident($ticket, $warnings, $incident, $followups, $solution);
     }
 }

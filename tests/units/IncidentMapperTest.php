@@ -231,6 +231,61 @@ class IncidentMapperTest extends TestCase
 
 
     // ------------------------------------------------------------------ //
+    // solution extraction in map()
+    // ------------------------------------------------------------------ //
+
+    public function testClosedIncidentWithCommentsHasSolution(): void
+    {
+        $mapper   = new IncidentMapper($this->makeFullResolver(), $this->normalizer, 99, 88);
+        $incident = $this->makeIncident(['state' => 'Closed']);
+        $result   = $mapper->map($incident, [$this->makeComment()]);
+
+        $this->assertNotNull($result->solution);
+        $this->assertArrayHasKey('content', $result->solution);
+    }
+
+    public function testSolutionCommentIsNotAlsoAddedAsFollowup(): void
+    {
+        $mapper   = new IncidentMapper($this->makeFullResolver(), $this->normalizer, 99, 88);
+        $incident = $this->makeIncident(['state' => 'Closed', 'resolution_description' => null]);
+        $comments = [
+            $this->makeComment(['id' => 1, 'body' => '<p>First followup</p>']),
+            $this->makeComment(['id' => 2, 'body' => '<p>Resolution</p>']),
+        ];
+        $result = $mapper->map($incident, $comments);
+
+        // Solution = comment #2, followups = only comment #1
+        $this->assertCount(1, $result->followups);
+        $this->assertStringContainsString('First followup', $result->followups[0]['content']);
+        $this->assertStringContainsString('Resolution', $result->solution['content']);
+    }
+
+    public function testOpenIncidentHasNoSolution(): void
+    {
+        $mapper = new IncidentMapper($this->makeFullResolver(), $this->normalizer, 99, 88);
+        $result = $mapper->map($this->makeIncident(['state' => 'En Proceso']), [$this->makeComment()]);
+
+        $this->assertNull($result->solution);
+        $this->assertCount(1, $result->followups); // comment is a followup, not a solution
+    }
+
+    public function testResolutionDescriptionTakesPriorityOverLastComment(): void
+    {
+        $mapper   = new IncidentMapper($this->makeFullResolver(), $this->normalizer, 99, 88);
+        $incident = $this->makeIncident([
+            'state'                  => 'Closed',
+            'resolution_description' => 'Se restauró el servicio.',
+        ]);
+        $result = $mapper->map($incident, [$this->makeComment(['id' => 99, 'body' => 'Last comment'])]);
+
+        // resolution_description used → comment NOT skipped → still a followup
+        $this->assertStringContainsString('restauró', $result->solution['content']);
+        $this->assertCount(1, $result->followups);
+        $this->assertNull($result->solution['_skip_comment_id']);
+    }
+
+
+    // ------------------------------------------------------------------ //
     // MappedIncident shape
     // ------------------------------------------------------------------ //
 
