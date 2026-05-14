@@ -282,11 +282,13 @@ class MigrationEngine
     private function createFollowup(array $f, int $ticketId, int $entityId, bool $includeAttachments, bool $keepPrivate = false): void
     {
         $followup = new \ITILFollowup();
+        $historicalDate = $f['date'] ?? date('Y-m-d H:i:s');
         $fId = (int) $followup->add([
             'itemtype'        => 'Ticket',
             'items_id'        => $ticketId,
             'content'         => $f['content'],
-            'date'            => $f['date'] ?? date('Y-m-d H:i:s'),
+            'date'            => $historicalDate,
+            'date_creation'   => $historicalDate,
             'is_private'      => ($keepPrivate && $f['is_private']) ? 1 : 0,
             'users_id'        => $f['_users_id'] ?? 0,
             'requesttypes_id' => 6,
