@@ -179,6 +179,7 @@ class SamanageNormalizer implements NormalizerInterface
         return [
             'name'            => (string) ($incident['name'] ?? ''),
             'content'         => (string) ($incident['description_no_html'] ?? $incident['description'] ?? ''),
+            'type'            => ($incident['is_service_request'] ?? false) ? 2 : 1, // 1=Incident 2=Service Request
             'status'          => $this->mapState($state),
             'priority'        => $this->mapPriority((string) ($incident['priority'] ?? '')),
             'requesttypes_id' => $this->mapOrigin((string) ($incident['origin'] ?? '')),

@@ -223,6 +223,18 @@ class SamanageNormalizerTest extends TestCase
         $this->assertSame('Memory critical on VDCPMWEM2', $ticket['name']);
     }
 
+    public function testIncidentToTicketTypeIsIncidentByDefault(): void
+    {
+        $ticket = $this->normalizer->incidentToTicket($this->makeIncident());
+        $this->assertSame(1, $ticket['type']); // Incident
+    }
+
+    public function testIncidentToTicketTypeIsServiceRequestWhenFlagTrue(): void
+    {
+        $ticket = $this->normalizer->incidentToTicket($this->makeIncident(['is_service_request' => true]));
+        $this->assertSame(2, $ticket['type']); // Service Request
+    }
+
     public function testIncidentToTicketPrefersDescriptionNoHtml(): void
     {
         $ticket = $this->normalizer->incidentToTicket($this->makeIncident());
