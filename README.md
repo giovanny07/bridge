@@ -4,7 +4,7 @@ Plugin para **GLPI 11** que permite explorar y migrar datos ITSM desde plataform
 
 ---
 
-## Estado — v0.1.0
+## Estado — v0.2.0
 
 | Paso | Estado |
 |------|--------|
@@ -16,9 +16,11 @@ Plugin para **GLPI 11** que permite explorar y migrar datos ITSM desde plataform
 | Resolver de entidades / categorías / grupos / usuarios por nombre | ✅ |
 | Dry-run con selector de tipo de recurso | ✅ |
 | Motor de migración — tickets + followups + solución + adjuntos | ✅ |
+| Migración por IDs específicos de SolarWinds | ✅ |
 | Historial de migración con purge/retry | ✅ |
-| Migración de requerimientos (service requests) | ⏳ |
+| Solicitantes externos como `alternative_email` | ✅ |
 | Migración de Changes | ⏳ |
+| Migración de Problems | ⏳ |
 
 ---
 
@@ -94,7 +96,7 @@ bridge/
 │   └── import-test-scenario.sh      # Importa datos del cliente a entorno local
 └── tests/
     ├── bootstrap.php                # Stubs GLPI para tests sin instancia real
-    ├── units/                       # Tests unitarios (sin red)
+    ├── units/                       # Tests unitarios (sin red, sin GLPI)
     └── api/                         # Tests de contrato contra la API real
         └── SolarWindsApiContractTest.php
 ```
@@ -121,24 +123,38 @@ Clic en **🟡** → elige tipo de recurso → tabla de 20 incidentes con:
 
 ### Migración real
 
-Clic en **🔵** (Migrate) → formulario con:
+Clic en **🔵** (Migrate) → formulario con dos modos:
+
+#### Modo: Por filtros / paginación
 
 | Campo | Descripción |
 |---|---|
-| Tipo de recurso | Incidents ✅ · Changes ❌ · Problems ❌ |
+| Tipo de recurso | Incidents ✅ · Changes ⏳ · Problems ⏳ |
 | Estado | Filtra por estado en SolarWinds |
 | Created after | Fecha mínima de creación |
 | Updated after | Útil para sincronización incremental |
-| **Start from page** | La API devuelve los más recientes primero. Usa página 200 para tickets de abril 2026, página 1870 para abril 2024 |
+| **Start from page** | La API devuelve los más recientes primero. Usa ~200 para tickets de abril 2026, ~1870 para abril 2024 |
 | Límite | Máx tickets por ejecución (1–500) |
-| Comentarios | Comentarios → ITILFollowup |
-| Adjuntos | Descarga archivos → Document + Document_Item |
 
-Lo que se crea por ticket:
-1. **Ticket** con entidad, categoría, asignado y solicitante resueltos por nombre
-2. **ITILFollowup** por cada comentario intermedio
-3. **ITILSolution** si el ticket tiene `resolution_description` o `resolution_code`
-4. **Document** por cada adjunto descargado (PNG, PDF, etc.)
+#### Modo: Por IDs específicos
+
+Pega los IDs de SolarWinds separados por coma (`181695325, 181695326`). Ignora filtros y paginación. Útil para migrar tickets concretos o validar la migración antes de un lote masivo.
+
+#### Opciones de contenido (ambos modos)
+
+| Opción | Descripción |
+|---|---|
+| Default requester | Usuario GLPI usado cuando el origen no tiene email de solicitante |
+| Comments → Followups | Crea ITILFollowup por cada comentario |
+| Attachments → Documents | Descarga archivos y los vincula como Document |
+| Preserve private flag | Mantiene `is_private` de los comentarios (por defecto todos quedan públicos) |
+
+#### Lo que se crea por ticket
+
+1. **Ticket** con entidad, categoría, asignado y solicitante resueltos por nombre/email
+2. **ITILFollowup** por cada comentario (ordenados por `date_creation` = fecha original de SolarWinds)
+3. **ITILSolution** con el contenido de `resolution_description`, `resolution_code`, o el nombre del estado si no hay texto explícito
+4. **Document** por cada adjunto descargado y vinculado al followup y al ticket
 
 ### Historial
 
@@ -147,6 +163,31 @@ Clic en **⚪** (History) → tabla filtrable con:
 - Link directo al ticket GLPI creado
 - **Retry failed**: purga los fallidos para re-procesarlos
 - **Purge all**: reset completo para re-migrar desde cero
+
+---
+
+## Resolución de actores
+
+### Assignee
+1. Si es **usuario** (`assignee.is_user = true`): busca por `email` en `glpi_useremails`
+2. Si es **grupo** (`assignee.is_user = false`): busca por nombre en `glpi_groups` (match fuzzy sin acentos)
+3. Si no se resuelve: usa el **grupo fallback** configurado en la conexión
+
+### Requester (solicitante)
+| Situación | Resultado en GLPI |
+|---|---|
+| Email encontrado en GLPI | Usuario vinculado normalmente |
+| Email existe pero no tiene cuenta GLPI | Se guarda como `alternative_email` — visible en el ticket |
+| Sin email en origen + fallback configurado | Usuario fallback del formulario de migración |
+| Sin email y sin fallback | Campo vacío |
+
+---
+
+## Comportamiento del timeline en GLPI
+
+- **Orden**: followups y solución se ordenan por `date_creation` = fecha original de SolarWinds, no por la fecha en que se ejecutó la migración
+- **Solución**: tickets cerrados sin `resolution_description` ni `resolution_code` reciben una solución mínima con el nombre del estado (`"Closed"`, `"Solucionado"`) para mantener la integridad del timeline
+- **Comentarios privados**: por defecto todos los followups migrados son públicos; activar "Preserve private flag" para respetar el `is_private` original
 
 ---
 
@@ -186,7 +227,7 @@ El resto del plugin (resolver, motor, UI, historial) funciona sin cambios.
 
 La API siempre devuelve los registros más recientes primero e **ignora** `sort_order=asc`. Para acceder a tickets históricos usar `page=N`:
 - Página 1 → mayo 2026 (más recientes)
-- Página ~200 → abril 2026 (tickets manuales con resolution_description)
+- Página ~200 → abril 2026 (tickets manuales con `resolution_description`)
 - Página ~1870 → abril 2024
 
 ### Mapeo de campos
@@ -201,16 +242,18 @@ La API siempre devuelve los registros más recientes primero e **ignora** `sort_
 | `state` Closed | status = 6 (Closed) | — |
 | `priority` Low/Medium/High/Critical | priority 2/3/4/5 | — |
 | `origin` web/api/external/email | requesttypes_id 1/6/6/7 | — |
-| `site.name` | entities_id | Match por nombre (fuzzy, sin acentos) |
+| `site.name` | entities_id | Match fuzzy sin acentos |
 | `category.name` + `subcategory.name` | itilcategories_id | Subcategoría tiene prioridad |
 | `assignee` (user o group) | _users_id_assign / _groups_id_assign | Match por email o nombre |
-| `requester.email` | _users_id_requester | Match por email |
-| `created_at` | date | Convertido a timezone del servidor |
+| `requester.email` | _users_id_requester / alternative_email | Ver tabla de resolución de actores |
+| `created_at` | date + date_creation | Convertido a timezone del servidor |
 | `updated_at` | solvedate / closedate | Solo para estados resueltos/cerrados |
 | `resolution_description` | ITILSolution.content | Prioridad 1 |
 | `resolution_code` | ITILSolution.content | Prioridad 2 (ej. "Alarma Mitigada") |
-| Comment `body` | ITILFollowup.content | Todos excepto el que es solución |
-| Comment `attachments` | Document + Document_Item | URLs relativas se completan con baseUrl |
+| `state` (sin resolución) | ITILSolution.content | Prioridad 3 — mínima para consistencia |
+| Comment `body` | ITILFollowup.content | Comentarios anteriores a la solución |
+| Comment `is_private` | ITILFollowup.is_private | Solo si "Preserve private flag" está activo |
+| Comment `attachments` | Document + Document_Item | URLs relativas se completan con baseUrl; filenames URL-decoded |
 
 ### Deduplicación
 
@@ -221,10 +264,10 @@ Cada registro migrado se guarda en `glpi_plugin_bridge_migrations` con `source_i
 ## Tests
 
 ```bash
-# Tests unitarios (138 tests, sin red, sin GLPI)
+# Tests unitarios (143 tests, sin red, sin GLPI)
 composer test
 
-# Tests de contrato contra la API real (33 tests)
+# Tests de contrato contra la API real
 BRIDGE_API_URL=https://servicios.daycohost.com \
 BRIDGE_API_TOKEN='<plain_token>' \
 composer test:api
