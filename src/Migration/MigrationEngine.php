@@ -170,6 +170,8 @@ class MigrationEngine
             'urgency'       => $t['priority'] ?? 3,
             'impact'        => $t['priority'] ?? 3,
             '_disablenotif' => true,
+            // Prevents GLPI from using the interactive session user as default actor
+            '_auto_import'  => true,
         ]));
 
         if ($ticketId <= 0) {
@@ -292,7 +294,9 @@ class MigrationEngine
 
     private function createFollowup(array $f, int $ticketId, int $entityId, bool $includeAttachments, bool $keepPrivate = false): void
     {
-        $followup = new \ITILFollowup();
+        global $DB;
+
+        $followup       = new \ITILFollowup();
         $historicalDate = $f['date'] ?? date('Y-m-d H:i:s');
         $fId = (int) $followup->add([
             'itemtype'        => 'Ticket',
@@ -307,8 +311,82 @@ class MigrationEngine
         ]);
 
         if ($includeAttachments && $fId > 0) {
-            $this->attachFilesFromComment($f, $ticketId, $fId, $entityId);
+            // Inline images: download → create Document → build src replacement map
+            $inlineUrlMap = $this->attachInlineImages($f['_inline_attachments'] ?? [], $fId, $entityId);
+
+            // Replace broken SolarWinds src URLs in the followup HTML
+            if (!empty($inlineUrlMap)) {
+                $updatedContent = str_replace(array_keys($inlineUrlMap), array_values($inlineUrlMap), $f['content']);
+                if ($updatedContent !== $f['content']) {
+                    $DB->update('glpi_itilfollowups', ['content' => $updatedContent], ['id' => $fId]);
+                }
+            }
+
+            // Regular + shared attachments (no HTML replacement needed)
+            foreach (array_merge($f['_attachments'] ?? [], $f['_shared_attachments'] ?? []) as $att) {
+                $url = (string) ($att['url'] ?? $att['download_url'] ?? '');
+                if ($url !== '') {
+                    $this->downloadAndLink($url, $ticketId, $fId, $entityId);
+                }
+            }
         }
+    }
+
+    /**
+     * Downloads inline images, creates GLPI Documents, and returns a map of
+     * original SolarWinds URL → GLPI document URL for HTML src replacement.
+     */
+    private function attachInlineImages(array $inlineAtts, int $followupId, int $entityId): array
+    {
+        global $CFG_GLPI;
+
+        $urlMap = [];
+
+        foreach ($inlineAtts as $att) {
+            $originalUrl = (string) ($att['url'] ?? $att['download_url'] ?? '');
+            if ($originalUrl === '') {
+                continue;
+            }
+
+            $file = $this->connector->downloadAttachment($originalUrl);
+            if ($file === null) {
+                continue;
+            }
+
+            $tmpName = uniqid('bridge_') . '_' . preg_replace('/[^a-zA-Z0-9._-]/', '_', $file['filename']);
+            $tmpPath = GLPI_TMP_DIR . '/' . $tmpName;
+            if (file_put_contents($tmpPath, $file['content']) === false) {
+                continue;
+            }
+
+            $doc   = new \Document();
+            $docId = (int) $doc->add([
+                'name'             => $file['filename'],
+                'entities_id'      => $entityId,
+                '_filename'        => [$tmpName],
+                '_prefix_filename' => [''],
+            ]);
+            @unlink($tmpPath);
+
+            if ($docId <= 0) {
+                continue;
+            }
+
+            $di = new \Document_Item();
+            $di->add(['documents_id' => $docId, 'itemtype' => 'ITILFollowup', 'items_id' => $followupId, 'entities_id' => $entityId]);
+
+            // Map the original URL to the GLPI document endpoint
+            $glpiUrl = ($CFG_GLPI['url_base'] ?? '') . '/front/document.send.php?docid=' . $docId;
+            $urlMap[$originalUrl] = $glpiUrl;
+
+            // Also map the path-only version so both relative and absolute src attrs get replaced
+            $path = (string) parse_url($originalUrl, PHP_URL_PATH);
+            if ($path !== '' && $path !== $originalUrl) {
+                $urlMap[$path] = $glpiUrl;
+            }
+        }
+
+        return $urlMap;
     }
 
     private function createSolution(array $solution, int $ticketId): void
@@ -325,22 +403,9 @@ class MigrationEngine
         ]);
     }
 
-    private function attachFilesFromComment(array $followup, int $ticketId, int $followupId, int $entityId): void
-    {
-        $allAttachments = array_merge(
-            $followup['_attachments']         ?? [],
-            $followup['_inline_attachments']  ?? [],
-            $followup['_shared_attachments']  ?? []
-        );
-
-        foreach ($allAttachments as $att) {
-            $url = (string) ($att['url'] ?? $att['download_url'] ?? '');
-            if ($url === '') {
-                continue;
-            }
-            $this->downloadAndLink($url, $ticketId, $followupId, $entityId);
-        }
-    }
+    // attachFilesFromComment() was refactored into createFollowup():
+    // inline images go through attachInlineImages() (with src replacement),
+    // regular/shared attachments are handled inline in createFollowup().
 
     private function downloadAndLink(string $url, int $ticketId, int $followupId, int $entityId): void
     {
