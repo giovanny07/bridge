@@ -111,6 +111,42 @@ class IncidentMapperTest extends TestCase
         $result = $mapper->map($this->makeIncident());
 
         $this->assertSame(5, $result->ticket['_users_id_requester']);
+        $this->assertSame('', $result->ticket['_requester_alt_email']);
+    }
+
+    public function testMapStoresAlternativeEmailWhenRequesterNotInGlpi(): void
+    {
+        // External email not registered in GLPI → alternative_email, not fallback
+        $mapper = new IncidentMapper($this->makeFullResolver(), $this->normalizer, 99, 88, 77);
+        $result = $mapper->map($this->makeIncident([
+            'requester' => ['email' => 'external@client.com', 'name' => 'External'],
+        ]));
+
+        $this->assertSame(0, $result->ticket['_users_id_requester']);
+        $this->assertSame('external@client.com', $result->ticket['_requester_alt_email']);
+    }
+
+    public function testMapUsesFallbackWhenRequesterEmailEmpty(): void
+    {
+        // No email at all in source → fallback user
+        $mapper = new IncidentMapper($this->makeFullResolver(), $this->normalizer, 99, 88, 77);
+        $result = $mapper->map($this->makeIncident([
+            'requester' => ['email' => '', 'name' => ''],
+        ]));
+
+        $this->assertSame(77, $result->ticket['_users_id_requester']);
+        $this->assertSame('', $result->ticket['_requester_alt_email']);
+    }
+
+    public function testMapEmptyRequesterWhenNoEmailAndNoFallback(): void
+    {
+        $mapper = new IncidentMapper($this->makeFullResolver(), $this->normalizer, 99, 88, 0);
+        $result = $mapper->map($this->makeIncident([
+            'requester' => ['email' => '', 'name' => ''],
+        ]));
+
+        $this->assertSame(0, $result->ticket['_users_id_requester']);
+        $this->assertSame('', $result->ticket['_requester_alt_email']);
     }
 
     // ------------------------------------------------------------------ //

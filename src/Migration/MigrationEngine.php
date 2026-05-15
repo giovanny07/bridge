@@ -212,21 +212,32 @@ class MigrationEngine
     {
         global $DB;
 
-        $requesterId = (int) ($ticketFields['_users_id_requester'] ?? 0);
-        $assigneeId  = (int) ($ticketFields['_users_id_assign']    ?? 0);
-        $groupId     = (int) ($ticketFields['_groups_id_assign']   ?? 0);
+        $requesterId    = (int)    ($ticketFields['_users_id_requester']  ?? 0);
+        $requesterEmail = (string) ($ticketFields['_requester_alt_email'] ?? '');
+        $assigneeId     = (int)    ($ticketFields['_users_id_assign']     ?? 0);
+        $groupId        = (int)    ($ticketFields['_groups_id_assign']    ?? 0);
 
         // Remove default actors GLPI added during creation (e.g. session user as requester)
         $DB->delete('glpi_tickets_users',  ['tickets_id' => $ticketId]);
         $DB->delete('glpi_groups_tickets', ['tickets_id' => $ticketId]);
 
         if ($requesterId > 0) {
+            // Known GLPI user
             $DB->insert('glpi_tickets_users', [
                 'tickets_id'        => $ticketId,
                 'users_id'          => $requesterId,
-                'type'              => 1, // REQUESTER
+                'type'              => 1,
                 'use_notification'  => 0,
                 'alternative_email' => '',
+            ]);
+        } elseif ($requesterEmail !== '') {
+            // External email not in GLPI — stored as alternative_email so it shows in the ticket
+            $DB->insert('glpi_tickets_users', [
+                'tickets_id'        => $ticketId,
+                'users_id'          => 0,
+                'type'              => 1,
+                'use_notification'  => 1,
+                'alternative_email' => $requesterEmail,
             ]);
         }
 
@@ -234,7 +245,7 @@ class MigrationEngine
             $DB->insert('glpi_tickets_users', [
                 'tickets_id'        => $ticketId,
                 'users_id'          => $assigneeId,
-                'type'              => 2, // ASSIGN
+                'type'              => 2,
                 'use_notification'  => 0,
                 'alternative_email' => '',
             ]);
@@ -244,7 +255,7 @@ class MigrationEngine
             $DB->insert('glpi_groups_tickets', [
                 'tickets_id' => $ticketId,
                 'groups_id'  => $groupId,
-                'type'       => 2, // ASSIGN
+                'type'       => 2,
             ]);
         }
     }

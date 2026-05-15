@@ -81,29 +81,40 @@ class IncidentMapper
         }
 
         // ── Requester ────────────────────────────────────────────────────
+        // Priority:
+        //   1. Email found in GLPI            → link GLPI user
+        //   2. Email exists but not in GLPI   → store as alternative_email (shown in ticket)
+        //   3. No email in source + fallback  → use fallback user
+        //   4. No email + no fallback         → leave empty
         $requesterEmail = (string) ($incident['requester']['email'] ?? '');
         $requesterId    = $this->resolver->resolveUserByEmail($requesterEmail);
+        $requesterAltEmail = '';
 
-        if ($requesterId === null && $requesterEmail !== '') {
-            if ($this->fallbackRequesterId > 0) {
-                $requesterId = $this->fallbackRequesterId;
-                $warnings[] = "Requester not found: «{$requesterEmail}» → fallback user used";
-            } else {
-                $warnings[] = "Requester not found: «{$requesterEmail}»";
-            }
+        if ($requesterId !== null) {
+            // Case 1: user found in GLPI
+        } elseif ($requesterEmail !== '') {
+            // Case 2: email exists but not a GLPI user → keep as alternative_email
+            $requesterAltEmail = $requesterEmail;
+            $warnings[] = "Requester not in GLPI: «{$requesterEmail}» → stored as alternative email";
+        } elseif ($this->fallbackRequesterId > 0) {
+            // Case 3: no email in source, use configured fallback
+            $requesterId = $this->fallbackRequesterId;
+            $warnings[] = "Requester email empty → fallback user used";
         }
+        // Case 4: no email, no fallback → requesterId=null, altEmail='' → no actor
 
         // ── Assemble ticket input ────────────────────────────────────────
         $base   = $this->normalizer->incidentToTicket($incident);
         $ticket = array_merge($base, [
-            'entities_id'         => $entityId ?? 0,
-            'itilcategories_id'   => $categoryId ?? 0,
+            'entities_id'          => $entityId ?? 0,
+            'itilcategories_id'    => $categoryId ?? 0,
             // Pass 0 (not null) for unresolved actors: null triggers a GLPI
             // E_USER_WARNING that causes the session admin to be used as fallback.
             // GLPI explicitly skips items_id=0 as "empty value".
-            '_groups_id_assign'   => $groupId     ?? 0,
-            '_users_id_assign'    => $assigneeId  ?? 0,
-            '_users_id_requester' => $requesterId ?? 0,
+            '_groups_id_assign'    => $groupId     ?? 0,
+            '_users_id_assign'     => $assigneeId  ?? 0,
+            '_users_id_requester'  => $requesterId ?? 0,
+            '_requester_alt_email' => $requesterAltEmail,
         ]);
 
         // ── Extract solution (last comment or resolution_description) ────
