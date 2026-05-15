@@ -72,6 +72,17 @@ class GlpiResolverTest extends TestCase
         $this->assertSame(251, $resolver->resolveEntity('Banco Plaza, C.A., Banco Universal'));
     }
 
+    public function testResolveEntityParentheticalFallback(): void
+    {
+        // GLPI has "Pluxee Beneficios e Incentivos, C.A. (Sodexo)"
+        // SolarWinds has "Pluxee Beneficios e Incentivos, C.A." (no parenthetical)
+        $resolver = $this->makeResolver([
+            'glpi_entities' => [['id' => 290, 'name' => 'Pluxee Beneficios e Incentivos, C.A. (Sodexo)']],
+        ]);
+
+        $this->assertSame(290, $resolver->resolveEntity('Pluxee Beneficios e Incentivos, C.A.'));
+    }
+
     public function testResolveEntityReturnsNullWhenNotFound(): void
     {
         $resolver = $this->makeResolver(['glpi_entities' => []]);

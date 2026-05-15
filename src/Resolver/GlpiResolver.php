@@ -163,7 +163,28 @@ class GlpiResolver
             }
         }
 
+        // Pass 3: strip trailing parenthetical from index names and compare.
+        // GLPI: "Pluxee Beneficios e Incentivos, C.A. (Sodexo)"  → stripped: "pluxee beneficios e incentivos"
+        // SW:   "Pluxee Beneficios e Incentivos, C.A."            → $stripped: "pluxee beneficios e incentivos"
+        foreach ($index as $indexKey => $id) {
+            // Strip parenthetical first, then legal suffix:
+            // "pluxee..., c.a. (sodexo)" → "pluxee..., c.a." → "pluxee..."
+            $indexStripped3 = $this->stripLegalSuffix($this->stripParenthetical($indexKey));
+            if ($indexStripped3 === $stripped) {
+                return $id;
+            }
+        }
+
         return null;
+    }
+
+    /**
+     * Removes trailing parenthetical content, e.g. "Empresa XYZ (Antigua Razón)" → "Empresa XYZ".
+     * Operates on an already-normalized (ASCII, lowercased) string.
+     */
+    private function stripParenthetical(string $normalized): string
+    {
+        return trim((string) preg_replace('/\s*\([^)]*\)\s*$/', '', $normalized));
     }
 
     /**
