@@ -13,93 +13,67 @@ class MigratePage
         string     $migrateUrl,
         string     $historyUrl
     ): void {
-        $id = (int) $connection->fields['id'];
+        $id  = (int) $connection->fields['id'];
+        $key = 'bridge_form_' . $id; // sessionStorage key per connection
 
-        echo '<div class="container-fluid p-3" style="max-width:700px">';
+        echo '<div class="container-fluid py-3 px-4" style="max-width:780px">';
 
-        // Header
-        echo '<div class="d-flex align-items-center justify-content-between mb-3">';
-        echo '<h4 class="m-0"><i class="ti ti-database-import me-2 text-primary"></i>';
-        echo self::h(__('Migration', 'bridge')) . '</h4>';
+        // ── Header ───────────────────────────────────────────────────────
+        echo '<div class="d-flex align-items-center justify-content-between mb-4">';
+        echo '<div>';
+        echo '<h4 class="mb-0"><i class="ti ti-database-import me-2 text-primary"></i>' . self::h(__('Migration', 'bridge')) . '</h4>';
+        echo '<div class="text-muted small mt-1"><i class="ti ti-plug me-1"></i><strong>' . self::h($connection->fields['name']) . '</strong> &mdash; ' . self::h($connection->fields['base_url'] ?? '') . '</div>';
+        echo '</div>';
         echo '<div class="d-flex gap-2">';
-        echo '<a class="btn btn-outline-secondary btn-sm" href="' . self::h($historyUrl . '?id=' . $id) . '">';
-        echo '<i class="ti ti-history me-1"></i>' . self::h(__('History', 'bridge'));
-        echo '</a>';
-        echo '<a class="btn btn-outline-secondary btn-sm" href="' . self::h(Connection::getConfigURL($id)) . '">';
-        echo '<i class="ti ti-arrow-left me-1"></i>' . self::h(__('Back', 'bridge'));
-        echo '</a>';
+        echo '<a class="btn btn-sm btn-outline-secondary" href="' . self::h($historyUrl . '?id=' . $id) . '"><i class="ti ti-history me-1"></i>' . self::h(__('History', 'bridge')) . '</a>';
+        echo '<a class="btn btn-sm btn-outline-secondary" href="' . self::h(Connection::getConfigURL($id)) . '"><i class="ti ti-arrow-left me-1"></i>' . self::h(__('Back', 'bridge')) . '</a>';
         echo '</div>';
         echo '</div>';
 
-        echo '<form method="post" action="' . self::h($migrateUrl) . '">';
+        echo '<form method="post" action="' . self::h($migrateUrl) . '" id="bridge-migrate-form">';
         echo \Html::hidden('_glpi_csrf_token', ['value' => \Session::getNewCSRFToken()]);
         echo \Html::hidden('id', ['value' => $id]);
 
-        // Connection info
-        echo '<div class="alert alert-light border mb-3 py-2">';
-        echo '<i class="ti ti-plug me-1"></i><strong>' . self::h($connection->fields['name']) . '</strong>';
-        echo ' &mdash; ' . self::h($connection->fields['base_url'] ?? '');
-        echo '</div>';
-
-        echo '<div class="row g-3">';
-
-        // Resource type
-        echo '<div class="col-12">';
-        echo '<label class="form-label fw-semibold">' . self::h(__('Resource type', 'bridge')) . '</label>';
+        // ── Resource type ────────────────────────────────────────────────
+        echo self::sectionCard('ti-box', __('Resource type', 'bridge'));
         echo '<div class="d-flex flex-wrap gap-2">';
         $first = true;
-        foreach ($resourceTypes as $key => $meta) {
+        foreach ($resourceTypes as $key2 => $meta) {
             $implemented = (bool) ($meta['implemented'] ?? false);
-            $label       = self::h((string) ($meta['label'] ?? $key));
+            $label       = self::h((string) ($meta['label'] ?? $key2));
             if ($implemented) {
                 $checked = $first ? ' checked' : '';
-                echo '<div class="form-check form-check-inline border rounded px-3 py-2">';
-                echo '<input class="form-check-input" type="radio" name="resource_type" id="rt_' . $key . '" value="' . self::h($key) . '"' . $checked . '>';
-                echo '<label class="form-check-label" for="rt_' . $key . '">' . $label . '</label>';
-                echo '</div>';
+                echo '<label class="bridge-pill' . ($first ? ' active' : '') . '">';
+                echo '<input type="radio" name="resource_type" value="' . self::h($key2) . '"' . $checked . ' onchange="this.closest(\'.d-flex\').querySelectorAll(\'.bridge-pill\').forEach(p=>p.classList.remove(\'active\')); this.parentElement.classList.add(\'active\')">';
+                echo $label;
+                echo '</label>';
                 $first = false;
             } else {
-                echo '<div class="border rounded px-3 py-2 text-muted bg-light d-flex align-items-center gap-2">';
-                echo '<i class="ti ti-lock text-muted"></i>' . $label;
-                echo '<span class="badge bg-secondary ms-1">' . self::h(__('Not implemented yet', 'bridge')) . '</span>';
-                echo '</div>';
+                echo '<span class="bridge-pill disabled"><i class="ti ti-lock me-1"></i>' . $label . ' <span class="badge bg-secondary ms-1 fw-normal" style="font-size:.7rem">' . self::h(__('Soon', 'bridge')) . '</span></span>';
             }
         }
         echo '</div>';
-        echo '</div>';
+        echo '</div>'; // card
 
-        // Migration mode toggle
-        echo '<div class="col-12"><hr class="my-1"></div>';
-        echo '<div class="col-12">';
-        echo '<label class="form-label fw-semibold">' . self::h(__('Migration mode', 'bridge')) . '</label>';
-        echo '<div class="d-flex gap-3">';
-        echo '<div class="form-check">';
-        echo '<input class="form-check-input" type="radio" name="migration_mode" id="mode_filters" value="filters" checked onchange="bridgeModeToggle()">';
-        echo '<label class="form-check-label" for="mode_filters">' . self::h(__('By filters / pagination', 'bridge')) . '</label>';
+        // ── Migration mode ───────────────────────────────────────────────
+        echo self::sectionCard('ti-adjustments-horizontal', __('Mode', 'bridge'));
+        echo '<div class="d-flex gap-2 mb-3" role="group">';
+        echo '<button type="button" id="btn-mode-filters" class="btn btn-sm bridge-mode-btn active" onclick="bridgeSetMode(\'filters\')">';
+        echo '<i class="ti ti-filter me-1"></i>' . self::h(__('By filters', 'bridge'));
+        echo '</button>';
+        echo '<button type="button" id="btn-mode-ids" class="btn btn-sm bridge-mode-btn" onclick="bridgeSetMode(\'ids\')">';
+        echo '<i class="ti ti-hash me-1"></i>' . self::h(__('By source IDs', 'bridge'));
+        echo '</button>';
         echo '</div>';
-        echo '<div class="form-check">';
-        echo '<input class="form-check-input" type="radio" name="migration_mode" id="mode_ids" value="ids" onchange="bridgeModeToggle()">';
-        echo '<label class="form-check-label" for="mode_ids">' . self::h(__('By specific source IDs', 'bridge')) . '</label>';
-        echo '</div>';
-        echo '</div>';
-        echo '</div>';
+        echo '<input type="hidden" name="migration_mode" id="migration_mode_val" value="filters">';
 
-        // --- Section: By IDs ---
-        echo '<div id="bridge_section_ids" class="col-12" style="display:none">';
-        echo '<label class="form-label">' . self::h(__('Source IDs (comma-separated)', 'bridge')) . '</label>';
-        echo '<input type="text" class="form-control font-monospace" name="source_ids" placeholder="181695325, 181695326, 181695327" autocomplete="off">';
-        echo '<div class="form-text">' . self::h(__('SolarWinds incident IDs to migrate. Overrides filters and pagination.', 'bridge')) . '</div>';
-        echo '</div>';
-
-        // --- Section: Filters ---
+        // Mode: By filters
         echo '<div id="bridge_section_filters">';
+
         echo '<div class="row g-3">';
 
-        echo '<div class="col-12"><hr class="my-1"></div>';
-        echo '<div class="col-12"><p class="fw-semibold mb-1">' . self::h(__('Filters', 'bridge')) . '</p></div>';
-
         echo '<div class="col-md-4">';
-        echo '<label class="form-label">' . self::h(__('State', 'bridge')) . '</label>';
+        echo '<label class="form-label fw-medium">' . self::h(__('State', 'bridge')) . '</label>';
         $states = [
             ''                         => __('All states', 'bridge'),
             'Closed'                   => 'Closed',
@@ -109,7 +83,7 @@ class MigratePage
             'Pendiente Acción Cliente' => 'Pendiente Acción Cliente',
             'Gestión Proveedor'        => 'Gestión Proveedor',
         ];
-        echo '<select class="form-select" name="state">';
+        echo '<select class="form-select form-select-sm" name="state" id="f_state">';
         foreach ($states as $val => $lbl) {
             echo '<option value="' . self::h($val) . '">' . self::h($lbl) . '</option>';
         }
@@ -117,75 +91,64 @@ class MigratePage
         echo '</div>';
 
         echo '<div class="col-md-4">';
-        echo '<label class="form-label">' . self::h(__('Created after', 'bridge')) . '</label>';
-        echo '<input type="date" class="form-control" name="created_after">';
+        echo '<label class="form-label fw-medium">' . self::h(__('Created after', 'bridge')) . '</label>';
+        echo '<input type="date" class="form-control form-control-sm" name="created_after" id="f_created_after">';
         echo '</div>';
 
         echo '<div class="col-md-4">';
-        echo '<label class="form-label">' . self::h(__('Updated after', 'bridge')) . '</label>';
-        echo '<input type="date" class="form-control" name="updated_after">';
+        echo '<label class="form-label fw-medium">' . self::h(__('Updated after', 'bridge')) . '</label>';
+        echo '<input type="date" class="form-control form-control-sm" name="updated_after" id="f_updated_after">';
         echo '</div>';
 
         echo '<div class="col-md-4">';
-        echo '<label class="form-label">' . self::h(__('Default requester', 'bridge')) . '</label>';
-        echo '<div class="form-text text-muted mb-1" style="font-size:.78rem">' . self::h(__('Used for external requesters not found in GLPI.', 'bridge')) . '</div>';
+        echo '<label class="form-label fw-medium">' . self::h(__('Start from page', 'bridge')) . '</label>';
+        echo '<input type="number" class="form-control form-control-sm" name="start_page" id="f_start_page" value="1" min="1">';
+        echo '<div class="form-text">' . self::h(__('Newest first. ~200 = Apr 2026, ~1870 = Apr 2024.', 'bridge')) . '</div>';
+        echo '</div>';
+
+        echo '<div class="col-md-4">';
+        echo '<label class="form-label fw-medium">' . self::h(__('Limit', 'bridge')) . '</label>';
+        echo '<input type="number" class="form-control form-control-sm" name="limit" id="f_limit" value="50" min="1" max="500">';
+        echo '<div class="form-text">' . self::h(__('Max records per run.', 'bridge')) . '</div>';
+        echo '</div>';
+
+        echo '</div>'; // row
+        echo '</div>'; // bridge_section_filters
+
+        // Mode: By IDs
+        echo '<div id="bridge_section_ids" style="display:none">';
+        echo '<label class="form-label fw-medium">' . self::h(__('Source IDs', 'bridge')) . '</label>';
+        echo '<input type="text" class="form-control form-control-sm font-monospace" name="source_ids" id="f_source_ids" placeholder="181695325, 181695326, 181695327" autocomplete="off">';
+        echo '<div class="form-text">' . self::h(__('Comma-separated SolarWinds IDs. Overrides filters and pagination.', 'bridge')) . '</div>';
+        echo '</div>';
+
+        echo '</div>'; // card
+
+        // ── Content options ──────────────────────────────────────────────
+        echo self::sectionCard('ti-settings-2', __('Content', 'bridge'));
+        echo '<div class="row g-3">';
+
+        echo '<div class="col-md-6">';
+        echo '<label class="form-label fw-medium">' . self::h(__('Default requester', 'bridge')) . '</label>';
         \User::dropdown([
             'name'  => 'default_requesters_id',
             'value' => 0,
             'width' => '100%',
         ]);
+        echo '<div class="form-text">' . self::h(__('Used when source has no requester email.', 'bridge')) . '</div>';
         echo '</div>';
 
-        // Batch
-        echo '<div class="col-12"><hr class="my-1"></div>';
-        echo '<div class="col-12"><p class="fw-semibold mb-1">' . self::h(__('Batch', 'bridge')) . '</p></div>';
-
-        echo '<div class="col-md-4">';
-        echo '<label class="form-label">' . self::h(__('Limit', 'bridge')) . '</label>';
-        echo '<input type="number" class="form-control" name="limit" value="50" min="1" max="500">';
-        echo '<div class="form-text">' . self::h(__('Max records per run.', 'bridge')) . '</div>';
+        echo '<div class="col-md-6 d-flex flex-column justify-content-center gap-2 pt-2">';
+        echo self::checkbox('inc_comments',   'include_comments',       __('Comments → Followups', 'bridge'),           'ti-message',   true);
+        echo self::checkbox('inc_attachments','include_attachments',    __('Attachments → Documents', 'bridge') . ' <span class="text-muted small">(' . self::h(__('slower', 'bridge')) . ')</span>', 'ti-paperclip', false);
+        echo self::checkbox('keep_private',   'keep_private_comments',  __('Preserve private flag on comments', 'bridge'), 'ti-lock',    false);
         echo '</div>';
 
-        echo '<div class="col-md-4">';
-        echo '<label class="form-label">' . self::h(__('Start from page', 'bridge')) . '</label>';
-        echo '<input type="number" class="form-control" name="start_page" value="1" min="1">';
-        echo '<div class="form-text text-muted" style="font-size:.75rem">';
-        echo self::h(__('API returns newest first. Use ~200 for April 2026, ~1870 for April 2024.', 'bridge'));
-        echo '</div>';
-        echo '</div>';
+        echo '</div>'; // row
+        echo '</div>'; // card
 
-        echo '</div>'; // inner row
-        echo '</div>'; // bridge_section_filters
-
-        // Options
-        echo '<div class="col-12"><hr class="my-1"></div>';
-        echo '<div class="col-12"><p class="fw-semibold mb-1">' . self::h(__('Content', 'bridge')) . '</p></div>';
-
-        echo '<div class="col-12">';
-        echo '<div class="form-check mb-2">';
-        echo '<input class="form-check-input" type="checkbox" id="inc_comments" name="include_comments" value="1" checked>';
-        echo '<label class="form-check-label" for="inc_comments">';
-        echo '<i class="ti ti-message me-1"></i>' . self::h(__('Comments → Followups', 'bridge'));
-        echo '</label>';
-        echo '</div>';
-        echo '<div class="form-check mb-2">';
-        echo '<input class="form-check-input" type="checkbox" id="inc_attachments" name="include_attachments" value="1">';
-        echo '<label class="form-check-label" for="inc_attachments">';
-        echo '<i class="ti ti-paperclip me-1"></i>' . self::h(__('Attachments → Documents', 'bridge'));
-        echo '<span class="text-muted small ms-1">' . self::h(__('(slower — downloads files)', 'bridge')) . '</span>';
-        echo '</label>';
-        echo '</div>';
-        echo '<div class="form-check">';
-        echo '<input class="form-check-input" type="checkbox" id="keep_private" name="keep_private_comments" value="1">';
-        echo '<label class="form-check-label" for="keep_private">';
-        echo '<i class="ti ti-lock me-1"></i>' . self::h(__('Preserve private flag on comments', 'bridge'));
-        echo '<span class="text-muted small ms-1">' . self::h(__('(unchecked = all followups visible)', 'bridge')) . '</span>';
-        echo '</label>';
-        echo '</div>';
-        echo '</div>';
-
-        // Actions
-        echo '<div class="col-12 d-flex gap-2 mt-2">';
+        // ── Action buttons ───────────────────────────────────────────────
+        echo '<div class="d-flex gap-2 mt-2">';
         echo '<button type="submit" name="action" value="migrate" class="btn btn-primary">';
         echo '<i class="ti ti-database-import me-1"></i>' . self::h(__('Migrate now', 'bridge'));
         echo '</button>';
@@ -194,16 +157,100 @@ class MigratePage
         echo '</button>';
         echo '</div>';
 
-        echo '</div>'; // row
         echo '</form>';
 
-        echo '<script>
-function bridgeModeToggle() {
-    var isIds = document.getElementById("mode_ids").checked;
-    document.getElementById("bridge_section_ids").style.display     = isIds ? "" : "none";
-    document.getElementById("bridge_section_filters").style.display = isIds ? "none" : "";
+        // ── Styles + JS ──────────────────────────────────────────────────
+        $stKey = self::h('bridge_state_' . $id);
+
+        echo <<<HTML
+<style>
+.bridge-pill {
+    display:inline-flex; align-items:center; gap:.35rem;
+    padding:.35rem .85rem; border-radius:2rem;
+    border:1px solid #dee2e6; background:#fff;
+    cursor:pointer; font-size:.875rem; transition:all .15s;
+    user-select:none;
 }
-</script>';
+.bridge-pill input[type=radio] { display:none; }
+.bridge-pill.active { border-color:#0d6efd; background:#e8f0fe; color:#0d6efd; font-weight:500; }
+.bridge-pill.disabled { opacity:.5; cursor:default; }
+
+.bridge-mode-btn {
+    border:1px solid #dee2e6; background:#fff; color:#495057;
+    padding:.3rem .9rem; border-radius:.375rem;
+}
+.bridge-mode-btn.active {
+    background:#0d6efd; border-color:#0d6efd; color:#fff;
+}
+
+.bridge-section-card {
+    border:1px solid #e9ecef; border-radius:.5rem;
+    padding:1rem 1.25rem; margin-bottom:1rem; background:#fff;
+}
+.bridge-section-card .bridge-section-title {
+    font-size:.7rem; font-weight:600; text-transform:uppercase;
+    letter-spacing:.06em; color:#6c757d; margin-bottom:.75rem;
+    display:flex; align-items:center; gap:.4rem;
+}
+</style>
+<script>
+(function() {
+    var SK = '{$stKey}';
+
+    function bridgeSetMode(mode) {
+        var isIds = (mode === 'ids');
+        document.getElementById('bridge_section_ids').style.display     = isIds ? '' : 'none';
+        document.getElementById('bridge_section_filters').style.display = isIds ? 'none' : '';
+        document.getElementById('migration_mode_val').value = mode;
+        document.getElementById('btn-mode-filters').classList.toggle('active', !isIds);
+        document.getElementById('btn-mode-ids').classList.toggle('active',  isIds);
+        try { sessionStorage.setItem(SK + '_mode', mode); } catch(e) {}
+    }
+    window.bridgeSetMode = bridgeSetMode;
+
+    function restore() {
+        try {
+            var mode = sessionStorage.getItem(SK + '_mode') || 'filters';
+            bridgeSetMode(mode);
+
+            var ids = sessionStorage.getItem(SK + '_ids') || '';
+            if (ids) document.getElementById('f_source_ids').value = ids;
+
+            var state = sessionStorage.getItem(SK + '_state') || '';
+            if (state) document.getElementById('f_state').value = state;
+
+            var ca = sessionStorage.getItem(SK + '_created_after') || '';
+            if (ca) document.getElementById('f_created_after').value = ca;
+
+            var ua = sessionStorage.getItem(SK + '_updated_after') || '';
+            if (ua) document.getElementById('f_updated_after').value = ua;
+
+            var sp = sessionStorage.getItem(SK + '_start_page');
+            if (sp) document.getElementById('f_start_page').value = sp;
+
+            var lim = sessionStorage.getItem(SK + '_limit');
+            if (lim) document.getElementById('f_limit').value = lim;
+        } catch(e) {}
+    }
+
+    document.addEventListener('DOMContentLoaded', function() {
+        restore();
+
+        document.getElementById('bridge-migrate-form').addEventListener('submit', function() {
+            try {
+                sessionStorage.setItem(SK + '_mode',  document.getElementById('migration_mode_val').value);
+                sessionStorage.setItem(SK + '_ids',   document.getElementById('f_source_ids').value);
+                sessionStorage.setItem(SK + '_state', document.getElementById('f_state').value);
+                sessionStorage.setItem(SK + '_created_after', document.getElementById('f_created_after').value);
+                sessionStorage.setItem(SK + '_updated_after', document.getElementById('f_updated_after').value);
+                sessionStorage.setItem(SK + '_start_page', document.getElementById('f_start_page').value);
+                sessionStorage.setItem(SK + '_limit', document.getElementById('f_limit').value);
+            } catch(e) {}
+        });
+    });
+})();
+</script>
+HTML;
 
         echo '</div>';
     }
@@ -214,55 +261,58 @@ function bridgeModeToggle() {
         string          $resourceType,
         string          $historyUrl
     ): void {
-        $id = (int) $connection->fields['id'];
-
-        echo '<div class="container-fluid p-3" style="max-width:860px">';
-
+        $id    = (int) $connection->fields['id'];
         $isDry = $result->isDryRun;
-        $title = $isDry ? __('Dry-run result', 'bridge') : __('Migration complete', 'bridge');
+        $title = $isDry ? __('Dry-run preview', 'bridge') : __('Migration complete', 'bridge');
         $icon  = $isDry ? 'list-check text-warning' : 'circle-check text-success';
 
-        echo '<div class="d-flex align-items-center justify-content-between mb-3">';
-        echo '<h4 class="m-0"><i class="ti ti-' . $icon . ' me-2"></i>' . self::h($title) . '</h4>';
+        echo '<div class="container-fluid py-3 px-4" style="max-width:860px">';
+
+        // Header
+        echo '<div class="d-flex align-items-center justify-content-between mb-4">';
+        echo '<h4 class="mb-0"><i class="ti ti-' . $icon . ' me-2"></i>' . self::h($title) . '</h4>';
         echo '<div class="d-flex gap-2">';
         if (!$isDry) {
-            echo '<a class="btn btn-outline-secondary btn-sm" href="' . self::h($historyUrl . '?id=' . $id) . '">';
-            echo '<i class="ti ti-history me-1"></i>' . self::h(__('History', 'bridge')) . '</a>';
+            echo '<a class="btn btn-sm btn-outline-secondary" href="' . self::h($historyUrl . '?id=' . $id) . '"><i class="ti ti-history me-1"></i>' . self::h(__('History', 'bridge')) . '</a>';
         }
-        echo '<a class="btn btn-outline-secondary btn-sm" href="' . self::h(Connection::getConfigURL($id)) . '">';
-        echo '<i class="ti ti-arrow-left me-1"></i>' . self::h(__('Back', 'bridge')) . '</a>';
+        echo '<a class="btn btn-sm btn-outline-secondary" href="' . self::h(Connection::getConfigURL($id)) . '"><i class="ti ti-arrow-left me-1"></i>' . self::h(__('Back', 'bridge')) . '</a>';
         echo '</div>';
         echo '</div>';
 
         // Summary cards
-        echo '<div class="row g-2 mb-3">';
-        self::statCard('circle-check', 'success', count($result->created), $isDry ? __('Would create', 'bridge') : __('Created', 'bridge'));
-        self::statCard('circle-x',     'danger',  count($result->failed),  __('Failed', 'bridge'));
-        self::statCard('minus-circle', 'secondary', count($result->skipped), __('Skipped (already migrated)', 'bridge'));
+        echo '<div class="row g-3 mb-4">';
+        self::statCard('circle-check', 'success',   count($result->created), $isDry ? __('Would create', 'bridge') : __('Created', 'bridge'));
+        self::statCard('circle-x',     'danger',     count($result->failed),  __('Failed', 'bridge'));
+        self::statCard('minus-circle', 'secondary',  count($result->skipped), __('Skipped', 'bridge'));
         echo '</div>';
 
         if ($isDry) {
-            echo '<div class="alert alert-warning">';
-            echo '<i class="ti ti-alert-triangle me-1"></i>';
-            echo self::h(__('Dry-run — nothing was written to GLPI.', 'bridge'));
+            echo '<div class="alert alert-warning d-flex align-items-center gap-2">';
+            echo '<i class="ti ti-alert-triangle fs-5"></i>';
+            echo '<span>' . self::h(__('Dry-run — nothing was written to GLPI.', 'bridge')) . '</span>';
             echo '</div>';
         }
 
         // Created
         if (!empty($result->created)) {
-            echo '<div class="card mb-3">';
-            echo '<div class="card-header fw-semibold text-success"><i class="ti ti-circle-check me-1"></i>';
-            echo self::h($isDry ? __('Would create', 'bridge') : __('Created tickets', 'bridge')) . '</div>';
-            echo '<div class="table-responsive"><table class="table table-sm mb-0">';
-            echo '<thead class="table-light"><tr><th>#</th><th>' . self::h(__('Name', 'bridge')) . '</th>';
-            if (!$isDry) echo '<th>GLPI ID</th>';
+            echo '<div class="card mb-3 border-0 shadow-sm">';
+            echo '<div class="card-header bg-success bg-opacity-10 border-0 fw-semibold text-success py-2">';
+            echo '<i class="ti ti-circle-check me-1"></i>' . self::h($isDry ? __('Would create', 'bridge') : __('Created tickets', 'bridge'));
+            echo ' <span class="badge bg-success ms-1">' . count($result->created) . '</span>';
+            echo '</div>';
+            echo '<div class="table-responsive"><table class="table table-sm table-hover mb-0">';
+            echo '<thead class="table-light"><tr>';
+            echo '<th class="text-muted fw-normal small">#SW</th>';
+            echo '<th class="fw-normal">' . self::h(__('Name', 'bridge')) . '</th>';
+            if (!$isDry) echo '<th class="text-muted fw-normal small">GLPI</th>';
             echo '</tr></thead><tbody>';
             foreach ($result->created as $r) {
-                echo '<tr><td>' . self::h($r['number']) . '</td>';
+                echo '<tr>';
+                echo '<td class="text-muted small">' . self::h($r['number']) . '</td>';
                 echo '<td>' . self::h($r['name']) . '</td>';
                 if (!$isDry) {
                     $ticketUrl = \Ticket::getFormURLWithID((int) $r['tickets_id']);
-                    echo '<td><a href="' . self::h($ticketUrl) . '" target="_blank">#' . (int) $r['tickets_id'] . '</a></td>';
+                    echo '<td><a href="' . self::h($ticketUrl) . '" target="_blank" class="text-decoration-none">#' . (int) $r['tickets_id'] . ' <i class="ti ti-external-link" style="font-size:.75rem"></i></a></td>';
                 }
                 echo '</tr>';
             }
@@ -271,14 +321,19 @@ function bridgeModeToggle() {
 
         // Failed
         if (!empty($result->failed)) {
-            echo '<div class="card mb-3">';
-            echo '<div class="card-header fw-semibold text-danger"><i class="ti ti-circle-x me-1"></i>' . self::h(__('Failed', 'bridge')) . '</div>';
+            echo '<div class="card mb-3 border-0 shadow-sm">';
+            echo '<div class="card-header bg-danger bg-opacity-10 border-0 fw-semibold text-danger py-2">';
+            echo '<i class="ti ti-circle-x me-1"></i>' . self::h(__('Failed', 'bridge'));
+            echo ' <span class="badge bg-danger ms-1">' . count($result->failed) . '</span>';
+            echo '</div>';
             echo '<div class="table-responsive"><table class="table table-sm mb-0">';
-            echo '<thead class="table-light"><tr><th>#</th><th>' . self::h(__('Name', 'bridge')) . '</th><th>' . self::h(__('Error', 'bridge')) . '</th></tr></thead><tbody>';
+            echo '<thead class="table-light"><tr><th class="fw-normal">#</th><th class="fw-normal">' . self::h(__('Name', 'bridge')) . '</th><th class="fw-normal">' . self::h(__('Error', 'bridge')) . '</th></tr></thead><tbody>';
             foreach ($result->failed as $r) {
-                echo '<tr class="table-danger"><td>' . self::h($r['number']) . '</td>';
+                echo '<tr>';
+                echo '<td class="text-muted small">' . self::h($r['number']) . '</td>';
                 echo '<td>' . self::h($r['name']) . '</td>';
-                echo '<td class="small">' . self::h($r['reason']) . '</td></tr>';
+                echo '<td><span class="text-danger small">' . self::h($r['reason']) . '</span></td>';
+                echo '</tr>';
             }
             echo '</tbody></table></div></div>';
         }
@@ -286,14 +341,37 @@ function bridgeModeToggle() {
         echo '</div>';
     }
 
+    // ── Helpers ──────────────────────────────────────────────────────────
+
+    private static function sectionCard(string $icon, string $title): string
+    {
+        return '<div class="bridge-section-card">'
+            . '<div class="bridge-section-title"><i class="ti ' . $icon . '"></i>' . self::h($title) . '</div>';
+    }
+
+    private static function checkbox(string $id, string $name, string $label, string $icon, bool $checked): string
+    {
+        $ch = $checked ? ' checked' : '';
+        return '<div class="form-check">'
+            . '<input class="form-check-input" type="checkbox" id="' . $id . '" name="' . $name . '" value="1"' . $ch . '>'
+            . '<label class="form-check-label small" for="' . $id . '">'
+            . '<i class="ti ' . $icon . ' me-1 text-muted"></i>' . $label
+            . '</label>'
+            . '</div>';
+    }
+
     private static function statCard(string $icon, string $color, int $value, string $label): void
     {
         echo '<div class="col-md-4">';
-        echo '<div class="card border-' . $color . '">';
-        echo '<div class="card-body py-2 d-flex align-items-center gap-3">';
-        echo '<i class="ti ti-' . $icon . ' text-' . $color . '" style="font-size:1.8rem"></i>';
-        echo '<div><div class="fw-bold fs-4">' . $value . '</div>';
-        echo '<div class="text-muted small">' . self::h($label) . '</div></div>';
+        echo '<div class="card border-0 shadow-sm h-100">';
+        echo '<div class="card-body py-3 d-flex align-items-center gap-3">';
+        echo '<div class="rounded-circle d-flex align-items-center justify-content-center text-' . $color . '" style="width:3rem;height:3rem;background:var(--bs-' . $color . '-bg-subtle,rgba(0,0,0,.05))">';
+        echo '<i class="ti ti-' . $icon . '" style="font-size:1.4rem"></i>';
+        echo '</div>';
+        echo '<div>';
+        echo '<div class="fw-bold fs-3 lh-1">' . $value . '</div>';
+        echo '<div class="text-muted small mt-1">' . self::h($label) . '</div>';
+        echo '</div>';
         echo '</div></div></div>';
     }
 
