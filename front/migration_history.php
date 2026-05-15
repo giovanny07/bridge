@@ -22,9 +22,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $action = (string) ($_POST['action'] ?? '');
 
     $purged = match ($action) {
-        'purgeFailed' => MigrationRecord::purgeFailed($id),
-        'purgeAll'    => MigrationRecord::purgeAll($id),
-        default       => 0,
+        'purgeFailed'   => MigrationRecord::purgeFailed($id),
+        'purgeAll'      => MigrationRecord::purgeAll($id),
+        'purgeSelected' => MigrationRecord::purgeByIds($id, (array) ($_POST['ids'] ?? [])),
+        default         => 0,
     };
 
     if ($purged > 0) {

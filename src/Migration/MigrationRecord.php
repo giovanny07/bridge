@@ -91,6 +91,18 @@ class MigrationRecord extends CommonDBTM
         return $count;
     }
 
+    /** Purge a specific list of record IDs for a connection. */
+    public static function purgeByIds(int $connectionId, array $ids): int
+    {
+        global $DB;
+        $ids = array_values(array_filter(array_map('intval', $ids)));
+        if (empty($ids)) {
+            return 0;
+        }
+        $DB->delete(self::getTable(), ['connections_id' => $connectionId, 'id' => $ids]);
+        return count($ids);
+    }
+
     /** Purge only failed records so they can be retried. */
     public static function purgeFailed(int $connectionId, string $sourceType = ''): int
     {
@@ -143,8 +155,19 @@ class MigrationRecord extends CommonDBTM
     {
         global $DB;
         $where = ['connections_id' => $connectionId];
-        if (!empty($filters['source_type'])) $where['source_type'] = $filters['source_type'];
-        if (!empty($filters['status']))      $where['status']      = $filters['status'];
+        if (!empty($filters['source_type'])) {
+            $where['source_type'] = $filters['source_type'];
+        }
+        if (!empty($filters['status'])) {
+            // 'warning' is a virtual filter: success records that have a non-empty error_message
+            if ($filters['status'] === 'warning') {
+                $where['status']       = self::STATUS_SUCCESS;
+                $where['NOT']          = ['error_message' => null];
+                $where[['error_message' => ['<>', '']]];
+            } else {
+                $where['status'] = $filters['status'];
+            }
+        }
 
         $rows = [];
         foreach ($DB->request([
@@ -163,12 +186,18 @@ class MigrationRecord extends CommonDBTM
     {
         global $DB;
         $where = ['connections_id' => $connectionId];
-        if ($sourceType !== '') $where['source_type'] = $sourceType;
+        if ($sourceType !== '') {
+            $where['source_type'] = $sourceType;
+        }
 
-        $summary = ['total' => 0, 'success' => 0, 'failed' => 0, 'skipped' => 0];
+        $summary = ['total' => 0, 'success' => 0, 'failed' => 0, 'skipped' => 0, 'warning' => 0];
         foreach ($DB->request(['FROM' => self::getTable(), 'WHERE' => $where]) as $row) {
             $summary['total']++;
             $summary[$row['status']] = ($summary[$row['status']] ?? 0) + 1;
+            // Count success records that have warnings stored in error_message
+            if ($row['status'] === self::STATUS_SUCCESS && !empty($row['error_message'])) {
+                $summary['warning']++;
+            }
         }
         return $summary;
     }

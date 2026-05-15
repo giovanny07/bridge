@@ -150,7 +150,10 @@ class MigrationEngine
         try {
             $ticketId = $this->createTicket($mapped, $includeAtt, $keepPrivate);
             $result->addCreated($incident, $ticketId);
-            MigrationRecord::log($this->connectionId, 'incidents', $sourceId, (string) ($incident['number'] ?? ''), MigrationRecord::STATUS_SUCCESS, $ticketId);
+            // Store resolver warnings (unmatched entity/user/group) in error_message
+            // so the history page can flag the record as "success with warnings"
+            $warningsNote = implode(' | ', $mapped->warnings);
+            MigrationRecord::log($this->connectionId, 'incidents', $sourceId, (string) ($incident['number'] ?? ''), MigrationRecord::STATUS_SUCCESS, $ticketId, $warningsNote);
         } catch (\Throwable $e) {
             $result->addFailed($incident, $e->getMessage());
             MigrationRecord::log($this->connectionId, 'incidents', $sourceId, (string) ($incident['number'] ?? ''), MigrationRecord::STATUS_FAILED, 0, $e->getMessage());
