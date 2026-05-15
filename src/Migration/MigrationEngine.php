@@ -370,10 +370,10 @@ class MigrationEngine
             return;
         }
 
-        // Link to ticket
+        // Link only to the followup — GLPI shows followup attachments in the
+        // timeline inline. Linking to the Ticket as well creates a duplicate
+        // in the Documents tab since the same file appears twice.
         $di = new \Document_Item();
-        $di->add(['documents_id' => $docId, 'itemtype' => 'Ticket',        'items_id' => $ticketId,   'entities_id' => $entityId]);
-        // Link to followup
         $di->add(['documents_id' => $docId, 'itemtype' => 'ITILFollowup', 'items_id' => $followupId, 'entities_id' => $entityId]);
     }
 
