@@ -126,8 +126,10 @@ class ConfigPage
 
             foreach ($rows as $row) {
                 $id         = (int) $row['id'];
+                $isActive   = (bool) ($row['is_active'] ?? true);
                 $isSelected = ($id === $selectedId);
-                $rowClass   = $isSelected ? ' class="table-active"' : '';
+                $classes    = array_filter(['table-active' => $isSelected, 'opacity-50' => !$isActive]);
+                $rowClass   = !empty($classes) ? ' class="' . implode(' ', array_keys($classes)) . '"' : '';
                 $editUrl    = Connection::getConfigURL($id);
                 $host       = parse_url((string) $row['base_url'], PHP_URL_HOST) ?: $row['base_url'];
                 $csrfToken  = Session::getNewCSRFToken();
@@ -178,7 +180,7 @@ class ConfigPage
                 echo '<i class="ti ti-history"></i>';
                 echo '</a>';
 
-                // Dry-run button — GET to selector page (read-only, no CSRF needed)
+                // Dry-run button
                 echo '<a href="' . $dryRunUrl . '?id=' . $id . '"';
                 echo ' class="btn btn-sm btn-outline-warning me-1"';
                 echo ' title="' . self::h(__('Dry-run', 'bridge')) . '">';
@@ -186,12 +188,32 @@ class ConfigPage
                 echo '</a>';
 
                 // Scan button (form POST)
-                echo '<form method="post" action="' . $scanUrl . '" class="d-inline">';
+                echo '<form method="post" action="' . $scanUrl . '" class="d-inline me-1">';
                 echo Html::hidden('_glpi_csrf_token', ['value' => Session::getNewCSRFToken()]);
                 echo Html::hidden('id', ['value' => $id]);
                 echo '<button type="submit" class="btn btn-sm btn-outline-primary"';
                 echo ' title="' . self::h(__('Scan incidents', 'bridge')) . '">';
                 echo '<i class="ti ti-radar"></i>';
+                echo '</button>';
+                echo '</form>';
+
+                // Edit button
+                echo '<a href="' . self::h($editUrl) . '"';
+                echo ' class="btn btn-sm btn-outline-secondary me-1"';
+                echo ' title="' . self::h(__('Edit connection', 'bridge')) . '">';
+                echo '<i class="ti ti-pencil"></i>';
+                echo '</a>';
+
+                // Delete button (inline form)
+                $confirmDel = addslashes(self::h(__('Delete this connection?', 'bridge')));
+                $configFormUrl = Connection::getConfigFormURL();
+                echo '<form method="post" action="' . self::h($configFormUrl) . '" class="d-inline">';
+                echo Html::hidden('_glpi_csrf_token', ['value' => Session::getNewCSRFToken()]);
+                echo Html::hidden('id', ['value' => $id]);
+                echo '<button type="submit" name="purge" class="btn btn-sm btn-outline-danger"';
+                echo ' title="' . self::h(__('Delete connection', 'bridge')) . '"';
+                echo ' onclick="return confirm(\'' . $confirmDel . '\')">';
+                echo '<i class="ti ti-trash"></i>';
                 echo '</button>';
                 echo '</form>';
 

@@ -16,6 +16,11 @@ if (!$id || !$connection->getFromDB($id)) {
     Html::redirect(Connection::getConfigURL());
 }
 
+if (!(int) ($connection->fields['is_active'] ?? 1)) {
+    Session::addMessageAfterRedirect(__('This connection is inactive.', 'bridge'), false, WARNING);
+    Html::redirect(Connection::getConfigURL($id));
+}
+
 Html::header(__('Dry-run', 'bridge'), '', 'config', 'plugins');
 
 try {
