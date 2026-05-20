@@ -151,28 +151,55 @@ class MigrationRecord extends CommonDBTM
     // History query
     // ------------------------------------------------------------------ //
 
-    public static function getHistory(int $connectionId, array $filters = [], int $limit = 100, int $offset = 0): array
+    private static function buildWhere(int $connectionId, array $filters): array
     {
-        global $DB;
         $where = ['connections_id' => $connectionId];
+
         if (!empty($filters['source_type'])) {
             $where['source_type'] = $filters['source_type'];
         }
+
         if (!empty($filters['status'])) {
-            // 'warning' is a virtual filter: success records that have a non-empty error_message
             if ($filters['status'] === 'warning') {
-                $where['status']       = self::STATUS_SUCCESS;
-                $where['NOT']          = ['error_message' => null];
-                $where[['error_message' => ['<>', '']]];
+                $where['status'] = self::STATUS_SUCCESS;
+                $where['NOT']    = ['error_message' => null];
+                $where[]         = ['error_message' => ['<>', '']];
             } else {
                 $where['status'] = $filters['status'];
             }
         }
 
+        if (!empty($filters['search'])) {
+            $q       = '%' . $filters['search'] . '%';
+            $where[] = ['OR' => [
+                ['source_number' => ['LIKE', $q]],
+                ['source_id'     => ['LIKE', $q]],
+            ]];
+        }
+
+        return $where;
+    }
+
+    public static function countHistory(int $connectionId, array $filters = []): int
+    {
+        global $DB;
+        foreach ($DB->request([
+            'COUNT' => 'id',
+            'FROM'  => self::getTable(),
+            'WHERE' => self::buildWhere($connectionId, $filters),
+        ]) as $row) {
+            return (int) $row['id'];
+        }
+        return 0;
+    }
+
+    public static function getHistory(int $connectionId, array $filters = [], int $limit = 100, int $offset = 0): array
+    {
+        global $DB;
         $rows = [];
         foreach ($DB->request([
             'FROM'   => self::getTable(),
-            'WHERE'  => $where,
+            'WHERE'  => self::buildWhere($connectionId, $filters),
             'ORDER'  => ['migrated_at DESC'],
             'LIMIT'  => $limit,
             'START'  => $offset,

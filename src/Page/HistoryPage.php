@@ -7,13 +7,23 @@ use GlpiPlugin\Bridge\Migration\MigrationRecord;
 
 class HistoryPage
 {
+    private const PER_PAGE = 50;
+
     public static function show(Connection $connection, string $migrateUrl, string $purgeUrl): void
     {
         $id           = (int) $connection->fields['id'];
         $filterStatus = (string) ($_GET['status'] ?? '');
+        $search       = trim((string) ($_GET['q'] ?? ''));
+        $page         = max(1, (int) ($_GET['page'] ?? 1));
+
+        $filters = ['status' => $filterStatus, 'search' => $search];
+        $total   = MigrationRecord::countHistory($id, $filters);
+        $pages   = max(1, (int) ceil($total / self::PER_PAGE));
+        $page    = min($page, $pages);
+        $offset  = ($page - 1) * self::PER_PAGE;
 
         $summary = MigrationRecord::getSummary($id);
-        $records = MigrationRecord::getHistory($id, ['status' => $filterStatus], 500);
+        $records = MigrationRecord::getHistory($id, $filters, self::PER_PAGE, $offset);
 
         echo '<div class="container-fluid py-3 px-4">';
 
@@ -37,6 +47,26 @@ class HistoryPage
         self::statCard('circle-x',     'danger',    $summary['failed']  ?? 0, __('Failed',  'bridge'));
         echo '</div>';
 
+        // ── Search bar ───────────────────────────────────────────────────
+        $baseUrl = '?id=' . $id;
+        echo '<form method="get" action="" class="mb-3">';
+        echo \Html::hidden('id', ['value' => $id]);
+        if ($filterStatus !== '') {
+            echo \Html::hidden('status', ['value' => $filterStatus]);
+        }
+        echo '<div class="input-group input-group-sm" style="max-width:360px">';
+        echo '<span class="input-group-text"><i class="ti ti-search"></i></span>';
+        echo '<input type="text" class="form-control" name="q" value="' . self::h($search) . '" '
+           . 'placeholder="' . self::h(__('Search by ticket # or source ID…', 'bridge')) . '" autocomplete="off">';
+        if ($search !== '') {
+            echo '<a class="btn btn-outline-secondary" href="' . self::h($baseUrl . ($filterStatus !== '' ? '&status=' . urlencode($filterStatus) : '')) . '" title="' . self::h(__('Clear', 'bridge')) . '">';
+            echo '<i class="ti ti-x"></i></a>';
+        } else {
+            echo '<button type="submit" class="btn btn-outline-secondary">' . self::h(__('Search', 'bridge')) . '</button>';
+        }
+        echo '</div>';
+        echo '</form>';
+
         // ── Bulk action form (wraps table) ────────────────────────────────
         echo '<form method="post" action="' . self::h($purgeUrl) . '" id="bridge-history-form">';
         echo \Html::hidden('_glpi_csrf_token', ['value' => \Session::getNewCSRFToken()]);
@@ -46,21 +76,26 @@ class HistoryPage
         // ── Toolbar: filters + bulk actions ───────────────────────────────
         echo '<div class="d-flex flex-wrap gap-2 align-items-center justify-content-between mb-2">';
 
-        // Filter pills
-        echo '<div class="d-flex flex-wrap gap-1">';
-        $filters = [
+        // Filter pills (preserve search query)
+        $qParam = $search !== '' ? '&q=' . urlencode($search) : '';
+        echo '<div class="d-flex flex-wrap gap-1 align-items-center">';
+        $filterDefs = [
             ''        => [__('All', 'bridge'),           'secondary'],
             'success' => [__('Success', 'bridge'),        'success'],
             'warning' => [__('With warnings', 'bridge'),  'warning'],
             'failed'  => [__('Failed', 'bridge'),         'danger'],
             'skipped' => [__('Skipped', 'bridge'),        'secondary'],
         ];
-        foreach ($filters as $val => [$lbl, $color]) {
+        foreach ($filterDefs as $val => [$lbl, $color]) {
             $active = ($filterStatus === $val);
-            $url    = '?id=' . $id . ($val !== '' ? '&status=' . urlencode($val) : '');
+            $url    = '?id=' . $id . ($val !== '' ? '&status=' . urlencode($val) : '') . $qParam;
             $cls    = $active ? "btn-$color" : "btn-outline-$color";
             echo '<a class="btn btn-sm ' . $cls . '" href="' . self::h($url) . '">' . self::h($lbl) . '</a>';
         }
+        // Results count
+        $from = $total > 0 ? $offset + 1 : 0;
+        $to   = min($offset + self::PER_PAGE, $total);
+        echo '<span class="text-muted small ms-2">' . sprintf(self::h(__('%d–%d of %d', 'bridge')), $from, $to, $total) . '</span>';
         echo '</div>';
 
         // Bulk action buttons
@@ -143,6 +178,47 @@ class HistoryPage
 
         echo '</tbody></table></div></div>';
         echo '</form>';
+
+        // ── Pagination ────────────────────────────────────────────────────
+        if ($pages > 1) {
+            $statusParam = $filterStatus !== '' ? '&status=' . urlencode($filterStatus) : '';
+            echo '<nav class="mt-3 d-flex justify-content-center align-items-center gap-2">';
+
+            // Prev
+            if ($page > 1) {
+                $url = '?id=' . $id . $statusParam . $qParam . '&page=' . ($page - 1);
+                echo '<a class="btn btn-sm btn-outline-secondary" href="' . self::h($url) . '"><i class="ti ti-chevron-left"></i></a>';
+            } else {
+                echo '<button class="btn btn-sm btn-outline-secondary" disabled><i class="ti ti-chevron-left"></i></button>';
+            }
+
+            // Page numbers (show window of 5 around current)
+            $windowStart = max(1, $page - 2);
+            $windowEnd   = min($pages, $page + 2);
+            if ($windowStart > 1) {
+                echo '<a class="btn btn-sm btn-outline-secondary" href="' . self::h('?id=' . $id . $statusParam . $qParam . '&page=1') . '">1</a>';
+                if ($windowStart > 2) echo '<span class="text-muted px-1">…</span>';
+            }
+            for ($p = $windowStart; $p <= $windowEnd; $p++) {
+                $url = '?id=' . $id . $statusParam . $qParam . '&page=' . $p;
+                $cls = $p === $page ? 'btn-primary' : 'btn-outline-secondary';
+                echo '<a class="btn btn-sm ' . $cls . '" href="' . self::h($url) . '">' . $p . '</a>';
+            }
+            if ($windowEnd < $pages) {
+                if ($windowEnd < $pages - 1) echo '<span class="text-muted px-1">…</span>';
+                echo '<a class="btn btn-sm btn-outline-secondary" href="' . self::h('?id=' . $id . $statusParam . $qParam . '&page=' . $pages) . '">' . $pages . '</a>';
+            }
+
+            // Next
+            if ($page < $pages) {
+                $url = '?id=' . $id . $statusParam . $qParam . '&page=' . ($page + 1);
+                echo '<a class="btn btn-sm btn-outline-secondary" href="' . self::h($url) . '"><i class="ti ti-chevron-right"></i></a>';
+            } else {
+                echo '<button class="btn btn-sm btn-outline-secondary" disabled><i class="ti ti-chevron-right"></i></button>';
+            }
+
+            echo '</nav>';
+        }
 
         // ── JS: select all + show bulk button ─────────────────────────────
         echo <<<JS
