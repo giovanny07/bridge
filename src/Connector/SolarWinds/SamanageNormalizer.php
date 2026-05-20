@@ -176,8 +176,14 @@ class SamanageNormalizer implements NormalizerInterface
     {
         $state = (string) ($incident['state'] ?? '');
 
+        $number = (string) ($incident['number'] ?? '');
+        $title  = (string) ($incident['name'] ?? '');
+        if ($number !== '') {
+            $title = "[ SD #{$number} ] {$title}";
+        }
+
         return [
-            'name'            => (string) ($incident['name'] ?? ''),
+            'name'            => $title,
             'content'         => (string) ($incident['description_no_html'] ?? $incident['description'] ?? ''),
             'type'            => ($incident['is_service_request'] ?? false) ? 2 : 1, // 1=Incident 2=Service Request
             'status'          => $this->mapState($state),

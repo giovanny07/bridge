@@ -220,6 +220,13 @@ class SamanageNormalizerTest extends TestCase
     public function testIncidentToTicketMapsName(): void
     {
         $ticket = $this->normalizer->incidentToTicket($this->makeIncident());
+        // Title is prefixed with the SD number for traceability
+        $this->assertSame('[ SD #191723 ] Memory critical on VDCPMWEM2', $ticket['name']);
+    }
+
+    public function testIncidentToTicketNameHasNoNumberPrefixWhenNumberMissing(): void
+    {
+        $ticket = $this->normalizer->incidentToTicket($this->makeIncident(['number' => null]));
         $this->assertSame('Memory critical on VDCPMWEM2', $ticket['name']);
     }
 
