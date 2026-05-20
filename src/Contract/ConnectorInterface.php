@@ -63,6 +63,18 @@ interface ConnectorInterface
      */
     public function downloadAttachment(string $url): ?array;
 
+    /**
+     * Paginated user listing for sync.
+     * Returns: ['total', 'page', 'per_page', 'count', 'records']
+     */
+    public function listUsers(array $filters = [], int $page = 1, int $perPage = 100): array;
+
+    /**
+     * Fetches a single user by source-system ID.
+     * Throws on failure.
+     */
+    public function getUser(int $id): array;
+
     /** Factory method — builds the connector from a stored Connection record. */
     public static function fromConnection(Connection $connection): static;
 }

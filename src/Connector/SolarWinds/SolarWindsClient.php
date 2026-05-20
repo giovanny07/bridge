@@ -154,6 +154,31 @@ class SolarWindsClient implements ConnectorInterface
         return $response['json'];
     }
 
+    public function listUsers(array $filters = [], int $page = 1, int $perPage = 100): array
+    {
+        $perPage  = max(1, min($perPage, 100));
+        $query    = array_merge(['per_page' => $perPage, 'page' => $page], $filters);
+        $response = $this->request('/users.json', $query);
+        $records  = $response['json'];
+        if (!is_array($records)) {
+            $records = [];
+        }
+
+        return [
+            'total'    => $response['total_count'],
+            'page'     => $page,
+            'per_page' => $perPage,
+            'count'    => count($records),
+            'records'  => $records,
+        ];
+    }
+
+    public function getUser(int $id): array
+    {
+        $response = $this->request("/users/{$id}.json");
+        return $response['json'];
+    }
+
     public function getIncidentComments(int $incidentId): array
     {
         $response = $this->request("/incidents/{$incidentId}/comments.json");

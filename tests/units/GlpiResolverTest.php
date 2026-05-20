@@ -83,6 +83,42 @@ class GlpiResolverTest extends TestCase
         $this->assertSame(290, $resolver->resolveEntity('Pluxee Beneficios e Incentivos, C.A.'));
     }
 
+    public function testResolveEntitySpacedAbbreviation(): void
+    {
+        // SW: "MDS Telecom, C. A."  ↔  GLPI: "MDS Telecom, C.A."
+        $resolver = $this->makeResolver([
+            'glpi_entities' => [['id' => 10, 'name' => 'MDS Telecom, C.A.']],
+        ]);
+        $this->assertSame(10, $resolver->resolveEntity('MDS Telecom, C. A.'));
+    }
+
+    public function testResolveEntityMissingTrailingPeriod(): void
+    {
+        // SW: "Oha Technology, C.A"  ↔  GLPI: "Oha Technology, C.A."
+        $resolver = $this->makeResolver([
+            'glpi_entities' => [['id' => 11, 'name' => 'Oha Technology, C.A.']],
+        ]);
+        $this->assertSame(11, $resolver->resolveEntity('Oha Technology, C.A'));
+    }
+
+    public function testResolveEntityNoPunctuation(): void
+    {
+        // SW: "Filotor C A"  ↔  GLPI: "Filotor C.A."
+        $resolver = $this->makeResolver([
+            'glpi_entities' => [['id' => 12, 'name' => 'Filotor, C.A.']],
+        ]);
+        $this->assertSame(12, $resolver->resolveEntity('Filotor C A'));
+    }
+
+    public function testResolveEntityPeriodSeparatorBeforeSuffix(): void
+    {
+        // SW: "Bangente. C.A."  ↔  GLPI: "Bangente, C.A."
+        $resolver = $this->makeResolver([
+            'glpi_entities' => [['id' => 13, 'name' => 'Banco de la Gente Emprendedora (Bangente), C.A.']],
+        ]);
+        $this->assertSame(13, $resolver->resolveEntity('Banco de la Gente Emprendedora (Bangente). C.A.'));
+    }
+
     public function testResolveEntityReturnsNullWhenNotFound(): void
     {
         $resolver = $this->makeResolver(['glpi_entities' => []]);

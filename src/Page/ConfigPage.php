@@ -99,10 +99,11 @@ class ConfigPage
 
         $rows    = iterator_to_array($DB->request(['FROM' => Connection::getTable(), 'ORDER' => ['name ASC']]));
         $ajaxUrl    = self::h(Plugin::getWebDir('bridge', true) . '/ajax/test_connection.php');
-        $scanUrl    = self::h(Connection::getScanURL());
-        $dryRunUrl  = self::h(Plugin::getWebDir('bridge', true) . '/front/dryrun.php');
-        $migrateUrl = self::h(Plugin::getWebDir('bridge', true) . '/front/migrate.php');
-        $historyUrl = self::h(Plugin::getWebDir('bridge', true) . '/front/migration_history.php');
+        $scanUrl     = self::h(Connection::getScanURL());
+        $dryRunUrl   = self::h(Plugin::getWebDir('bridge', true) . '/front/dryrun.php');
+        $migrateUrl  = self::h(Plugin::getWebDir('bridge', true) . '/front/migrate.php');
+        $historyUrl  = self::h(Plugin::getWebDir('bridge', true) . '/front/migration_history.php');
+        $syncUsrUrl  = self::h(Plugin::getWebDir('bridge', true) . '/front/sync_users.php');
 
         echo '<div class="card h-100">';
         echo '<div class="card-header fw-semibold">';
@@ -196,6 +197,13 @@ class ConfigPage
                 echo '<i class="ti ti-radar"></i>';
                 echo '</button>';
                 echo '</form>';
+
+                // User sync button
+                echo '<a href="' . $syncUsrUrl . '?id=' . $id . '"';
+                echo ' class="btn btn-sm btn-outline-secondary me-1"';
+                echo ' title="' . self::h(__('Sync users', 'bridge')) . '">';
+                echo '<i class="ti ti-users"></i>';
+                echo '</a>';
 
                 // Edit button
                 echo '<a href="' . self::h($editUrl) . '"';

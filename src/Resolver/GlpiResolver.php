@@ -196,28 +196,37 @@ class GlpiResolver
         $s = mb_strtolower(trim($s), 'UTF-8');
         // Replace accented chars: á→a, é→e, etc.
         $s = (string) iconv('UTF-8', 'ASCII//TRANSLIT//IGNORE', $s);
+        // Collapse "C. A." / "S. A." (space inside abbreviated suffix) → "c.a." / "s.a."
+        $s = (string) preg_replace('/\b([a-z])\.\s+([a-z])\./i', '$1.$2.', $s);
         $s = (string) preg_replace('/\s+/', ' ', $s);
         return trim($s);
     }
 
     /**
      * Removes trailing legal-entity suffixes common in Venezuelan company names.
+     * Handles: ", C.A." / ". C.A." / " C A" / " CA" / " C.A" (all variants).
      * Operates on an already-normalized (ASCII) string.
      */
     private function stripLegalSuffix(string $normalized): string
     {
         $suffixes = [
-            ',? ?s\.?a\.?c\.?a\.?$',
-            ',? ?c\.?a\.?$',
-            ',? ?s\.?a\.?$',
-            ',? ?c\.?a$',
-            ',? ?s\.?r\.?l\.?$',
-            ',? ?inc\.?$',
+            // S.A.C.A. / SACA
+            '[,.]?\s*s\.?\s*a\.?\s*c\.?\s*a\.?$',
+            // C.A. / CA / C A (with or without dots/spaces between letters)
+            '[,.]?\s*c\.?\s*a\.?$',
+            // S.A. / SA
+            '[,.]?\s*s\.?\s*a\.?$',
+            // S.R.L. / SRL
+            '[,.]?\s*s\.?\s*r\.?\s*l\.?$',
+            // N.V.
+            '[,.]?\s*n\.?\s*v\.?$',
+            // Inc.
+            '[,.]?\s*inc\.?$',
         ];
         foreach ($suffixes as $pattern) {
             $result = (string) preg_replace('/' . $pattern . '/i', '', $normalized);
             if ($result !== $normalized) {
-                return trim(rtrim(trim($result), ','));
+                return trim(rtrim(trim($result), ',.'));
             }
         }
         return $normalized;
