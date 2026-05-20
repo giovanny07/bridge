@@ -4,7 +4,7 @@ Plugin para **GLPI 11** que permite explorar y migrar datos ITSM desde plataform
 
 ---
 
-## Estado — v0.2.0
+## Estado — v0.4.0
 
 | Paso | Estado |
 |------|--------|
@@ -14,11 +14,16 @@ Plugin para **GLPI 11** que permite explorar y migrar datos ITSM desde plataform
 | Test de conexión inline | ✅ |
 | Scan de incidentes (descubrimiento, solo lectura) | ✅ |
 | Resolver de entidades / categorías / grupos / usuarios por nombre | ✅ |
+| Resolver entidades con sufijo parentético (e.g. `Empresa (Sodexo)`) | ✅ |
 | Dry-run con selector de tipo de recurso | ✅ |
 | Motor de migración — tickets + followups + solución + adjuntos | ✅ |
 | Migración por IDs específicos de SolarWinds | ✅ |
-| Historial de migración con purge/retry | ✅ |
+| Prefijo `[ SD #num ]` en el título del ticket | ✅ |
+| Trazabilidad de comentarios públicos/privados (`is_private`) | ✅ |
 | Solicitantes externos como `alternative_email` | ✅ |
+| Imágenes inline reemplazadas por URLs de GLPI | ✅ |
+| Tipo de ticket: Incident vs Service Request | ✅ |
+| Historial con checkboxes, purge selected y status parcial | ✅ |
 | Migración de Changes | ⏳ |
 | Migración de Problems | ⏳ |
 
@@ -234,6 +239,8 @@ La API siempre devuelve los registros más recientes primero e **ignora** `sort_
 
 | Campo Samanage | Campo GLPI | Notas |
 |---|---|---|
+| `number` + `name` | name | Formato `[ SD #<number> ] <name>` para trazabilidad |
+| `is_service_request` | type | `false` → 1 (Incident) · `true` → 2 (Service Request) |
 | `state` Pending Assignment | status = 1 (New) | — |
 | `state` En Proceso | status = 2 (Assigned) | — |
 | `state` Gestión Proveedor | status = 2 (Assigned) | — |
@@ -242,7 +249,7 @@ La API siempre devuelve los registros más recientes primero e **ignora** `sort_
 | `state` Closed | status = 6 (Closed) | — |
 | `priority` Low/Medium/High/Critical | priority 2/3/4/5 | — |
 | `origin` web/api/external/email | requesttypes_id 1/6/6/7 | — |
-| `site.name` | entities_id | Match fuzzy sin acentos |
+| `site.name` | entities_id | Match fuzzy sin acentos; strips sufijo `(Alias)` |
 | `category.name` + `subcategory.name` | itilcategories_id | Subcategoría tiene prioridad |
 | `assignee` (user o group) | _users_id_assign / _groups_id_assign | Match por email o nombre |
 | `requester.email` | _users_id_requester / alternative_email | Ver tabla de resolución de actores |
@@ -252,7 +259,8 @@ La API siempre devuelve los registros más recientes primero e **ignora** `sort_
 | `resolution_code` | ITILSolution.content | Prioridad 2 (ej. "Alarma Mitigada") |
 | `state` (sin resolución) | ITILSolution.content | Prioridad 3 — mínima para consistencia |
 | Comment `body` | ITILFollowup.content | Comentarios anteriores a la solución |
-| Comment `is_private` | ITILFollowup.is_private | Solo si "Preserve private flag" está activo |
+| Comment `is_private` | ITILFollowup.is_private | Respetado cuando "Preserve private flag" está activo (default: sí) |
+| Comment `inline_attachments` | Document + reemplazo de `<img src>` | Imagen descargada; src reemplazado con URL de GLPI |
 | Comment `attachments` | Document + Document_Item | URLs relativas se completan con baseUrl; filenames URL-decoded |
 
 ### Deduplicación
@@ -264,7 +272,7 @@ Cada registro migrado se guarda en `glpi_plugin_bridge_migrations` con `source_i
 ## Tests
 
 ```bash
-# Tests unitarios (143 tests, sin red, sin GLPI)
+# Tests unitarios (147 tests, sin red, sin GLPI)
 composer test
 
 # Tests de contrato contra la API real
