@@ -147,14 +147,30 @@ class UserSyncer
     private function findUserByEmail(string $email): ?int
     {
         global $DB;
+        $email = strtolower(trim($email));
+
+        // Primary check: glpi_useremails (covers users imported via this syncer
+        // and users created through GLPI's own interface with email set)
         foreach ($DB->request([
             'SELECT' => ['users_id'],
             'FROM'   => 'glpi_useremails',
-            'WHERE'  => ['email' => strtolower(trim($email))],
+            'WHERE'  => ['email' => $email],
             'LIMIT'  => 1,
         ]) as $row) {
             return (int) $row['users_id'];
         }
+
+        // Fallback check: glpi_users.name (this syncer stores email as username)
+        // Prevents creating a duplicate when the user exists without an email record
+        foreach ($DB->request([
+            'SELECT' => ['id'],
+            'FROM'   => 'glpi_users',
+            'WHERE'  => ['name' => $email, 'is_deleted' => 0],
+            'LIMIT'  => 1,
+        ]) as $row) {
+            return (int) $row['id'];
+        }
+
         return null;
     }
 
