@@ -339,6 +339,15 @@ class SamanageNormalizerTest extends TestCase
         $this->assertSame('<p>Problem resolved in 12m.</p>', $f['content']);
     }
 
+    public function testCommentToFollowupStripsLinksKeepingText(): void
+    {
+        // Links to SD tickets must become plain text — they'd be dead links in GLPI
+        $body = '<p>Incidente de <a href="https://servicios.daycohost.com/incidents/135126995">#10640 "Node is down"</a> fue cerrada y fusionada aquí.</p>';
+        $f    = $this->normalizer->commentToFollowup($this->makeComment(['body' => $body]));
+        $this->assertStringNotContainsString('<a ', $f['content']);
+        $this->assertStringContainsString('#10640 "Node is down"', $f['content']);
+    }
+
     public function testCommentToFollowupMapsDate(): void
     {
         $f = $this->normalizer->commentToFollowup($this->makeComment());

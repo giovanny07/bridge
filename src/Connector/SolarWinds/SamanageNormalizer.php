@@ -113,7 +113,7 @@ class SamanageNormalizer implements NormalizerInterface
     public function commentToFollowup(array $comment): array
     {
         return [
-            'content'              => (string) ($comment['body'] ?? ''),
+            'content'              => $this->stripLinks((string) ($comment['body'] ?? '')),
             'date'                 => $this->parseDate($comment['created_at'] ?? null),
             'is_private'           => (bool) ($comment['is_private'] ?? false),
             '_users_id'            => null, // resolved by IncidentMapper via GlpiResolver
@@ -201,5 +201,18 @@ class SamanageNormalizer implements NormalizerInterface
             '_source_href'    => $incident['href'] ?? null,
             '_source_raw'     => $incident,
         ];
+    }
+
+    /**
+     * Strips <a href> links from HTML, keeping the anchor text.
+     * SolarWinds comments often embed links to other SD tickets
+     * (e.g. /incidents/135126995) that would be dead links in GLPI.
+     *
+     * Before: <a href="https://servicios.daycohost.com/incidents/135126995">#10640</a>
+     * After:  #10640
+     */
+    private function stripLinks(string $html): string
+    {
+        return (string) preg_replace('/<a\b[^>]*>(.*?)<\/a>/is', '$1', $html);
     }
 }
