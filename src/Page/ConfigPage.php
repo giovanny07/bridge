@@ -73,18 +73,19 @@ class ConfigPage
         echo '<div class="card">';
         echo '<div class="card-header d-flex align-items-center justify-content-between">';
         echo '<span class="fw-semibold"><i class="ti ti-code me-1"></i>' . self::h(__('Raw sample', 'bridge')) . '</span>';
-        echo '<button type="button" class="btn btn-sm btn-outline-secondary" id="bridge-copy-btn"';
-        echo ' onclick="navigator.clipboard.writeText(document.getElementById(\'bridge-raw-json\').textContent)';
-        echo '.then(()=>{ this.innerHTML=\'<i class=\\\'ti ti-check me-1\\\'></i>' . addslashes(self::h(__('Copied', 'bridge'))) . '\'; setTimeout(()=>{ this.innerHTML=\'<i class=\\\'ti ti-copy me-1\\\'></i>' . addslashes(self::h(__('Copy', 'bridge'))) . '\'; },2000); })">';
+        echo '<button type="button" class="btn btn-sm btn-outline-secondary bridge-copy-btn"';
+        echo ' data-copy-target="bridge-raw-json"';
+        echo ' data-copy="' . self::h(__('Copy', 'bridge')) . '"';
+        echo ' data-copied="' . self::h(__('Copied', 'bridge')) . '">';
         echo '<i class="ti ti-copy me-1"></i>' . self::h(__('Copy', 'bridge'));
         echo '</button>';
         echo '</div>';
         echo '<div class="card-body p-0">';
         echo '<p class="text-muted small px-3 pt-3 mb-2">';
         echo '<i class="ti ti-lock me-1"></i>';
-        echo self::h(__('Read-only discovery data. Migration is not implemented yet.', 'bridge'));
+        echo self::h(__('Read-only discovery data. No data was written to GLPI.', 'bridge'));
         echo '</p>';
-        echo '<pre id="bridge-raw-json" class="border-top p-3 mb-0 bg-light" style="max-height:620px;overflow:auto;font-size:.8rem;">';
+        echo '<pre id="bridge-raw-json" class="border-top p-3 mb-0 bg-light bridge-raw-json">';
         echo self::h($jsonText);
         echo '</pre>';
         echo '</div>';
@@ -163,28 +164,35 @@ class ConfigPage
                 echo ' data-id="' . $id . '"';
                 echo ' data-token="' . self::h($csrfToken) . '"';
                 echo ' data-ajax="' . $ajaxUrl . '"';
-                echo ' title="' . self::h(__('Test connection', 'bridge')) . '">';
+                echo ' data-testing="' . self::h(__('Testing...', 'bridge')) . '"';
+                echo ' data-failed="' . self::h(__('Request failed.', 'bridge')) . '"';
+                echo ' data-records-label="' . self::h(__('records', 'bridge')) . '"';
+                echo ' title="' . self::h(__('Test connection', 'bridge')) . '"';
+                echo ' aria-label="' . self::h(__('Test connection', 'bridge')) . '">';
                 echo '<i class="ti ti-plug"></i>';
                 echo '</button>';
 
                 // Migrate button
                 echo '<a href="' . $migrateUrl . '?id=' . $id . '"';
                 echo ' class="btn btn-sm btn-primary me-1"';
-                echo ' title="' . self::h(__('Migrate', 'bridge')) . '">';
+                echo ' title="' . self::h(__('Migrate', 'bridge')) . '"';
+                echo ' aria-label="' . self::h(__('Migrate', 'bridge')) . '">';
                 echo '<i class="ti ti-database-import"></i>';
                 echo '</a>';
 
                 // History button
                 echo '<a href="' . $historyUrl . '?id=' . $id . '"';
                 echo ' class="btn btn-sm btn-outline-secondary me-1"';
-                echo ' title="' . self::h(__('Migration history', 'bridge')) . '">';
+                echo ' title="' . self::h(__('Migration history', 'bridge')) . '"';
+                echo ' aria-label="' . self::h(__('Migration history', 'bridge')) . '">';
                 echo '<i class="ti ti-history"></i>';
                 echo '</a>';
 
                 // Dry-run button
                 echo '<a href="' . $dryRunUrl . '?id=' . $id . '"';
                 echo ' class="btn btn-sm btn-outline-warning me-1"';
-                echo ' title="' . self::h(__('Dry-run', 'bridge')) . '">';
+                echo ' title="' . self::h(__('Dry-run', 'bridge')) . '"';
+                echo ' aria-label="' . self::h(__('Dry-run', 'bridge')) . '">';
                 echo '<i class="ti ti-list-check"></i>';
                 echo '</a>';
 
@@ -193,7 +201,8 @@ class ConfigPage
                 echo Html::hidden('_glpi_csrf_token', ['value' => Session::getNewCSRFToken()]);
                 echo Html::hidden('id', ['value' => $id]);
                 echo '<button type="submit" class="btn btn-sm btn-outline-primary"';
-                echo ' title="' . self::h(__('Scan incidents', 'bridge')) . '">';
+                echo ' title="' . self::h(__('Scan', 'bridge')) . '"';
+                echo ' aria-label="' . self::h(__('Scan', 'bridge')) . '">';
                 echo '<i class="ti ti-radar"></i>';
                 echo '</button>';
                 echo '</form>';
@@ -201,26 +210,28 @@ class ConfigPage
                 // User sync button
                 echo '<a href="' . $syncUsrUrl . '?id=' . $id . '"';
                 echo ' class="btn btn-sm btn-outline-secondary me-1"';
-                echo ' title="' . self::h(__('Sync users', 'bridge')) . '">';
+                echo ' title="' . self::h(__('Sync users', 'bridge')) . '"';
+                echo ' aria-label="' . self::h(__('Sync users', 'bridge')) . '">';
                 echo '<i class="ti ti-users"></i>';
                 echo '</a>';
 
                 // Edit button
                 echo '<a href="' . self::h($editUrl) . '"';
                 echo ' class="btn btn-sm btn-outline-secondary me-1"';
-                echo ' title="' . self::h(__('Edit connection', 'bridge')) . '">';
+                echo ' title="' . self::h(__('Edit connection', 'bridge')) . '"';
+                echo ' aria-label="' . self::h(__('Edit connection', 'bridge')) . '">';
                 echo '<i class="ti ti-pencil"></i>';
                 echo '</a>';
 
                 // Delete button (inline form)
-                $confirmDel = addslashes(self::h(__('Delete this connection?', 'bridge')));
                 $configFormUrl = Connection::getConfigFormURL();
                 echo '<form method="post" action="' . self::h($configFormUrl) . '" class="d-inline">';
                 echo Html::hidden('_glpi_csrf_token', ['value' => Session::getNewCSRFToken()]);
                 echo Html::hidden('id', ['value' => $id]);
                 echo '<button type="submit" name="purge" class="btn btn-sm btn-outline-danger"';
                 echo ' title="' . self::h(__('Delete connection', 'bridge')) . '"';
-                echo ' onclick="return confirm(\'' . $confirmDel . '\')">';
+                echo ' aria-label="' . self::h(__('Delete connection', 'bridge')) . '"';
+                echo ' data-bridge-confirm="' . self::h(__('Delete this connection?', 'bridge')) . '">';
                 echo '<i class="ti ti-trash"></i>';
                 echo '</button>';
                 echo '</form>';
@@ -235,60 +246,6 @@ class ConfigPage
 
         echo '</div>';
 
-        // One shared JS block for all test buttons on this page
-        $lblTesting = self::h(__('Testing…', 'bridge'));
-        echo <<<JS
-        <script>
-        document.querySelectorAll('.bridge-test-btn').forEach(function (btn) {
-            btn.addEventListener('click', function () {
-                var id      = btn.dataset.id;
-                var token   = btn.dataset.token;
-                var ajaxUrl = btn.dataset.ajax;
-                var result  = document.getElementById('bridge-test-result-' + id);
-
-                btn.disabled = true;
-                btn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status"></span>';
-                if (result) result.innerHTML = '<span class="text-muted">{$lblTesting}</span>';
-
-                fetch(ajaxUrl, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/x-www-form-urlencoded',
-                        'X-Requested-With': 'XMLHttpRequest',
-                        'X-Glpi-Csrf-Token': token
-                    },
-                    body: '_glpi_csrf_token=' + encodeURIComponent(token) + '&id=' + encodeURIComponent(id)
-                })
-                .then(function (r) { return r.json(); })
-                .then(function (data) {
-                    if (!result) return;
-                    if (data.ok) {
-                        result.innerHTML =
-                            '<span class="text-success">'
-                            + '<i class="ti ti-circle-check me-1"></i>'
-                            + data.latency_ms + 'ms &mdash; '
-                            + data.total.toLocaleString() + ' incidents'
-                            + '</span>';
-                    } else {
-                        result.innerHTML =
-                            '<span class="text-danger">'
-                            + '<i class="ti ti-circle-x me-1"></i>'
-                            + data.message
-                            + (data.status ? ' (HTTP ' + data.status + ')' : '')
-                            + '</span>';
-                    }
-                })
-                .catch(function () {
-                    if (result) result.innerHTML = '<span class="text-danger"><i class="ti ti-circle-x me-1"></i>Request failed.</span>';
-                })
-                .finally(function () {
-                    btn.disabled = false;
-                    btn.innerHTML = '<i class="ti ti-plug"></i>';
-                });
-            });
-        });
-        </script>
-        JS;
     }
 
     private static function showConnectionForm(?Connection $connection): void
@@ -396,7 +353,7 @@ class ConfigPage
 
         if ($isEdit) {
             echo '<button type="submit" name="purge" class="btn btn-outline-danger ms-auto"';
-            echo ' onclick="return confirm(\'' . addslashes(self::h(__('Delete this connection?', 'bridge'))) . '\')">';
+            echo ' data-bridge-confirm="' . self::h(__('Delete this connection?', 'bridge')) . '">';
             echo '<i class="ti ti-trash me-1"></i>' . self::h(__('Delete', 'bridge'));
             echo '</button>';
         }

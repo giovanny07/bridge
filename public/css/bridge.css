@@ -1,0 +1,138 @@
+.bridge-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: .35rem;
+    padding: .35rem .85rem;
+    border-radius: 2rem;
+    border: 1px solid #dee2e6;
+    background: #fff;
+    cursor: pointer;
+    font-size: .875rem;
+    transition: all .15s;
+    user-select: none;
+}
+
+.bridge-pill input[type="radio"] {
+    display: none;
+}
+
+.bridge-pill.active {
+    border-color: #0d6efd;
+    background: #e8f0fe;
+    color: #0d6efd;
+    font-weight: 500;
+}
+
+.bridge-pill.disabled {
+    opacity: .5;
+    cursor: default;
+}
+
+.bridge-mode-btn {
+    border: 1px solid #dee2e6;
+    background: #fff;
+    color: #495057;
+    padding: .3rem .9rem;
+    border-radius: .375rem;
+}
+
+.bridge-mode-btn.active {
+    background: #0d6efd;
+    border-color: #0d6efd;
+    color: #fff;
+}
+
+.bridge-period-option {
+    display: block;
+    padding: .75rem 1rem;
+    border: 1px solid #dee2e6;
+    border-radius: .5rem;
+    margin-bottom: .5rem;
+    cursor: pointer;
+    transition: border-color .15s, background .15s;
+}
+
+.bridge-period-option:hover {
+    border-color: #adb5bd;
+    background: #fafafa;
+}
+
+.bridge-period-option.active {
+    border-color: #0d6efd;
+    background: #f0f5ff;
+}
+
+.bridge-state-pill {
+    display: inline-flex;
+    align-items: center;
+    padding: .25rem .75rem;
+    border-radius: 2rem;
+    border: 1px solid #dee2e6;
+    background: #fff;
+    cursor: pointer;
+    font-size: .8rem;
+    transition: all .15s;
+    user-select: none;
+}
+
+.bridge-state-pill input[type="radio"] {
+    display: none;
+}
+
+.bridge-state-pill.active {
+    color: #fff;
+    border-color: currentColor;
+}
+
+.bridge-state-pill.active[data-color="secondary"] {
+    background: #6c757d;
+    border-color: #6c757d;
+}
+
+.bridge-state-pill.active[data-color="success"] {
+    background: #198754;
+    border-color: #198754;
+}
+
+.bridge-state-pill.active[data-color="primary"] {
+    background: #0d6efd;
+    border-color: #0d6efd;
+}
+
+.bridge-state-pill.active[data-color="warning"] {
+    background: #ffc107;
+    border-color: #ffc107;
+    color: #000;
+}
+
+.bridge-state-pill.active[data-color="info"] {
+    background: #0dcaf0;
+    border-color: #0dcaf0;
+    color: #000;
+}
+
+.bridge-section-card {
+    border: 1px solid #e9ecef;
+    border-radius: .5rem;
+    padding: 1rem 1.25rem;
+    margin-bottom: 1rem;
+    background: #fff;
+}
+
+.bridge-section-card .bridge-section-title {
+    font-size: .7rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: .06em;
+    color: #6c757d;
+    margin-bottom: .75rem;
+    display: flex;
+    align-items: center;
+    gap: .4rem;
+}
+
+.bridge-raw-json {
+    max-height: 620px;
+    overflow: auto;
+    font-size: .8rem;
+}

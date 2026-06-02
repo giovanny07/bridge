@@ -101,8 +101,7 @@ class HistoryPage
         // Bulk action buttons
         echo '<div class="d-flex gap-2 align-items-center">';
         echo '<span class="text-muted small" id="bridge-sel-count" style="display:none"></span>';
-        $confirm = addslashes(__('Purge selected records? They will be re-processed on the next run.', 'bridge'));
-        echo '<button type="submit" class="btn btn-sm btn-outline-danger" id="bridge-purge-sel" style="display:none" onclick="return confirm(\'' . $confirm . '\')">';
+        echo '<button type="submit" class="btn btn-sm btn-outline-danger" id="bridge-purge-sel" style="display:none" data-bridge-confirm="' . self::h(__('Purge selected records? They will be re-processed on the next run.', 'bridge')) . '">';
         echo '<i class="ti ti-trash me-1"></i>' . self::h(__('Purge selected', 'bridge'));
         echo '</button>';
 
@@ -111,9 +110,9 @@ class HistoryPage
             ['purgeFailed', 'btn-outline-warning', 'ti-refresh', __('Retry failed', 'bridge')],
             ['purgeAll',    'btn-outline-danger',  'ti-trash',   __('Purge all', 'bridge')],
         ] as [$act, $btnClass, $icon, $lbl]) {
-            $confirmMsg = addslashes(__('Are you sure?', 'bridge'));
             echo '<button type="button" class="btn btn-sm ' . $btnClass . '" '
-               . 'onclick="if(confirm(\'' . $confirmMsg . '\')){document.getElementById(\'bridge-action-input\').value=\'' . $act . '\';document.getElementById(\'bridge-history-form\').submit()}">';
+               . 'data-bridge-history-action="' . self::h($act) . '" '
+               . 'data-confirm="' . self::h(__('Are you sure?', 'bridge')) . '">';
             echo '<i class="ti ' . $icon . ' me-1"></i>' . self::h($lbl);
             echo '</button>';
         }
@@ -224,36 +223,6 @@ class HistoryPage
 
             echo '</nav>';
         }
-
-        // ── JS: select all + show bulk button ─────────────────────────────
-        echo <<<JS
-<script>
-(function () {
-    var checkAll  = document.getElementById('bridge-check-all');
-    var purgeBtn  = document.getElementById('bridge-purge-sel');
-    var selCount  = document.getElementById('bridge-sel-count');
-    var rows      = document.querySelectorAll('.bridge-row-check');
-
-    function updateBulk() {
-        var checked = document.querySelectorAll('.bridge-row-check:checked').length;
-        purgeBtn.style.display = checked > 0 ? '' : 'none';
-        selCount.style.display = checked > 0 ? '' : 'none';
-        selCount.textContent   = checked + ' selected';
-        checkAll.indeterminate = checked > 0 && checked < rows.length;
-        checkAll.checked       = checked > 0 && checked === rows.length;
-    }
-
-    checkAll.addEventListener('change', function () {
-        rows.forEach(function (cb) { cb.checked = checkAll.checked; });
-        updateBulk();
-    });
-
-    rows.forEach(function (cb) {
-        cb.addEventListener('change', updateBulk);
-    });
-})();
-</script>
-JS;
 
         echo '</div>';
     }

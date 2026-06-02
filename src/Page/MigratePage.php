@@ -30,7 +30,7 @@ class MigratePage
         echo '</div>';
         echo '</div>';
 
-        echo '<form method="post" action="' . self::h($migrateUrl) . '" id="bridge-migrate-form">';
+        echo '<form method="post" action="' . self::h($migrateUrl) . '" id="bridge-migrate-form" data-storage-key="' . self::h($key) . '">';
         echo \Html::hidden('_glpi_csrf_token', ['value' => \Session::getNewCSRFToken()]);
         echo \Html::hidden('id', ['value' => $id]);
 
@@ -44,7 +44,7 @@ class MigratePage
             if ($implemented) {
                 $checked = $first ? ' checked' : '';
                 echo '<label class="bridge-pill' . ($first ? ' active' : '') . '">';
-                echo '<input type="radio" name="resource_type" value="' . self::h($key2) . '"' . $checked . ' onchange="this.closest(\'.d-flex\').querySelectorAll(\'.bridge-pill\').forEach(p=>p.classList.remove(\'active\')); this.parentElement.classList.add(\'active\')">';
+                echo '<input type="radio" name="resource_type" value="' . self::h($key2) . '"' . $checked . '>';
                 echo $label;
                 echo '</label>';
                 $first = false;
@@ -58,10 +58,10 @@ class MigratePage
         // ── Migration mode ───────────────────────────────────────────────
         echo self::sectionCard('ti-adjustments-horizontal', __('Mode', 'bridge'));
         echo '<div class="d-flex gap-2 mb-3" role="group">';
-        echo '<button type="button" id="btn-mode-filters" class="btn btn-sm bridge-mode-btn active" onclick="bridgeSetMode(\'filters\')">';
+        echo '<button type="button" id="btn-mode-filters" class="btn btn-sm bridge-mode-btn active" data-bridge-mode="filters">';
         echo '<i class="ti ti-filter me-1"></i>' . self::h(__('By filters', 'bridge'));
         echo '</button>';
-        echo '<button type="button" id="btn-mode-ids" class="btn btn-sm bridge-mode-btn" onclick="bridgeSetMode(\'ids\')">';
+        echo '<button type="button" id="btn-mode-ids" class="btn btn-sm bridge-mode-btn" data-bridge-mode="ids">';
         echo '<i class="ti ti-hash me-1"></i>' . self::h(__('By source IDs', 'bridge'));
         echo '</button>';
         echo '</div>';
@@ -87,7 +87,7 @@ class MigratePage
         foreach ($states as $val => [$lbl, $color]) {
             $checked = $first ? ' checked' : '';
             echo '<label class="bridge-state-pill" data-color="' . $color . '">';
-            echo '<input type="radio" name="state" id="f_state_' . self::h($val ?: 'all') . '" value="' . self::h($val) . '"' . $checked . ' onchange="bridgeStatePill(this)">';
+            echo '<input type="radio" name="state" id="f_state_' . self::h($val ?: 'all') . '" value="' . self::h($val) . '"' . $checked . '>';
             echo self::h($lbl);
             echo '</label>';
             $first = false;
@@ -108,9 +108,9 @@ class MigratePage
 
         foreach ($periods as $pval => [$icon, $plbl, $pdesc, $_]) {
             $checked = $pval === 'recent' ? ' checked' : '';
-            echo '<label class="bridge-period-option" id="period-label-' . $pval . '"' . ($pval === 'recent' ? ' style="border-color:#0d6efd;background:#f0f5ff"' : '') . '>';
+            echo '<label class="bridge-period-option' . ($pval === 'recent' ? ' active' : '') . '" id="period-label-' . $pval . '">';
             echo '<div class="d-flex align-items-start gap-3">';
-            echo '<input type="radio" name="time_period" value="' . $pval . '"' . $checked . ' class="form-check-input mt-1 flex-shrink-0" onchange="bridgePeriod(this)">';
+            echo '<input type="radio" name="time_period" value="' . $pval . '"' . $checked . ' class="form-check-input mt-1 flex-shrink-0">';
             echo '<div>';
             echo '<div class="fw-medium"><i class="ti ' . $icon . ' me-1"></i>' . self::h($plbl) . '</div>';
             echo '<div class="text-muted small">' . self::h($pdesc) . '</div>';
@@ -190,154 +190,6 @@ class MigratePage
         echo '</div>';
 
         echo '</form>';
-
-        // ── Styles + JS ──────────────────────────────────────────────────
-        $stKey = self::h('bridge_state_' . $id);
-
-        echo <<<HTML
-<style>
-.bridge-pill {
-    display:inline-flex; align-items:center; gap:.35rem;
-    padding:.35rem .85rem; border-radius:2rem;
-    border:1px solid #dee2e6; background:#fff;
-    cursor:pointer; font-size:.875rem; transition:all .15s;
-    user-select:none;
-}
-.bridge-pill input[type=radio] { display:none; }
-.bridge-pill.active { border-color:#0d6efd; background:#e8f0fe; color:#0d6efd; font-weight:500; }
-.bridge-pill.disabled { opacity:.5; cursor:default; }
-
-.bridge-mode-btn {
-    border:1px solid #dee2e6; background:#fff; color:#495057;
-    padding:.3rem .9rem; border-radius:.375rem;
-}
-.bridge-mode-btn.active {
-    background:#0d6efd; border-color:#0d6efd; color:#fff;
-}
-
-.bridge-period-option {
-    display:block; padding:.75rem 1rem; border:1px solid #dee2e6;
-    border-radius:.5rem; margin-bottom:.5rem; cursor:pointer;
-    transition:border-color .15s, background .15s;
-}
-.bridge-period-option:hover { border-color:#adb5bd; background:#fafafa; }
-
-.bridge-state-pill {
-    display:inline-flex; align-items:center; padding:.25rem .75rem;
-    border-radius:2rem; border:1px solid #dee2e6; background:#fff;
-    cursor:pointer; font-size:.8rem; transition:all .15s; user-select:none;
-}
-.bridge-state-pill input[type=radio] { display:none; }
-.bridge-state-pill.active { color:#fff; border-color:currentColor; }
-.bridge-state-pill.active[data-color=secondary] { background:#6c757d; border-color:#6c757d; }
-.bridge-state-pill.active[data-color=success]   { background:#198754; border-color:#198754; }
-.bridge-state-pill.active[data-color=primary]   { background:#0d6efd; border-color:#0d6efd; }
-.bridge-state-pill.active[data-color=warning]   { background:#ffc107; border-color:#ffc107; color:#000; }
-.bridge-state-pill.active[data-color=info]      { background:#0dcaf0; border-color:#0dcaf0; color:#000; }
-
-.bridge-section-card {
-    border:1px solid #e9ecef; border-radius:.5rem;
-    padding:1rem 1.25rem; margin-bottom:1rem; background:#fff;
-}
-.bridge-section-card .bridge-section-title {
-    font-size:.7rem; font-weight:600; text-transform:uppercase;
-    letter-spacing:.06em; color:#6c757d; margin-bottom:.75rem;
-    display:flex; align-items:center; gap:.4rem;
-}
-</style>
-<script>
-(function() {
-    var SK = '{$stKey}';
-
-    function bridgeSetMode(mode) {
-        var isIds = (mode === 'ids');
-        document.getElementById('bridge_section_ids').style.display     = isIds ? '' : 'none';
-        document.getElementById('bridge_section_filters').style.display = isIds ? 'none' : '';
-        document.getElementById('migration_mode_val').value = mode;
-        document.getElementById('btn-mode-filters').classList.toggle('active', !isIds);
-        document.getElementById('btn-mode-ids').classList.toggle('active',  isIds);
-        try { sessionStorage.setItem(SK + '_mode', mode); } catch(e) {}
-    }
-    window.bridgeSetMode = bridgeSetMode;
-
-    window.bridgePeriod = function(radio) {
-        // Reset all period options
-        document.querySelectorAll('.bridge-period-option').forEach(function(el) {
-            el.style.borderColor = '';
-            el.style.background  = '';
-            el.querySelectorAll('.bridge-period-extra').forEach(function(x){ x.style.display = 'none'; });
-        });
-        // Highlight selected and show its sub-input
-        var label = radio.closest('.bridge-period-option');
-        label.style.borderColor = '#0d6efd';
-        label.style.background  = '#f0f5ff';
-        var extra = label.querySelector('.bridge-period-extra');
-        if (extra) extra.style.display = '';
-        // Clear hidden fields that don't belong to this mode
-        ['f_created_after','f_updated_after','f_start_page'].forEach(function(id){
-            var el = document.getElementById(id);
-            if (el && !label.contains(el)) el.value = el.type === 'number' ? '1' : '';
-        });
-        try { sessionStorage.setItem(SK + '_period', radio.value); } catch(e){}
-    };
-    window.bridgeStatePill = function(radio) {
-        document.querySelectorAll('.bridge-state-pill').forEach(function(p){ p.classList.remove('active'); });
-        if (radio.checked) radio.closest('.bridge-state-pill').classList.add('active');
-    };
-    // Init active pill on load
-    document.addEventListener('DOMContentLoaded', function(){
-        document.querySelectorAll('.bridge-state-pill input:checked').forEach(function(r){
-            r.closest('.bridge-state-pill').classList.add('active');
-        });
-    });
-
-    function restore() {
-        try {
-            var mode = sessionStorage.getItem(SK + '_mode') || 'filters';
-            bridgeSetMode(mode);
-
-            var period = sessionStorage.getItem(SK + '_period') || 'recent';
-            var pRadio = document.querySelector('input[name=time_period][value="' + period + '"]');
-            if (pRadio) { pRadio.checked = true; bridgePeriod(pRadio); }
-
-            var ids = sessionStorage.getItem(SK + '_ids') || '';
-            if (ids) document.getElementById('f_source_ids').value = ids;
-
-            var state = sessionStorage.getItem(SK + '_state') || '';
-            if (state) document.getElementById('f_state').value = state;
-
-            var ca = sessionStorage.getItem(SK + '_created_after') || '';
-            if (ca) document.getElementById('f_created_after').value = ca;
-
-            var ua = sessionStorage.getItem(SK + '_updated_after') || '';
-            if (ua) document.getElementById('f_updated_after').value = ua;
-
-            var sp = sessionStorage.getItem(SK + '_start_page');
-            if (sp) document.getElementById('f_start_page').value = sp;
-
-            var lim = sessionStorage.getItem(SK + '_limit');
-            if (lim) document.getElementById('f_limit').value = lim;
-        } catch(e) {}
-    }
-
-    document.addEventListener('DOMContentLoaded', function() {
-        restore();
-
-        document.getElementById('bridge-migrate-form').addEventListener('submit', function() {
-            try {
-                sessionStorage.setItem(SK + '_mode',  document.getElementById('migration_mode_val').value);
-                sessionStorage.setItem(SK + '_ids',   document.getElementById('f_source_ids').value);
-                sessionStorage.setItem(SK + '_state', document.getElementById('f_state').value);
-                sessionStorage.setItem(SK + '_created_after', document.getElementById('f_created_after').value);
-                sessionStorage.setItem(SK + '_updated_after', document.getElementById('f_updated_after').value);
-                sessionStorage.setItem(SK + '_start_page', document.getElementById('f_start_page').value);
-                sessionStorage.setItem(SK + '_limit', document.getElementById('f_limit').value);
-            } catch(e) {}
-        });
-    });
-})();
-</script>
-HTML;
 
         echo '</div>';
     }

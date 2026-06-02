@@ -62,8 +62,8 @@ msgstr "Copiado"
 msgid "Copy"
 msgstr "Copiar"
 
-msgid "Read-only discovery data. Migration is not implemented yet."
-msgstr "Dados de descoberta somente leitura. A migração ainda não está implementada."
+msgid "Read-only discovery data. No data was written to GLPI."
+msgstr "Dados de descoberta somente leitura. Nenhum dado foi escrito no GLPI."
 
 msgid "Connections"
 msgstr "Conexões"
@@ -146,8 +146,14 @@ msgstr "Conexão não encontrada."
 msgid "Test connection"
 msgstr "Testar conexão"
 
-msgid "Testing…"
-msgstr "Testando…"
+msgid "Testing..."
+msgstr "Testando..."
+
+msgid "records"
+msgstr "registros"
+
+msgid "Scan"
+msgstr "Varrer"
 
 msgid "Dry-run"
 msgstr "Simulação"

@@ -16,6 +16,8 @@ function plugin_init_bridge(): void
     Plugin::registerClass(Config::class, ['addtabon' => \Config::class]);
 
     $PLUGIN_HOOKS['config_page']['bridge'] = 'front/config.form.php';
+    $PLUGIN_HOOKS['add_css']['bridge'] = ['css/bridge.css'];
+    $PLUGIN_HOOKS['add_javascript']['bridge'] = ['js/bridge.js'];
     $PLUGIN_HOOKS[Hooks::CSRF_COMPLIANT]['bridge'] = true;
 }
 

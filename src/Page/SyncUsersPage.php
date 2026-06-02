@@ -23,17 +23,17 @@ class SyncUsersPage
         echo '<a class="btn btn-sm btn-outline-secondary" href="' . self::h(Connection::getConfigURL($id)) . '"><i class="ti ti-arrow-left me-1"></i>' . self::h(__('Back', 'bridge')) . '</a>';
         echo '</div>';
 
-        echo '<form method="post" action="' . self::h($syncUrl) . '" id="bridge-usersync-form">';
+        echo '<form method="post" action="' . self::h($syncUrl) . '" id="bridge-usersync-form" data-storage-key="' . $key . '">';
         echo \Html::hidden('_glpi_csrf_token', ['value' => \Session::getNewCSRFToken()]);
         echo \Html::hidden('id', ['value' => $id]);
 
         // ── Mode ─────────────────────────────────────────────────────────
         echo self::card('ti-adjustments-horizontal', __('Mode', 'bridge'));
         echo '<div class="d-flex gap-2 mb-3">';
-        echo '<button type="button" id="btn-mode-all" class="btn btn-sm bridge-mode-btn active" onclick="bridgeUserMode(\'all\')">';
+        echo '<button type="button" id="btn-mode-all" class="btn btn-sm bridge-mode-btn active" data-bridge-user-mode="all">';
         echo '<i class="ti ti-users me-1"></i>' . self::h(__('All users', 'bridge'));
         echo '</button>';
-        echo '<button type="button" id="btn-mode-ids" class="btn btn-sm bridge-mode-btn" onclick="bridgeUserMode(\'ids\')">';
+        echo '<button type="button" id="btn-mode-ids" class="btn btn-sm bridge-mode-btn" data-bridge-user-mode="ids">';
         echo '<i class="ti ti-hash me-1"></i>' . self::h(__('By SW user IDs', 'bridge'));
         echo '</button>';
         echo '</div>';
@@ -94,39 +94,6 @@ class SyncUsersPage
         echo '</div>';
 
         echo '</form>';
-
-        echo <<<JS
-<style>
-.bridge-mode-btn {
-    border:1px solid #dee2e6; background:#fff; color:#495057; padding:.3rem .9rem; border-radius:.375rem;
-}
-.bridge-mode-btn.active { background:#0d6efd; border-color:#0d6efd; color:#fff; }
-</style>
-<script>
-(function(){
-    var SK = '{$key}';
-    function bridgeUserMode(mode) {
-        var isIds = mode === 'ids';
-        document.getElementById('bridge_user_section_ids').style.display = isIds ? '' : 'none';
-        document.getElementById('bridge_user_section_all').style.display = isIds ? 'none' : '';
-        document.getElementById('sync_mode_val').value = mode;
-        document.getElementById('btn-mode-all').classList.toggle('active', !isIds);
-        document.getElementById('btn-mode-ids').classList.toggle('active',  isIds);
-        try { sessionStorage.setItem(SK + '_mode', mode); } catch(e){}
-    }
-    window.bridgeUserMode = bridgeUserMode;
-    document.addEventListener('DOMContentLoaded', function(){
-        try { var m = sessionStorage.getItem(SK + '_mode'); if(m) bridgeUserMode(m); } catch(e){}
-        document.getElementById('bridge-usersync-form').addEventListener('submit', function(){
-            try {
-                sessionStorage.setItem(SK + '_mode', document.getElementById('sync_mode_val').value);
-                sessionStorage.setItem(SK + '_ids',  document.getElementById('f_source_ids').value);
-            } catch(e){}
-        });
-    });
-})();
-</script>
-JS;
 
         echo '</div>';
     }
@@ -214,8 +181,8 @@ JS;
 
     private static function card(string $icon, string $title): string
     {
-        return '<div class="bridge-section-card" style="border:1px solid #e9ecef;border-radius:.5rem;padding:1rem 1.25rem;margin-bottom:1rem;background:#fff">'
-            . '<div style="font-size:.7rem;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:#6c757d;margin-bottom:.75rem;display:flex;align-items:center;gap:.4rem">'
+        return '<div class="bridge-section-card">'
+            . '<div class="bridge-section-title">'
             . '<i class="ti ' . $icon . '"></i>' . self::h($title) . '</div>';
     }
 
