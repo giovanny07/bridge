@@ -15,6 +15,11 @@ class Config extends CommonGLPI
         return __('Bridge', 'bridge');
     }
 
+    public static function getIcon(): string
+    {
+        return 'ti ti-arrows-transfer-up';
+    }
+
     public static function canView(): bool
     {
         return Session::haveRight('config', READ);
@@ -28,7 +33,7 @@ class Config extends CommonGLPI
     public function getTabNameForItem(CommonGLPI $item, $withtemplate = 0): string
     {
         if ($item->getType() === 'Config' && self::canView()) {
-            return self::createTabEntry(self::getTypeName());
+            return self::createTabEntry(self::getTypeName(), 0, $item->getType(), self::getIcon());
         }
 
         return '';

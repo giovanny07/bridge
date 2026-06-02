@@ -17,6 +17,11 @@ class ConfigTest extends TestCase
         $this->assertNotEmpty(Config::getTypeName());
     }
 
+    public function testGetIconReturnsTablerIcon(): void
+    {
+        $this->assertSame('ti ti-arrows-transfer-up', Config::getIcon());
+    }
+
     public function testCanViewReturnsBool(): void
     {
         $this->assertIsBool(Config::canView());
@@ -35,6 +40,7 @@ class ConfigTest extends TestCase
         $result = $config->getTabNameForItem($item);
 
         $this->assertIsString($result);
+        $this->assertStringContainsString('ti ti-arrows-transfer-up', $result);
     }
 
     public function testGetTabNameForItemReturnsEmptyForOtherType(): void

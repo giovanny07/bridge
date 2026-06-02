@@ -43,7 +43,10 @@ if (!class_exists('CommonGLPI')) {
         public array $fields = [];
         public static function getTypeName(int $nb = 0): string { return ''; }
         public function getType(): string { return static::class; }
-        protected static function createTabEntry(string $name): string { return $name; }
+        protected static function createTabEntry(string $name, int $nb = 0, ?string $form_itemtype = null, string $icon = ''): string
+        {
+            return $icon !== '' ? '<i class="' . $icon . '"></i>' . $name : $name;
+        }
     }
 }
 
