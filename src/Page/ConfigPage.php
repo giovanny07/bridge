@@ -155,87 +155,80 @@ class ConfigPage
                     : '<span class="badge bg-secondary">&#8212;</span>';
                 echo '</td>';
 
-                // Actions
                 echo '<td class="text-end text-nowrap">';
 
-                // Test button
+                echo '<div class="btn-group btn-group-sm" role="group" aria-label="' . self::h(__('Connection actions', 'bridge')) . '">';
+
+                echo '<a href="' . $migrateUrl . '?id=' . $id . '"';
+                echo ' class="btn btn-primary"';
+                echo ' title="' . self::h(__('Migrate', 'bridge')) . '"';
+                echo ' aria-label="' . self::h(__('Migrate', 'bridge')) . '">';
+                echo '<i class="ti ti-database-import me-1"></i>' . self::h(__('Migrate', 'bridge'));
+                echo '</a>';
+
+                echo '<button type="button" class="btn btn-outline-secondary dropdown-toggle dropdown-toggle-split"';
+                echo ' data-bs-toggle="dropdown" aria-expanded="false"';
+                echo ' aria-label="' . self::h(__('More actions', 'bridge')) . '">';
+                echo '<span class="visually-hidden">' . self::h(__('More actions', 'bridge')) . '</span>';
+                echo '</button>';
+                echo '<div class="dropdown-menu dropdown-menu-end bridge-actions-menu">';
+
                 echo '<button type="button"';
-                echo ' class="btn btn-sm btn-outline-secondary bridge-test-btn me-1"';
+                echo ' class="dropdown-item bridge-test-btn"';
                 echo ' data-id="' . $id . '"';
                 echo ' data-token="' . self::h($csrfToken) . '"';
                 echo ' data-ajax="' . $ajaxUrl . '"';
                 echo ' data-testing="' . self::h(__('Testing...', 'bridge')) . '"';
                 echo ' data-failed="' . self::h(__('Request failed.', 'bridge')) . '"';
                 echo ' data-records-label="' . self::h(__('records', 'bridge')) . '"';
-                echo ' title="' . self::h(__('Test connection', 'bridge')) . '"';
                 echo ' aria-label="' . self::h(__('Test connection', 'bridge')) . '">';
-                echo '<i class="ti ti-plug"></i>';
+                echo '<i class="ti ti-plug me-2"></i>' . self::h(__('Test connection', 'bridge'));
                 echo '</button>';
 
-                // Migrate button
-                echo '<a href="' . $migrateUrl . '?id=' . $id . '"';
-                echo ' class="btn btn-sm btn-primary me-1"';
-                echo ' title="' . self::h(__('Migrate', 'bridge')) . '"';
-                echo ' aria-label="' . self::h(__('Migrate', 'bridge')) . '">';
-                echo '<i class="ti ti-database-import"></i>';
-                echo '</a>';
-
-                // History button
                 echo '<a href="' . $historyUrl . '?id=' . $id . '"';
-                echo ' class="btn btn-sm btn-outline-secondary me-1"';
-                echo ' title="' . self::h(__('Migration history', 'bridge')) . '"';
-                echo ' aria-label="' . self::h(__('Migration history', 'bridge')) . '">';
-                echo '<i class="ti ti-history"></i>';
+                echo ' class="dropdown-item">';
+                echo '<i class="ti ti-history me-2"></i>' . self::h(__('Migration history', 'bridge'));
                 echo '</a>';
 
-                // Dry-run button
                 echo '<a href="' . $dryRunUrl . '?id=' . $id . '"';
-                echo ' class="btn btn-sm btn-outline-warning me-1"';
-                echo ' title="' . self::h(__('Dry-run', 'bridge')) . '"';
-                echo ' aria-label="' . self::h(__('Dry-run', 'bridge')) . '">';
-                echo '<i class="ti ti-list-check"></i>';
+                echo ' class="dropdown-item">';
+                echo '<i class="ti ti-list-check me-2"></i>' . self::h(__('Dry-run', 'bridge'));
                 echo '</a>';
 
-                // Scan button (form POST)
-                echo '<form method="post" action="' . $scanUrl . '" class="d-inline me-1">';
+                echo '<form method="post" action="' . $scanUrl . '">';
                 echo Html::hidden('_glpi_csrf_token', ['value' => Session::getNewCSRFToken()]);
                 echo Html::hidden('id', ['value' => $id]);
-                echo '<button type="submit" class="btn btn-sm btn-outline-primary"';
-                echo ' title="' . self::h(__('Scan', 'bridge')) . '"';
+                echo '<button type="submit" class="dropdown-item"';
                 echo ' aria-label="' . self::h(__('Scan', 'bridge')) . '">';
-                echo '<i class="ti ti-radar"></i>';
+                echo '<i class="ti ti-radar me-2"></i>' . self::h(__('Scan', 'bridge'));
                 echo '</button>';
                 echo '</form>';
 
-                // User sync button
                 echo '<a href="' . $syncUsrUrl . '?id=' . $id . '"';
-                echo ' class="btn btn-sm btn-outline-secondary me-1"';
-                echo ' title="' . self::h(__('Sync users', 'bridge')) . '"';
-                echo ' aria-label="' . self::h(__('Sync users', 'bridge')) . '">';
-                echo '<i class="ti ti-users"></i>';
+                echo ' class="dropdown-item">';
+                echo '<i class="ti ti-users me-2"></i>' . self::h(__('Sync users', 'bridge'));
                 echo '</a>';
 
-                // Edit button
+                echo '<div class="dropdown-divider"></div>';
+
                 echo '<a href="' . self::h($editUrl) . '"';
-                echo ' class="btn btn-sm btn-outline-secondary me-1"';
-                echo ' title="' . self::h(__('Edit connection', 'bridge')) . '"';
-                echo ' aria-label="' . self::h(__('Edit connection', 'bridge')) . '">';
-                echo '<i class="ti ti-pencil"></i>';
+                echo ' class="dropdown-item">';
+                echo '<i class="ti ti-pencil me-2"></i>' . self::h(__('Edit connection', 'bridge'));
                 echo '</a>';
 
-                // Delete button (inline form)
                 $configFormUrl = Connection::getConfigFormURL();
-                echo '<form method="post" action="' . self::h($configFormUrl) . '" class="d-inline">';
+                echo '<form method="post" action="' . self::h($configFormUrl) . '">';
                 echo Html::hidden('_glpi_csrf_token', ['value' => Session::getNewCSRFToken()]);
                 echo Html::hidden('id', ['value' => $id]);
-                echo '<button type="submit" name="purge" class="btn btn-sm btn-outline-danger"';
-                echo ' title="' . self::h(__('Delete connection', 'bridge')) . '"';
+                echo '<button type="submit" name="purge" class="dropdown-item text-danger"';
                 echo ' aria-label="' . self::h(__('Delete connection', 'bridge')) . '"';
                 echo ' data-bridge-confirm="' . self::h(__('Delete this connection?', 'bridge')) . '">';
-                echo '<i class="ti ti-trash"></i>';
+                echo '<i class="ti ti-trash me-2"></i>' . self::h(__('Delete connection', 'bridge'));
                 echo '</button>';
                 echo '</form>';
 
+                echo '</div>';
+                echo '</div>';
                 echo '</td>';
                 echo '</tr>';
             }

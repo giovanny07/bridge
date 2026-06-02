@@ -146,6 +146,12 @@ msgstr "Conexão não encontrada."
 msgid "Test connection"
 msgstr "Testar conexão"
 
+msgid "Connection actions"
+msgstr "Ações de conexão"
+
+msgid "More actions"
+msgstr "Mais ações"
+
 msgid "Testing..."
 msgstr "Testando..."
 

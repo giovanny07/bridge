@@ -7,10 +7,6 @@
         }
     }
 
-    function setButtonIcon(btn, icon) {
-        btn.innerHTML = '<i class="ti ti-' + icon + '"></i>';
-    }
-
     function showConnectionTestResult(result, html) {
         if (result) {
             result.innerHTML = html;
@@ -44,6 +40,8 @@
                 var testing = btn.dataset.testing || 'Testing...';
                 var failed = btn.dataset.failed || 'Request failed.';
                 var recordsLabel = btn.dataset.recordsLabel || 'records';
+                var originalHtml = btn.dataset.originalHtml || btn.innerHTML;
+                btn.dataset.originalHtml = originalHtml;
 
                 btn.disabled = true;
                 btn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status"></span>';
@@ -88,7 +86,7 @@
                     })
                     .finally(function () {
                         btn.disabled = false;
-                        setButtonIcon(btn, 'plug');
+                        btn.innerHTML = originalHtml;
                     });
             });
         });

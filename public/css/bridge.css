@@ -136,3 +136,7 @@
     overflow: auto;
     font-size: .8rem;
 }
+
+.bridge-actions-menu form {
+    margin: 0;
+}

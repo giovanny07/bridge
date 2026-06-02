@@ -152,6 +152,12 @@ msgstr ""
 msgid "Test connection"
 msgstr ""
 
+msgid "Connection actions"
+msgstr ""
+
+msgid "More actions"
+msgstr ""
+
 msgid "Testing..."
 msgstr ""
 
