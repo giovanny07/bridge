@@ -4,28 +4,30 @@ Plugin para **GLPI 11** que permite explorar y migrar datos ITSM desde plataform
 
 ---
 
-## Estado — v0.4.0
+## Estado — v0.6.0
 
 | Paso | Estado |
 |------|--------|
 | Plugin base (setup, hook, PSR-4) | ✅ |
 | Pestaña de configuración en GLPI | ✅ |
 | Gestión de conexiones (CRUD + cifrado GLPIKey) | ✅ |
+| Botones Editar/Borrar en lista de conexiones | ✅ |
 | Test de conexión inline | ✅ |
 | Scan de incidentes (descubrimiento, solo lectura) | ✅ |
 | Resolver de entidades / categorías / grupos / usuarios por nombre | ✅ |
-| Resolver entidades con sufijo parentético (e.g. `Empresa (Sodexo)`) | ✅ |
+| Resolver: sufijo parentético, `C. A.`, sin puntos, comillas | ✅ |
 | Dry-run con selector de tipo de recurso | ✅ |
-| Motor de migración — tickets + followups + solución + adjuntos | ✅ |
-| Migración por IDs específicos de SolarWinds | ✅ |
-| Prefijo `[ SD #num ]` en el título del ticket | ✅ |
+| Motor de migración — Incidents → Ticket (followups + solución + adjuntos) | ✅ |
+| Motor de migración — Problems → ITILProblem (cause + symptoms + workaround) | ✅ |
+| Migración por número de ticket (#194943) o ID interno | ✅ |
+| Prefijo `[ SD #num ]` en el título | ✅ |
 | Trazabilidad de comentarios públicos/privados (`is_private`) | ✅ |
 | Solicitantes externos como `alternative_email` | ✅ |
 | Imágenes inline reemplazadas por URLs de GLPI | ✅ |
 | Tipo de ticket: Incident vs Service Request | ✅ |
-| Historial con checkboxes, purge selected y status parcial | ✅ |
+| Sincronización de usuarios desde SolarWinds | ✅ |
+| Historial: checkboxes, purge selected, status parcial, búsqueda + paginación | ✅ |
 | Migración de Changes | ⏳ |
-| Migración de Problems | ⏳ |
 
 ---
 
@@ -263,6 +265,18 @@ La API siempre devuelve los registros más recientes primero e **ignora** `sort_
 | Comment `inline_attachments` | Document + reemplazo de `<img src>` | Imagen descargada; src reemplazado con URL de GLPI |
 | Comment `attachments` | Document + Document_Item | URLs relativas se completan con baseUrl; filenames URL-decoded |
 
+### Mapeo de campos — Problems
+
+| Campo Samanage | Campo GLPI | Notas |
+|---|---|---|
+| `number` + `name` | name | Formato `[ SD #<number> ] <name>` |
+| `description_no_html` | content | — |
+| `root_cause` | causecontent | — |
+| `symptoms` | symptomcontent | — |
+| `workaround` | ITILFollowup privado | No existe campo directo en GLPI |
+| `state` / `priority` / fechas | igual que Incidents | — |
+| Actores | `glpi_problems_users` / `glpi_groups_problems` | Misma lógica que Tickets |
+
 ### Deduplicación
 
 Cada registro migrado se guarda en `glpi_plugin_bridge_migrations` con `source_id`. Si se corre la migración dos veces, el segundo pase salta los que ya tienen `status=success`.
@@ -272,7 +286,7 @@ Cada registro migrado se guarda en `glpi_plugin_bridge_migrations` con `source_i
 ## Tests
 
 ```bash
-# Tests unitarios (147 tests, sin red, sin GLPI)
+# Tests unitarios (153 tests, sin red, sin GLPI)
 composer test
 
 # Tests de contrato contra la API real
