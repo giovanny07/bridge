@@ -158,7 +158,8 @@ class HistoryPage
             echo '<td><span class="badge ' . $badgeClass . '">' . self::h($badgeLabel) . '</span></td>';
             echo '<td>';
             if ((int) $r['tickets_id'] > 0) {
-                $ticketUrl = \Ticket::getFormURLWithID((int) $r['tickets_id']);
+                $glpiClass = ($r['source_type'] === 'problems') ? 'Problem' : 'Ticket';
+                $ticketUrl = $glpiClass::getFormURLWithID((int) $r['tickets_id']);
                 echo '<a href="' . self::h($ticketUrl) . '" target="_blank" class="text-decoration-none">';
                 echo '#' . (int) $r['tickets_id'] . ' <i class="ti ti-external-link" style="font-size:.7rem"></i>';
                 echo '</a>';
