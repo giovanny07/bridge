@@ -308,8 +308,7 @@ The resolver, migration engine, UI, and history work without further changes.
 ## Tests
 
 ```bash
-# Unit tests (153 tests, no network, no GLPI instance required)
-# (run composer test to get the exact current count)
+# Unit tests (159 tests, no network, no GLPI instance required)
 composer test
 
 # Contract tests against a live API
