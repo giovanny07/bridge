@@ -105,9 +105,9 @@ class SolarWindsClient implements ConnectorInterface
     public function getResourceTypes(): array
     {
         return [
-            'incidents' => ['label' => 'Incidents',  'implemented' => true],
-            'changes'   => ['label' => 'Changes',    'implemented' => false],
-            'problems'  => ['label' => 'Problems',   'implemented' => false],
+            'incidents' => ['label' => 'Incidents', 'implemented' => true],
+            'problems'  => ['label' => 'Problems',  'implemented' => true],
+            'changes'   => ['label' => 'Changes',   'implemented' => false],
         ];
     }
 
@@ -190,6 +190,31 @@ class SolarWindsClient implements ConnectorInterface
         }
 
         throw new \RuntimeException("Ticket #$ticketNumber not found in SolarWinds (searched around page $startPage).");
+    }
+
+    public function listProblems(array $filters = [], int $page = 1, int $perPage = 50): array
+    {
+        $perPage  = max(1, min($perPage, 100));
+        $query    = array_merge(['per_page' => $perPage, 'page' => $page], $filters);
+        $response = $this->request('/problems.json', $query);
+        $records  = $response['json'];
+        if (!is_array($records)) {
+            $records = [];
+        }
+
+        return [
+            'total'    => $response['total_count'],
+            'page'     => $page,
+            'per_page' => $perPage,
+            'count'    => count($records),
+            'records'  => $records,
+        ];
+    }
+
+    public function getProblem(int $id): array
+    {
+        $response = $this->request("/problems/{$id}.json");
+        return $response['json'];
     }
 
     public function listUsers(array $filters = [], int $page = 1, int $perPage = 100): array

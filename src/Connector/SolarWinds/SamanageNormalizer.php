@@ -204,6 +204,44 @@ class SamanageNormalizer implements NormalizerInterface
     }
 
     /**
+     * Maps a SolarWinds Problem to a GLPI ITILProblem input array.
+     * Shares the same status/priority/date logic as incidentToTicket().
+     * Extra SW fields (root_cause, symptoms, workaround) go to dedicated
+     * GLPI columns or a followup note.
+     */
+    public function problemToITIL(array $problem): array
+    {
+        $state  = (string) ($problem['state'] ?? '');
+        $number = (string) ($problem['number'] ?? '');
+        $title  = (string) ($problem['name']   ?? '');
+        if ($number !== '') {
+            $title = "[ SD #$number ] $title";
+        }
+
+        return [
+            'name'           => $title,
+            'content'        => (string) ($problem['description_no_html'] ?? $problem['description'] ?? ''),
+            'causecontent'   => $this->stripLinks((string) ($problem['root_cause']   ?? '')),
+            'symptomcontent' => $this->stripLinks((string) ($problem['symptoms']     ?? '')),
+            'status'         => $this->mapState($state),
+            'priority'       => $this->mapPriority((string) ($problem['priority'] ?? '')),
+            'date'           => $this->parseDate($problem['created_at'] ?? null),
+            'solvedate'      => in_array($state, ['Solucionado', 'Closed', 'Resolved'], true)
+                                    ? $this->parseDate($problem['updated_at'] ?? null)
+                                    : null,
+            'closedate'      => $state === 'Closed'
+                                    ? $this->parseDate($problem['updated_at'] ?? null)
+                                    : null,
+            '_source_id'     => $problem['id']     ?? null,
+            '_source_number' => $problem['number'] ?? null,
+            '_source_href'   => $problem['href']   ?? null,
+            '_source_raw'    => $problem,
+            // Workaround has no direct GLPI column — stored as private followup
+            '_workaround'    => $this->stripLinks((string) ($problem['workaround'] ?? '')),
+        ];
+    }
+
+    /**
      * Strips <a href> links from HTML, keeping the anchor text.
      * SolarWinds comments often embed links to other SD tickets
      * (e.g. /incidents/135126995) that would be dead links in GLPI.

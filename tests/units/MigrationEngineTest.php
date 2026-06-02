@@ -54,6 +54,8 @@ class MigrationEngineTest extends TestCase
             public function getIncidentByNumber(int $n): array { return $this->incidents[0] ?? []; }
             public function getIncidentComments(int $id): array { return []; }
             public function downloadAttachment(string $url): ?array { return null; }
+            public function listProblems(array $f = [], int $p = 1, int $pp = 50): array { return ['total'=>0,'page'=>1,'per_page'=>50,'count'=>0,'records'=>[]]; }
+            public function getProblem(int $id): array { return $this->incidents[0] ?? []; }
             public function listUsers(array $f = [], int $p = 1, int $pp = 100): array { return ['total'=>0,'page'=>1,'per_page'=>100,'count'=>0,'records'=>[]]; }
             public function getUser(int $id): array { return []; }
             public static function fromConnection($c): static { return new static([], false); }

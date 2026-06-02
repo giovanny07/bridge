@@ -71,6 +71,18 @@ interface ConnectorInterface
     public function downloadAttachment(string $url): ?array;
 
     /**
+     * Paginated problem listing for migration.
+     * Returns: ['total', 'page', 'per_page', 'count', 'records']
+     */
+    public function listProblems(array $filters = [], int $page = 1, int $perPage = 50): array;
+
+    /**
+     * Fetches a single problem by its source-system ID.
+     * Throws on failure.
+     */
+    public function getProblem(int $id): array;
+
+    /**
      * Paginated user listing for sync.
      * Returns: ['total', 'page', 'per_page', 'count', 'records']
      */

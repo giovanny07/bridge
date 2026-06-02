@@ -38,7 +38,44 @@ class MigrationEngine
         private readonly int                 $fallbackEntityId,
         private readonly int                 $fallbackGroupId,
         private readonly int                 $fallbackRequesterId = 0,
+        private readonly string              $resourceType = 'incidents',
     ) {}
+
+    /** Returns the GLPI itemtype for the current resource type. */
+    private function glpiItemtype(): string
+    {
+        return match ($this->resourceType) {
+            'problems' => 'Problem',
+            default    => 'Ticket',
+        };
+    }
+
+    /** Returns the glpi_X_users table name for the current itemtype. */
+    private function actorUserTable(): string
+    {
+        return match ($this->resourceType) {
+            'problems' => 'glpi_problems_users',
+            default    => 'glpi_tickets_users',
+        };
+    }
+
+    /** Returns the glpi_groups_X table name for the current itemtype. */
+    private function actorGroupTable(): string
+    {
+        return match ($this->resourceType) {
+            'problems' => 'glpi_groups_problems',
+            default    => 'glpi_groups_tickets',
+        };
+    }
+
+    /** Returns the FK column name used in actor tables (e.g. tickets_id / problems_id). */
+    private function actorFk(): string
+    {
+        return match ($this->resourceType) {
+            'problems' => 'problems_id',
+            default    => 'tickets_id',
+        };
+    }
 
     public function run(array $options): MigrationResult
     {
@@ -64,21 +101,20 @@ class MigrationEngine
 
         if (!empty($sourceIds)) {
             foreach ($sourceIds as $rawId) {
-                // Strip leading # so users can enter "#194943" or "194943"
                 $rawId = ltrim(trim($rawId), '#');
                 try {
-                    // Heuristic: internal SW IDs are 9+ digits (> 100 million).
-                    // Shorter values are human-visible ticket numbers → resolve first.
-                    if ((int) $rawId < 100_000_000) {
-                        $incident = $this->connector->getIncidentByNumber((int) $rawId);
+                    if ($this->resourceType === 'problems') {
+                        $record = $this->connector->getProblem((int) $rawId);
+                    } elseif ((int) $rawId < 100_000_000) {
+                        $record = $this->connector->getIncidentByNumber((int) $rawId);
                     } else {
-                        $incident = $this->connector->getIncident((int) $rawId);
+                        $record = $this->connector->getIncident((int) $rawId);
                     }
                 } catch (\Throwable $e) {
                     $result->addFailed(['id' => $rawId, 'number' => $rawId, 'name' => "#$rawId"], $e->getMessage());
                     continue;
                 }
-                $this->processIncident($incident, $mapper, $includeComm, $includeAtt, $keepPrivate, $isDryRun, $result);
+                $this->processIncident($record, $mapper, $includeComm, $includeAtt, $keepPrivate, $isDryRun, $result);
             }
             return $result;
         }
@@ -90,7 +126,9 @@ class MigrationEngine
             $remaining = $limit - $result->total();
             $perPage   = min(self::PER_PAGE, $remaining);
 
-            $batch = $this->connector->listIncidents($filters, $page, $perPage);
+            $batch = $this->resourceType === 'problems'
+                ? $this->connector->listProblems($filters, $page, $perPage)
+                : $this->connector->listIncidents($filters, $page, $perPage);
 
             if (empty($batch['records'])) {
                 break;
@@ -128,7 +166,7 @@ class MigrationEngine
     ): void {
         $sourceId = (string) ($incident['id'] ?? '');
 
-        if (!$isDryRun && MigrationRecord::isAlreadyMigrated($this->connectionId, 'incidents', $sourceId)) {
+        if (!$isDryRun && MigrationRecord::isAlreadyMigrated($this->connectionId, $this->resourceType, $sourceId)) {
             $result->addSkipped($incident);
             return;
         }
@@ -151,20 +189,18 @@ class MigrationEngine
         if (!$mapped->isCreatable()) {
             $error = 'Unresolved entity — configure a fallback entity in the connection settings.';
             $result->addFailed($incident, $error);
-            MigrationRecord::log($this->connectionId, 'incidents', $sourceId, (string) ($incident['number'] ?? ''), MigrationRecord::STATUS_FAILED, 0, $error);
+            MigrationRecord::log($this->connectionId, $this->resourceType, $sourceId, (string) ($incident['number'] ?? ''), MigrationRecord::STATUS_FAILED, 0, $error);
             return;
         }
 
         try {
             $ticketId = $this->createTicket($mapped, $includeAtt, $keepPrivate);
             $result->addCreated($incident, $ticketId);
-            // Store resolver warnings (unmatched entity/user/group) in error_message
-            // so the history page can flag the record as "success with warnings"
             $warningsNote = implode(' | ', $mapped->warnings);
-            MigrationRecord::log($this->connectionId, 'incidents', $sourceId, (string) ($incident['number'] ?? ''), MigrationRecord::STATUS_SUCCESS, $ticketId, $warningsNote);
+            MigrationRecord::log($this->connectionId, $this->resourceType, $sourceId, (string) ($incident['number'] ?? ''), MigrationRecord::STATUS_SUCCESS, $ticketId, $warningsNote);
         } catch (\Throwable $e) {
             $result->addFailed($incident, $e->getMessage());
-            MigrationRecord::log($this->connectionId, 'incidents', $sourceId, (string) ($incident['number'] ?? ''), MigrationRecord::STATUS_FAILED, 0, $e->getMessage());
+            MigrationRecord::log($this->connectionId, $this->resourceType, $sourceId, (string) ($incident['number'] ?? ''), MigrationRecord::STATUS_FAILED, 0, $e->getMessage());
         }
     }
 
@@ -174,46 +210,65 @@ class MigrationEngine
 
     private function createTicket(MappedIncident $mapped, bool $includeAttachments, bool $keepPrivate = false): int
     {
-        $t      = $mapped->ticket;
-        $ticket = new \Ticket();
+        $t        = $mapped->ticket;
+        $itemtype = $this->glpiItemtype();
+        $item     = new $itemtype();
 
-        $ticketId = (int) $ticket->add(array_merge($t, [
+        $createInput = array_merge($t, [
             'urgency'       => $t['priority'] ?? 3,
             'impact'        => $t['priority'] ?? 3,
             '_disablenotif' => true,
-            // Prevents GLPI from using the interactive session user as default actor
             '_auto_import'  => true,
-        ]));
+        ]);
+        // Remove fields that don't exist on ITILProblem
+        if ($itemtype === 'Problem') {
+            unset($createInput['type'], $createInput['requesttypes_id']);
+        }
 
-        if ($ticketId <= 0) {
-            throw new \RuntimeException('Ticket::add() returned ' . $ticketId . '. Check GLPI logs.');
+        $itemId = (int) $item->add($createInput);
+
+        if ($itemId <= 0) {
+            throw new \RuntimeException($itemtype . '::add() returned ' . $itemId . '. Check GLPI logs.');
         }
 
         $entityId = (int) ($t['entities_id'] ?? 0);
 
         foreach ($mapped->followups as $f) {
-            $this->createFollowup($f, $ticketId, $entityId, $includeAttachments, $keepPrivate);
+            $this->createFollowup($f, $itemId, $entityId, $includeAttachments, $keepPrivate, $itemtype);
         }
 
-        // Solution must be created after followups so it appears last
+        // Workaround (Problems only): create as a private internal followup
+        if ($itemtype === 'Problem') {
+            $workaround = trim(strip_tags((string) ($t['_workaround'] ?? '')));
+            if ($workaround !== '') {
+                $wf = new \ITILFollowup();
+                $wf->add([
+                    'itemtype'        => 'Problem',
+                    'items_id'        => $itemId,
+                    'content'         => '<p><strong>Workaround:</strong> ' . htmlspecialchars($workaround, ENT_QUOTES, 'UTF-8') . '</p>',
+                    'date'            => $t['date'] ?? date('Y-m-d H:i:s'),
+                    'date_creation'   => $t['date'] ?? date('Y-m-d H:i:s'),
+                    'is_private'      => 1,
+                    'users_id'        => 0,
+                    'requesttypes_id' => 6,
+                    '_disablenotif'   => true,
+                ]);
+            }
+        }
+
+        // Solution must come after followups
         if ($mapped->solution !== null) {
-            $this->createSolution($mapped->solution, $ticketId);
+            $this->createSolution($mapped->solution, $itemId, $itemtype);
         }
 
-        // GLPI's ITILSolution::add() may reset ticket to SOLVED (5) and put the
-        // solution into WAITING (2) when entity-level validation is configured.
-        // For a migration we force the exact source status and accept the solution.
         $targetStatus = (int) ($t['status'] ?? 1);
         if ($targetStatus === self::STATUS_SOLVED || $targetStatus === self::STATUS_CLOSED) {
-            $this->forceTicketFinalStatus($ticketId, $targetStatus, $t);
+            $this->forceTicketFinalStatus($itemId, $targetStatus, $t, $itemtype);
         }
 
-        // Assign actors directly — GLPI's updateActors() validates users against
-        // User::getSqlSearchResult() which filters out users without a profile in
-        // the ticket's entity. Imported users fail this check silently.
-        $this->forceAssignActors($ticketId, $t);
+        $this->forceAssignActors($itemId, $t);
 
-        return $ticketId;
+        return $itemId;
     }
 
     /**
@@ -229,24 +284,25 @@ class MigrationEngine
         $requesterEmail = (string) ($ticketFields['_requester_alt_email'] ?? '');
         $assigneeId     = (int)    ($ticketFields['_users_id_assign']     ?? 0);
         $groupId        = (int)    ($ticketFields['_groups_id_assign']    ?? 0);
+        $fk             = $this->actorFk();
+        $userTable      = $this->actorUserTable();
+        $groupTable     = $this->actorGroupTable();
 
         // Remove default actors GLPI added during creation (e.g. session user as requester)
-        $DB->delete('glpi_tickets_users',  ['tickets_id' => $ticketId]);
-        $DB->delete('glpi_groups_tickets', ['tickets_id' => $ticketId]);
+        $DB->delete($userTable,  [$fk => $ticketId]);
+        $DB->delete($groupTable, [$fk => $ticketId]);
 
         if ($requesterId > 0) {
-            // Known GLPI user
-            $DB->insert('glpi_tickets_users', [
-                'tickets_id'        => $ticketId,
+            $DB->insert($userTable, [
+                $fk                 => $ticketId,
                 'users_id'          => $requesterId,
                 'type'              => 1,
                 'use_notification'  => 0,
                 'alternative_email' => '',
             ]);
         } elseif ($requesterEmail !== '') {
-            // External email not in GLPI — stored as alternative_email so it shows in the ticket
-            $DB->insert('glpi_tickets_users', [
-                'tickets_id'        => $ticketId,
+            $DB->insert($userTable, [
+                $fk                 => $ticketId,
                 'users_id'          => 0,
                 'type'              => 1,
                 'use_notification'  => 1,
@@ -255,8 +311,8 @@ class MigrationEngine
         }
 
         if ($assigneeId > 0) {
-            $DB->insert('glpi_tickets_users', [
-                'tickets_id'        => $ticketId,
+            $DB->insert($userTable, [
+                $fk                 => $ticketId,
                 'users_id'          => $assigneeId,
                 'type'              => 2,
                 'use_notification'  => 0,
@@ -265,8 +321,8 @@ class MigrationEngine
         }
 
         if ($groupId > 0) {
-            $DB->insert('glpi_groups_tickets', [
-                'tickets_id' => $ticketId,
+            $DB->insert($groupTable, [
+                $fk          => $ticketId,
                 'groups_id'  => $groupId,
                 'type'       => 2,
             ]);
@@ -277,10 +333,11 @@ class MigrationEngine
      * Forces the correct status/dates on a ticket after GLPI business-rule
      * overrides. Also force-accepts any solution that got stuck in WAITING.
      */
-    private function forceTicketFinalStatus(int $ticketId, int $status, array $ticketFields): void
+    private function forceTicketFinalStatus(int $ticketId, int $status, array $ticketFields, string $itemtype = 'Ticket'): void
     {
         global $DB;
 
+        $table  = $itemtype === 'Problem' ? 'glpi_problems' : 'glpi_tickets';
         $update = ['status' => $status];
 
         if (!empty($ticketFields['solvedate'])) {
@@ -293,24 +350,23 @@ class MigrationEngine
                 ?? date('Y-m-d H:i:s');
         }
 
-        $DB->update('glpi_tickets', $update, ['id' => $ticketId]);
+        $DB->update($table, $update, ['id' => $ticketId]);
 
-        // Accept any solution that validation rules set to WAITING
         $DB->update(
             'glpi_itilsolutions',
             ['status' => 3],
-            ['items_id' => $ticketId, 'itemtype' => 'Ticket']
+            ['items_id' => $ticketId, 'itemtype' => $itemtype]
         );
     }
 
-    private function createFollowup(array $f, int $ticketId, int $entityId, bool $includeAttachments, bool $keepPrivate = false): void
+    private function createFollowup(array $f, int $ticketId, int $entityId, bool $includeAttachments, bool $keepPrivate = false, string $itemtype = 'Ticket'): void
     {
         global $DB;
 
         $followup       = new \ITILFollowup();
         $historicalDate = $f['date'] ?? date('Y-m-d H:i:s');
         $fId = (int) $followup->add([
-            'itemtype'        => 'Ticket',
+            'itemtype'        => $itemtype,
             'items_id'        => $ticketId,
             'content'         => $f['content'],
             'date'            => $historicalDate,
@@ -400,11 +456,11 @@ class MigrationEngine
         return $urlMap;
     }
 
-    private function createSolution(array $solution, int $ticketId): void
+    private function createSolution(array $solution, int $ticketId, string $itemtype = 'Ticket'): void
     {
         $s = new \ITILSolution();
         $s->add([
-            'itemtype'      => 'Ticket',
+            'itemtype'      => $itemtype,
             'items_id'      => $ticketId,
             'content'       => $solution['content'] ?? '',
             'date_creation' => $solution['date'] ?? date('Y-m-d H:i:s'),
