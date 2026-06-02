@@ -8,23 +8,6 @@
  * installation if you need integration-level coverage.
  */
 
-$autoload = dirname(__DIR__) . '/vendor/autoload.php';
-if (file_exists($autoload)) {
-    require $autoload;
-} else {
-    spl_autoload_register(function (string $class): void {
-        $prefix = 'GlpiPlugin\\Bridge\\';
-        if (!str_starts_with($class, $prefix)) {
-            return;
-        }
-        $rel  = str_replace('\\', '/', substr($class, strlen($prefix)));
-        $file = dirname(__DIR__) . '/src/' . $rel . '.php';
-        if (file_exists($file)) {
-            require $file;
-        }
-    });
-}
-
 // ---- GLPI core stubs -------------------------------------------------- //
 
 if (!class_exists('CommonDBTM')) {
@@ -128,3 +111,20 @@ if (!defined('CREATE')) { define('CREATE', 2); }
 if (!defined('PURGE'))  { define('PURGE',  8); }
 if (!defined('INFO'))   { define('INFO',   1); }
 if (!defined('ERROR'))  { define('ERROR',  3); }
+
+$autoload = dirname(__DIR__) . '/vendor/autoload.php';
+if (file_exists($autoload)) {
+    require $autoload;
+} else {
+    spl_autoload_register(function (string $class): void {
+        $prefix = 'GlpiPlugin\\Bridge\\';
+        if (!str_starts_with($class, $prefix)) {
+            return;
+        }
+        $rel  = str_replace('\\', '/', substr($class, strlen($prefix)));
+        $file = dirname(__DIR__) . '/src/' . $rel . '.php';
+        if (file_exists($file)) {
+            require $file;
+        }
+    });
+}
