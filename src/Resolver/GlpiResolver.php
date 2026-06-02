@@ -196,6 +196,8 @@ class GlpiResolver
         $s = mb_strtolower(trim($s), 'UTF-8');
         // Replace accented chars: á→a, é→e, etc.
         $s = (string) iconv('UTF-8', 'ASCII//TRANSLIT//IGNORE', $s);
+        // Strip quotation marks: "Molanca" → Molanca
+        $s = (string) str_replace(['"', "'", "\u{201C}", "\u{201D}", "\u{2018}", "\u{2019}"], '', $s);
         // Collapse "C. A." / "S. A." (space inside abbreviated suffix) → "c.a." / "s.a."
         $s = (string) preg_replace('/\b([a-z])\.\s+([a-z])\./i', '$1.$2.', $s);
         $s = (string) preg_replace('/\s+/', ' ', $s);

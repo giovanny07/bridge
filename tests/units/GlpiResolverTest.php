@@ -119,6 +119,15 @@ class GlpiResolverTest extends TestCase
         $this->assertSame(13, $resolver->resolveEntity('Banco de la Gente Emprendedora (Bangente). C.A.'));
     }
 
+    public function testResolveEntityStripsQuotes(): void
+    {
+        // SW: 'Moldeados Andinos, C.A "Molanca"'  ↔  GLPI: 'Moldeados Andinos, C.A Molanca'
+        $resolver = $this->makeResolver([
+            'glpi_entities' => [['id' => 258, 'name' => 'Moldeados Andinos, C.A Molanca']],
+        ]);
+        $this->assertSame(258, $resolver->resolveEntity('Moldeados Andinos, C.A "Molanca"'));
+    }
+
     public function testResolveEntityReturnsNullWhenNotFound(): void
     {
         $resolver = $this->makeResolver(['glpi_entities' => []]);
