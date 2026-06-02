@@ -53,6 +53,8 @@ class MigrationEngineTest extends TestCase
             public function getIncident(int $id): array { return $this->incidents[0] ?? []; }
             public function getIncidentByNumber(int $n): array { return $this->incidents[0] ?? []; }
             public function getIncidentComments(int $id): array { return []; }
+            public function getProblemComments(int $id): array { return []; }
+            public function getChangeComments(int $id): array { return []; }
             public function downloadAttachment(string $url): ?array { return null; }
             public function listChanges(array $f = [], int $p = 1, int $pp = 50): array { return ['total'=>0,'page'=>1,'per_page'=>50,'count'=>0,'records'=>[]]; }
             public function getChange(int $id): array { return $this->incidents[0] ?? []; }

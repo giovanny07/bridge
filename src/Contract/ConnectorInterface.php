@@ -62,6 +62,12 @@ interface ConnectorInterface
      */
     public function getIncidentComments(int $incidentId): array;
 
+    /** Fetches all comments for a single problem. */
+    public function getProblemComments(int $problemId): array;
+
+    /** Fetches all comments for a single change. */
+    public function getChangeComments(int $changeId): array;
+
     /**
      * Downloads a file attachment from the source system using the connector's
      * own authentication. Returns null on failure (network error, 4xx, etc.).

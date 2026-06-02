@@ -182,7 +182,11 @@ class MigrationEngine
         $comments = [];
         if ($includeComm) {
             try {
-                $comments = $this->connector->getIncidentComments((int) $sourceId);
+                $comments = match ($this->resourceType) {
+                    'problems' => $this->connector->getProblemComments((int) $sourceId),
+                    'changes'  => $this->connector->getChangeComments((int) $sourceId),
+                    default    => $this->connector->getIncidentComments((int) $sourceId),
+                };
             } catch (\Throwable) {
             }
         }

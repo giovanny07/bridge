@@ -266,7 +266,22 @@ class SolarWindsClient implements ConnectorInterface
 
     public function getIncidentComments(int $incidentId): array
     {
-        $response = $this->request("/incidents/{$incidentId}/comments.json");
+        return $this->fetchComments("incidents", $incidentId);
+    }
+
+    public function getProblemComments(int $problemId): array
+    {
+        return $this->fetchComments("problems", $problemId);
+    }
+
+    public function getChangeComments(int $changeId): array
+    {
+        return $this->fetchComments("changes", $changeId);
+    }
+
+    private function fetchComments(string $resource, int $id): array
+    {
+        $response = $this->request("/{$resource}/{$id}/comments.json");
         $json     = $response['json'];
         return array_is_list($json) ? $json : [];
     }
