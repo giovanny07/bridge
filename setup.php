@@ -4,7 +4,7 @@ use Glpi\Plugin\Hooks;
 use GlpiPlugin\Bridge\Config;
 use GlpiPlugin\Bridge\Connection;
 
-define('PLUGIN_BRIDGE_VERSION', '0.6.0');
+define('PLUGIN_BRIDGE_VERSION', '0.7.0');
 define('PLUGIN_BRIDGE_MIN_GLPI', '11.0.0');
 define('PLUGIN_BRIDGE_MAX_GLPI', '11.0.99');
 

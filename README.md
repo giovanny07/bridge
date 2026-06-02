@@ -4,7 +4,7 @@ Bridge is a **GLPI 11** plugin for migrating ITSM data from external platforms i
 
 ---
 
-## Status — v0.6.0
+## Status — v0.7.0
 
 | Feature | Status |
 |---------|--------|
@@ -13,10 +13,11 @@ Bridge is a **GLPI 11** plugin for migrating ITSM data from external platforms i
 | Inline connection test | Done |
 | Incident discovery scan (read-only) | Done |
 | Entity / category / group / user resolver | Done |
-| Fuzzy entity matching (accents, legal suffixes, parentheticals, abbreviations) | Done |
+| Fuzzy entity matching (accents, legal suffixes, parentheticals, abbreviations, quotes) | Done |
 | Dry-run preview | Done |
 | Incident migration — Ticket + followups + solution + attachments | Done |
 | Problem migration — ITILProblem + cause + symptoms + workaround | Done |
+| Change migration — ITILChange + rollout + backout + checklist plans | Done |
 | Migration by ticket number or internal ID | Done |
 | Source traceability prefix `[ SD #N ]` in title | Done |
 | Public / private comment preservation (`is_private`) | Done |
@@ -25,7 +26,6 @@ Bridge is a **GLPI 11** plugin for migrating ITSM data from external platforms i
 | Incident vs Service Request type mapping | Done |
 | User synchronisation from source system | Done |
 | Migration history with search, pagination, per-row purge, and partial status | Done |
-| Change migration | Planned |
 
 ---
 
@@ -248,6 +248,34 @@ The API always returns records newest-first and does not honour `sort_order=asc`
 | Solucionado / Resolved | 5 — Solved |
 | Closed | 6 — Closed |
 
+### Field mapping — Changes
+
+| Samanage field | GLPI field | Notes |
+|----------------|------------|-------|
+| `number` + `name` | `name` | Prefixed as `[ SD #N ] title` |
+| `description_no_html` | `content` | — |
+| `change_plan` | `rolloutplancontent` | Implementation / rollout plan |
+| `rollback_plan` | `backoutplancontent` | Backout / rollback plan |
+| `test_plan` | `checklistcontent` | Test / verification checklist |
+| State | `status` | See Change status map below |
+| `priority` | `priority` | Same mapping as Incidents |
+| Dates | `date`, `solvedate`, `closedate` | Same logic as Incidents |
+| Actors | `glpi_changes_users` / `glpi_changes_groups` | Same logic as Tickets |
+
+**Change status map**
+
+| Samanage state | GLPI status |
+|----------------|-------------|
+| Solicitado | 1 — New |
+| Pre Aprobado | 9 — Evaluation |
+| Aprobado | 7 — Accepted |
+| Iniciado | 2 — Assigned |
+| Revisado | 12 — Qualification |
+| Post Mortem | 12 — Qualification |
+| Finalizado / Cerrado / Completed | 6 — Closed |
+| Rechazado | 13 — Refused |
+| Cancelado / Expirado | 14 — Cancelled |
+
 ### Field mapping — Problems
 
 | Samanage field | GLPI field | Notes |
@@ -281,6 +309,7 @@ The resolver, migration engine, UI, and history work without further changes.
 
 ```bash
 # Unit tests (153 tests, no network, no GLPI instance required)
+# (run composer test to get the exact current count)
 composer test
 
 # Contract tests against a live API
