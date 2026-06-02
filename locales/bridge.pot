@@ -158,6 +158,12 @@ msgstr ""
 msgid "More actions"
 msgstr ""
 
+msgid "Last test"
+msgstr ""
+
+msgid "Not tested yet"
+msgstr ""
+
 msgid "Testing..."
 msgstr ""
 

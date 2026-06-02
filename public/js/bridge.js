@@ -7,8 +7,9 @@
         }
     }
 
-    function showConnectionTestResult(result, html) {
+    function showConnectionTestResult(result, html, state) {
         if (result) {
+            result.className = 'bridge-test-result small bridge-test-result-' + state;
             result.innerHTML = html;
         }
     }
@@ -45,7 +46,11 @@
 
                 btn.disabled = true;
                 btn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status"></span>';
-                showConnectionTestResult(result, '<span class="text-muted">' + testing + '</span>');
+                showConnectionTestResult(
+                    result,
+                    '<i class="ti ti-loader-2 me-1"></i>' + testing,
+                    'testing'
+                );
 
                 fetch(ajaxUrl, {
                     method: 'POST',
@@ -61,27 +66,27 @@
                         if (data.ok) {
                             showConnectionTestResult(
                                 result,
-                                '<span class="text-success"><i class="ti ti-circle-check me-1"></i>'
+                                '<i class="ti ti-circle-check me-1"></i>'
                                 + data.latency_ms + 'ms &mdash; '
-                                + Number(data.total || 0).toLocaleString() + ' ' + recordsLabel
-                                + '</span>'
+                                + Number(data.total || 0).toLocaleString() + ' ' + recordsLabel,
+                                'success'
                             );
                         } else {
                             showConnectionTestResult(
                                 result,
-                                '<span class="text-danger"><i class="ti ti-circle-x me-1"></i>'
+                                '<i class="ti ti-circle-x me-1"></i>'
                                 + (data.message || failed)
-                                + (data.status ? ' (HTTP ' + data.status + ')' : '')
-                                + '</span>'
+                                + (data.status ? ' (HTTP ' + data.status + ')' : ''),
+                                'error'
                             );
                         }
                     })
                     .catch(function (error) {
                         showConnectionTestResult(
                             result,
-                            '<span class="text-danger"><i class="ti ti-circle-x me-1"></i>'
-                            + (error.message || failed)
-                            + '</span>'
+                            '<i class="ti ti-circle-x me-1"></i>'
+                            + (error.message || failed),
+                            'error'
                         );
                     })
                     .finally(function () {

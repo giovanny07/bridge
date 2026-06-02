@@ -123,6 +123,7 @@ class ConfigPage
             echo '<thead class="table-light"><tr>';
             echo '<th>' . self::h(__('Name', 'bridge')) . '</th>';
             echo '<th class="text-center">' . self::h(__('Active', 'bridge')) . '</th>';
+            echo '<th>' . self::h(__('Last test', 'bridge')) . '</th>';
             echo '<th></th>';
             echo '</tr></thead><tbody>';
 
@@ -144,8 +145,6 @@ class ConfigPage
                 echo self::h($row['name']);
                 echo '</a>';
                 echo '<div class="text-muted small">' . self::h($host) . '</div>';
-                // Test result appears here, under the name
-                echo '<div id="bridge-test-result-' . $id . '" class="small mt-1"></div>';
                 echo '</td>';
 
                 // Active
@@ -153,6 +152,12 @@ class ConfigPage
                 echo (int) $row['is_active']
                     ? '<span class="badge bg-success">&#10003;</span>'
                     : '<span class="badge bg-secondary">&#8212;</span>';
+                echo '</td>';
+
+                echo '<td>';
+                echo '<div id="bridge-test-result-' . $id . '" class="bridge-test-result text-muted small">';
+                echo '<i class="ti ti-minus me-1"></i>' . self::h(__('Not tested yet', 'bridge'));
+                echo '</div>';
                 echo '</td>';
 
                 echo '<td class="text-end text-nowrap">';

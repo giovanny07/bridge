@@ -152,6 +152,12 @@ msgstr "Acciones de conexión"
 msgid "More actions"
 msgstr "Más acciones"
 
+msgid "Last test"
+msgstr "Última prueba"
+
+msgid "Not tested yet"
+msgstr "Sin probar aún"
+
 msgid "Testing..."
 msgstr "Probando..."
 
