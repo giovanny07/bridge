@@ -137,6 +137,14 @@
     font-size: .8rem;
 }
 
+.bridge-connections-table {
+    overflow: visible;
+}
+
+.bridge-connections-table .dropdown-menu {
+    z-index: 1060;
+}
+
 .bridge-actions-menu form {
     margin: 0;
 }

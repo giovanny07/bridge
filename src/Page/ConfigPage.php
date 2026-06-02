@@ -118,7 +118,7 @@ class ConfigPage
             echo '<p class="small">' . self::h(__('Use the form on the right to add one.', 'bridge')) . '</p>';
             echo '</div>';
         } else {
-            echo '<div class="table-responsive">';
+            echo '<div class="bridge-connections-table">';
             echo '<table class="table table-hover align-middle mb-0">';
             echo '<thead class="table-light"><tr>';
             echo '<th>' . self::h(__('Name', 'bridge')) . '</th>';
