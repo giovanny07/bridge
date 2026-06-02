@@ -249,7 +249,7 @@ class SamanageNormalizer implements NormalizerInterface
         'Iniciado'     => 2,  // Assigned
         'Revisado'     => 12, // Qualification
         'Post Mortem'  => 12, // Qualification (post-implementation review)
-        'Finalizado'   => 5,  // Applied (SOLVED)
+        'Finalizado'   => 6,  // Applied → Closed for migration (historical, no pending review)
         'Cerrado'      => 6,  // Closed
         'Rechazado'    => 13, // Refused
         'Cancelado'    => 14, // Cancelled
