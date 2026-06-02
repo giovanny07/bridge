@@ -51,6 +51,7 @@ class MigrationEngineTest extends TestCase
                 return ['endpoint' => '/incidents.json', 'status_code' => 200, 'total' => count($this->incidents), 'page' => $page, 'per_page' => $perPage, 'count' => count($this->incidents), 'records' => $this->incidents];
             }
             public function getIncident(int $id): array { return $this->incidents[0] ?? []; }
+            public function getIncidentByNumber(int $n): array { return $this->incidents[0] ?? []; }
             public function getIncidentComments(int $id): array { return []; }
             public function downloadAttachment(string $url): ?array { return null; }
             public function listUsers(array $f = [], int $p = 1, int $pp = 100): array { return ['total'=>0,'page'=>1,'per_page'=>100,'count'=>0,'records'=>[]]; }

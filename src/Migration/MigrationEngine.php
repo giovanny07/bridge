@@ -64,10 +64,18 @@ class MigrationEngine
 
         if (!empty($sourceIds)) {
             foreach ($sourceIds as $rawId) {
+                // Strip leading # so users can enter "#194943" or "194943"
+                $rawId = ltrim(trim($rawId), '#');
                 try {
-                    $incident = $this->connector->getIncident((int) $rawId);
+                    // Heuristic: internal SW IDs are 9+ digits (> 100 million).
+                    // Shorter values are human-visible ticket numbers → resolve first.
+                    if ((int) $rawId < 100_000_000) {
+                        $incident = $this->connector->getIncidentByNumber((int) $rawId);
+                    } else {
+                        $incident = $this->connector->getIncident((int) $rawId);
+                    }
                 } catch (\Throwable $e) {
-                    $result->addFailed(['id' => $rawId, 'number' => $rawId, 'name' => "ID $rawId"], $e->getMessage());
+                    $result->addFailed(['id' => $rawId, 'number' => $rawId, 'name' => "#$rawId"], $e->getMessage());
                     continue;
                 }
                 $this->processIncident($incident, $mapper, $includeComm, $includeAtt, $keepPrivate, $isDryRun, $result);

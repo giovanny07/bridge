@@ -67,59 +67,86 @@ class MigratePage
         echo '</div>';
         echo '<input type="hidden" name="migration_mode" id="migration_mode_val" value="filters">';
 
-        // Mode: By filters
+        // ── Mode: By filters ─────────────────────────────────────────────
         echo '<div id="bridge_section_filters">';
 
-        echo '<div class="row g-3">';
-
-        echo '<div class="col-md-4">';
-        echo '<label class="form-label fw-medium">' . self::h(__('State', 'bridge')) . '</label>';
+        // State — visual pills
+        echo '<div class="mb-3">';
+        echo '<label class="form-label fw-medium d-block mb-1">' . self::h(__('Status', 'bridge')) . '</label>';
         $states = [
-            ''                         => __('All states', 'bridge'),
-            'Closed'                   => 'Closed',
-            'Solucionado'              => 'Solucionado',
-            'En Proceso'               => 'En Proceso',
-            'Pending Assignment'       => 'Pending Assignment',
-            'Pendiente Acción Cliente' => 'Pendiente Acción Cliente',
-            'Gestión Proveedor'        => 'Gestión Proveedor',
+            ''                         => [__('All',            'bridge'), 'secondary'],
+            'Closed'                   => ['Closed',                       'success'],
+            'Solucionado'              => ['Solucionado',                  'success'],
+            'En Proceso'               => ['En Proceso',                   'primary'],
+            'Pending Assignment'       => ['Pending Assignment',           'warning'],
+            'Pendiente Acción Cliente' => ['Pendiente Acción Cliente',     'warning'],
+            'Gestión Proveedor'        => ['Gestión Proveedor',            'info'],
         ];
-        echo '<select class="form-select form-select-sm" name="state" id="f_state">';
-        foreach ($states as $val => $lbl) {
-            echo '<option value="' . self::h($val) . '">' . self::h($lbl) . '</option>';
+        echo '<div class="d-flex flex-wrap gap-1">';
+        $first = true;
+        foreach ($states as $val => [$lbl, $color]) {
+            $checked = $first ? ' checked' : '';
+            echo '<label class="bridge-state-pill" data-color="' . $color . '">';
+            echo '<input type="radio" name="state" id="f_state_' . self::h($val ?: 'all') . '" value="' . self::h($val) . '"' . $checked . ' onchange="bridgeStatePill(this)">';
+            echo self::h($lbl);
+            echo '</label>';
+            $first = false;
         }
-        echo '</select>';
+        echo '</div>';
         echo '</div>';
 
-        echo '<div class="col-md-4">';
+        // Date range
+        echo '<div class="row g-3 mb-3">';
+        echo '<div class="col-md-6">';
         echo '<label class="form-label fw-medium">' . self::h(__('Created after', 'bridge')) . '</label>';
         echo '<input type="date" class="form-control form-control-sm" name="created_after" id="f_created_after">';
+        echo '<div class="form-text">' . self::h(__('Leave empty to fetch from the most recent.', 'bridge')) . '</div>';
         echo '</div>';
-
-        echo '<div class="col-md-4">';
+        echo '<div class="col-md-6">';
         echo '<label class="form-label fw-medium">' . self::h(__('Updated after', 'bridge')) . '</label>';
         echo '<input type="date" class="form-control form-control-sm" name="updated_after" id="f_updated_after">';
+        echo '<div class="form-text">' . self::h(__('For incremental sync — only tickets modified since this date.', 'bridge')) . '</div>';
+        echo '</div>';
         echo '</div>';
 
+        // Limit
+        echo '<div class="row g-3 mb-2">';
         echo '<div class="col-md-4">';
-        echo '<label class="form-label fw-medium">' . self::h(__('Start from page', 'bridge')) . '</label>';
-        echo '<input type="number" class="form-control form-control-sm" name="start_page" id="f_start_page" value="1" min="1">';
-        echo '<div class="form-text">' . self::h(__('Newest first. ~200 = Apr 2026, ~1870 = Apr 2024.', 'bridge')) . '</div>';
-        echo '</div>';
-
-        echo '<div class="col-md-4">';
-        echo '<label class="form-label fw-medium">' . self::h(__('Limit', 'bridge')) . '</label>';
+        echo '<label class="form-label fw-medium">' . self::h(__('Max per run', 'bridge')) . '</label>';
         echo '<input type="number" class="form-control form-control-sm" name="limit" id="f_limit" value="50" min="1" max="500">';
-        echo '<div class="form-text">' . self::h(__('Max records per run.', 'bridge')) . '</div>';
+        echo '</div>';
         echo '</div>';
 
-        echo '</div>'; // row
+        // Advanced: pagination
+        echo '<details class="mt-1">';
+        echo '<summary class="text-muted small" style="cursor:pointer;user-select:none">';
+        echo '<i class="ti ti-settings me-1"></i>' . self::h(__('Advanced — pagination', 'bridge'));
+        echo '</summary>';
+        echo '<div class="mt-2 p-3 border rounded bg-light">';
+        echo '<div class="row g-3">';
+        echo '<div class="col-md-5">';
+        echo '<label class="form-label fw-medium small">' . self::h(__('Start from page', 'bridge')) . '</label>';
+        echo '<input type="number" class="form-control form-control-sm" name="start_page" id="f_start_page" value="1" min="1">';
+        echo '</div>';
+        echo '<div class="col-md-7 d-flex align-items-end">';
+        echo '<div class="form-text mb-0">';
+        echo '<i class="ti ti-info-circle me-1"></i>';
+        echo self::h(__('The API returns newest first. Page 1 = today. Use this to reach historical tickets.', 'bridge'));
+        echo '</div>';
+        echo '</div>';
+        echo '</div>';
+        echo '</div>';
+        echo '</details>';
+
         echo '</div>'; // bridge_section_filters
 
-        // Mode: By IDs
+        // ── Mode: By IDs ─────────────────────────────────────────────────
         echo '<div id="bridge_section_ids" style="display:none">';
-        echo '<label class="form-label fw-medium">' . self::h(__('Source IDs', 'bridge')) . '</label>';
-        echo '<input type="text" class="form-control form-control-sm font-monospace" name="source_ids" id="f_source_ids" placeholder="181695325, 181695326, 181695327" autocomplete="off">';
-        echo '<div class="form-text">' . self::h(__('Comma-separated SolarWinds IDs. Overrides filters and pagination.', 'bridge')) . '</div>';
+        echo '<label class="form-label fw-medium">' . self::h(__('Ticket numbers or source IDs', 'bridge')) . '</label>';
+        echo '<input type="text" class="form-control form-control-sm font-monospace" name="source_ids" id="f_source_ids" placeholder="#194943, #194944  or  182566420, 182566421" autocomplete="off">';
+        echo '<div class="form-text">';
+        echo '<i class="ti ti-hash me-1"></i>' . self::h(__('Use the ticket number (e.g. #194943) or the internal SW ID. Mixed lists are supported.', 'bridge'));
+        echo '</div>';
         echo '</div>';
 
         echo '</div>'; // card
@@ -183,6 +210,19 @@ class MigratePage
     background:#0d6efd; border-color:#0d6efd; color:#fff;
 }
 
+.bridge-state-pill {
+    display:inline-flex; align-items:center; padding:.25rem .75rem;
+    border-radius:2rem; border:1px solid #dee2e6; background:#fff;
+    cursor:pointer; font-size:.8rem; transition:all .15s; user-select:none;
+}
+.bridge-state-pill input[type=radio] { display:none; }
+.bridge-state-pill.active { color:#fff; border-color:currentColor; }
+.bridge-state-pill.active[data-color=secondary] { background:#6c757d; border-color:#6c757d; }
+.bridge-state-pill.active[data-color=success]   { background:#198754; border-color:#198754; }
+.bridge-state-pill.active[data-color=primary]   { background:#0d6efd; border-color:#0d6efd; }
+.bridge-state-pill.active[data-color=warning]   { background:#ffc107; border-color:#ffc107; color:#000; }
+.bridge-state-pill.active[data-color=info]      { background:#0dcaf0; border-color:#0dcaf0; color:#000; }
+
 .bridge-section-card {
     border:1px solid #e9ecef; border-radius:.5rem;
     padding:1rem 1.25rem; margin-bottom:1rem; background:#fff;
@@ -207,6 +247,17 @@ class MigratePage
         try { sessionStorage.setItem(SK + '_mode', mode); } catch(e) {}
     }
     window.bridgeSetMode = bridgeSetMode;
+
+    window.bridgeStatePill = function(radio) {
+        document.querySelectorAll('.bridge-state-pill').forEach(function(p){ p.classList.remove('active'); });
+        if (radio.checked) radio.closest('.bridge-state-pill').classList.add('active');
+    };
+    // Init active pill on load
+    document.addEventListener('DOMContentLoaded', function(){
+        document.querySelectorAll('.bridge-state-pill input:checked').forEach(function(r){
+            r.closest('.bridge-state-pill').classList.add('active');
+        });
+    });
 
     function restore() {
         try {

@@ -50,6 +50,13 @@ interface ConnectorInterface
     public function getIncident(int $id): array;
 
     /**
+     * Resolves a human-visible ticket number (e.g. 194943) to its full
+     * incident record. Implementations may scan pages to find it.
+     * Throws if not found.
+     */
+    public function getIncidentByNumber(int $ticketNumber): array;
+
+    /**
      * Fetches all comments for a single incident.
      * Returns an array of raw comment objects from the source system.
      */

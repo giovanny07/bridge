@@ -154,6 +154,44 @@ class SolarWindsClient implements ConnectorInterface
         return $response['json'];
     }
 
+    /**
+     * Resolves a human-visible ticket number (e.g. 194943) to the internal
+     * source ID by scanning around the estimated page. The API always returns
+     * newest first, so page ≈ (maxNumber - target) / 100.
+     *
+     * Throws RuntimeException if not found within the search window.
+     */
+    public function getIncidentByNumber(int $ticketNumber): array
+    {
+        // Step 1: get the current max ticket number from page 1
+        $page1    = $this->listIncidents([], 1, 100);
+        $maxNum   = (int) ($page1['records'][0]['number'] ?? 0);
+        if ($maxNum === 0) {
+            throw new \RuntimeException("Could not determine max ticket number from API.");
+        }
+
+        // Step 2: estimate starting page (newest first, ~100 per page)
+        $distance    = max(0, $maxNum - $ticketNumber);
+        $startPage   = max(1, (int) ceil($distance / 100));
+
+        // Step 3: scan ±5 pages around the estimate
+        for ($p = max(1, $startPage - 2); $p <= $startPage + 5; $p++) {
+            $batch = $this->listIncidents([], $p, 100);
+            foreach ($batch['records'] as $record) {
+                if ((int) ($record['number'] ?? 0) === $ticketNumber) {
+                    return $record;
+                }
+            }
+            // If we've passed the target number (remember: descending order), stop
+            $lastNum = (int) ($batch['records'][array_key_last($batch['records'])]['number'] ?? 0);
+            if ($lastNum < $ticketNumber - 200) {
+                break;
+            }
+        }
+
+        throw new \RuntimeException("Ticket #$ticketNumber not found in SolarWinds (searched around page $startPage).");
+    }
+
     public function listUsers(array $filters = [], int $page = 1, int $perPage = 100): array
     {
         $perPage  = max(1, min($perPage, 100));
