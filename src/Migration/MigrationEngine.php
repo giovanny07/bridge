@@ -46,6 +46,7 @@ class MigrationEngine
     {
         return match ($this->resourceType) {
             'problems' => 'Problem',
+            'changes'  => 'Change',
             default    => 'Ticket',
         };
     }
@@ -55,6 +56,7 @@ class MigrationEngine
     {
         return match ($this->resourceType) {
             'problems' => 'glpi_problems_users',
+            'changes'  => 'glpi_changes_users',
             default    => 'glpi_tickets_users',
         };
     }
@@ -64,15 +66,17 @@ class MigrationEngine
     {
         return match ($this->resourceType) {
             'problems' => 'glpi_groups_problems',
+            'changes'  => 'glpi_groups_changes',
             default    => 'glpi_groups_tickets',
         };
     }
 
-    /** Returns the FK column name used in actor tables (e.g. tickets_id / problems_id). */
+    /** Returns the FK column name used in actor tables. */
     private function actorFk(): string
     {
         return match ($this->resourceType) {
             'problems' => 'problems_id',
+            'changes'  => 'changes_id',
             default    => 'tickets_id',
         };
     }
@@ -105,6 +109,8 @@ class MigrationEngine
                 try {
                     if ($this->resourceType === 'problems') {
                         $record = $this->connector->getProblem((int) $rawId);
+                    } elseif ($this->resourceType === 'changes') {
+                        $record = $this->connector->getChange((int) $rawId);
                     } elseif ((int) $rawId < 100_000_000) {
                         $record = $this->connector->getIncidentByNumber((int) $rawId);
                     } else {
@@ -126,9 +132,11 @@ class MigrationEngine
             $remaining = $limit - $result->total();
             $perPage   = min(self::PER_PAGE, $remaining);
 
-            $batch = $this->resourceType === 'problems'
-                ? $this->connector->listProblems($filters, $page, $perPage)
-                : $this->connector->listIncidents($filters, $page, $perPage);
+            $batch = match ($this->resourceType) {
+                'problems' => $this->connector->listProblems($filters, $page, $perPage),
+                'changes'  => $this->connector->listChanges($filters, $page, $perPage),
+                default    => $this->connector->listIncidents($filters, $page, $perPage),
+            };
 
             if (empty($batch['records'])) {
                 break;
@@ -220,8 +228,8 @@ class MigrationEngine
             '_disablenotif' => true,
             '_auto_import'  => true,
         ]);
-        // Remove fields that don't exist on ITILProblem
-        if ($itemtype === 'Problem') {
+        // Remove Ticket-only fields not present on Problem or Change
+        if ($itemtype !== 'Ticket') {
             unset($createInput['type'], $createInput['requesttypes_id']);
         }
 
@@ -237,7 +245,7 @@ class MigrationEngine
             $this->createFollowup($f, $itemId, $entityId, $includeAttachments, $keepPrivate, $itemtype);
         }
 
-        // Workaround (Problems only): create as a private internal followup
+        // Workaround (Problems only) — stored as a private internal followup
         if ($itemtype === 'Problem') {
             // Keep the original HTML — strip only <a> links (already done in
             // problemToITIL), do NOT strip_tags + re-encode (causes double-encoding)
@@ -339,7 +347,11 @@ class MigrationEngine
     {
         global $DB;
 
-        $table  = $itemtype === 'Problem' ? 'glpi_problems' : 'glpi_tickets';
+        $table  = match ($itemtype) {
+            'Problem' => 'glpi_problems',
+            'Change'  => 'glpi_changes',
+            default   => 'glpi_tickets',
+        };
         $update = ['status' => $status];
 
         if (!empty($ticketFields['solvedate'])) {

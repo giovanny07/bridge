@@ -241,6 +241,61 @@ class SamanageNormalizer implements NormalizerInterface
         ];
     }
 
+    // GLPI ITILChange status values
+    private const CHANGE_STATUS_MAP = [
+        'Solicitado'   => 1,  // New (INCOMING)
+        'Pre Aprobado' => 9,  // Evaluation
+        'Aprobado'     => 7,  // Accepted
+        'Iniciado'     => 2,  // Assigned
+        'Revisado'     => 12, // Qualification
+        'Post Mortem'  => 12, // Qualification (post-implementation review)
+        'Finalizado'   => 5,  // Applied (SOLVED)
+        'Cerrado'      => 6,  // Closed
+        'Rechazado'    => 13, // Refused
+        'Cancelado'    => 14, // Cancelled
+        // English equivalents
+        'New'          => 1,
+        'Approved'     => 7,
+        'In Progress'  => 2,
+        'Completed'    => 5,
+        'Closed'       => 6,
+        'Refused'      => 13,
+        'Cancelled'    => 14,
+    ];
+
+    /**
+     * Maps a SolarWinds Change to a GLPI ITILChange input array.
+     */
+    public function changeToITIL(array $change): array
+    {
+        $state  = (string) ($change['state']  ?? '');
+        $number = (string) ($change['number'] ?? '');
+        $title  = (string) ($change['name']   ?? '');
+        if ($number !== '') {
+            $title = "[ SD #$number ] $title";
+        }
+
+        $status = self::CHANGE_STATUS_MAP[$state] ?? 1;
+        $isClosed = in_array($status, [5, 6], true);
+
+        return [
+            'name'                => $title,
+            'content'             => (string) ($change['description_no_html'] ?? $change['description'] ?? ''),
+            'rolloutplancontent'  => $this->stripLinks((string) ($change['change_plan']    ?? '')),
+            'backoutplancontent'  => $this->stripLinks((string) ($change['rollback_plan']  ?? '')),
+            'checklistcontent'    => $this->stripLinks((string) ($change['test_plan']      ?? '')),
+            'status'              => $status,
+            'priority'            => $this->mapPriority((string) ($change['priority'] ?? '')),
+            'date'                => $this->parseDate($change['created_at']  ?? null),
+            'solvedate'           => $isClosed ? $this->parseDate($change['updated_at'] ?? null) : null,
+            'closedate'           => $status === 6 ? $this->parseDate($change['updated_at'] ?? null) : null,
+            '_source_id'          => $change['id']     ?? null,
+            '_source_number'      => $change['number'] ?? null,
+            '_source_href'        => $change['href']   ?? null,
+            '_source_raw'         => $change,
+        ];
+    }
+
     /**
      * Strips <a href> links from HTML, keeping the anchor text.
      * SolarWinds comments often embed links to other SD tickets

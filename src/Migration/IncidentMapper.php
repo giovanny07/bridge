@@ -104,9 +104,11 @@ class IncidentMapper
         // Case 4: no email, no fallback → requesterId=null, altEmail='' → no actor
 
         // ── Assemble ITIL object input ───────────────────────────────────
-        $base = $resourceType === 'problems'
-            ? $this->normalizer->problemToITIL($incident)
-            : $this->normalizer->incidentToTicket($incident);
+        $base = match ($resourceType) {
+            'problems' => $this->normalizer->problemToITIL($incident),
+            'changes'  => $this->normalizer->changeToITIL($incident),
+            default    => $this->normalizer->incidentToTicket($incident),
+        };
         $ticket = array_merge($base, [
             'entities_id'          => $entityId ?? 0,
             'itilcategories_id'    => $categoryId ?? 0,

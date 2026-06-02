@@ -71,6 +71,18 @@ interface ConnectorInterface
     public function downloadAttachment(string $url): ?array;
 
     /**
+     * Paginated change listing for migration.
+     * Returns: ['total', 'page', 'per_page', 'count', 'records']
+     */
+    public function listChanges(array $filters = [], int $page = 1, int $perPage = 50): array;
+
+    /**
+     * Fetches a single change by its source-system ID.
+     * Throws on failure.
+     */
+    public function getChange(int $id): array;
+
+    /**
      * Paginated problem listing for migration.
      * Returns: ['total', 'page', 'per_page', 'count', 'records']
      */

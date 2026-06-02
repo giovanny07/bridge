@@ -58,4 +58,10 @@ interface NormalizerInterface
      * and _workaround (stored as a private followup — no direct GLPI column).
      */
     public function problemToITIL(array $problem): array;
+
+    /**
+     * Maps a source change to a GLPI ITILChange input array.
+     * Includes rolloutplancontent, backoutplancontent, checklistcontent.
+     */
+    public function changeToITIL(array $change): array;
 }

@@ -107,7 +107,7 @@ class SolarWindsClient implements ConnectorInterface
         return [
             'incidents' => ['label' => 'Incidents', 'implemented' => true],
             'problems'  => ['label' => 'Problems',  'implemented' => true],
-            'changes'   => ['label' => 'Changes',   'implemented' => false],
+            'changes'   => ['label' => 'Changes',   'implemented' => true],
         ];
     }
 
@@ -190,6 +190,28 @@ class SolarWindsClient implements ConnectorInterface
         }
 
         throw new \RuntimeException("Ticket #$ticketNumber not found in SolarWinds (searched around page $startPage).");
+    }
+
+    public function listChanges(array $filters = [], int $page = 1, int $perPage = 50): array
+    {
+        $perPage  = max(1, min($perPage, 100));
+        $query    = array_merge(['per_page' => $perPage, 'page' => $page], $filters);
+        $response = $this->request('/changes.json', $query);
+        $records  = is_array($response['json']) ? $response['json'] : [];
+
+        return [
+            'total'    => $response['total_count'],
+            'page'     => $page,
+            'per_page' => $perPage,
+            'count'    => count($records),
+            'records'  => $records,
+        ];
+    }
+
+    public function getChange(int $id): array
+    {
+        $response = $this->request("/changes/{$id}.json");
+        return $response['json'];
     }
 
     public function listProblems(array $filters = [], int $page = 1, int $perPage = 50): array

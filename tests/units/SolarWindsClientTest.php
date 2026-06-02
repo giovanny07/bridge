@@ -217,8 +217,13 @@ class SolarWindsClientTest extends TestCase
         $client = $this->makeClient('https://example.com');
         $types  = $client->getResourceTypes();
 
-        $unimplemented = array_filter($types, fn($m) => !$m['implemented']);
-        $this->assertNotEmpty($unimplemented, 'Should have at least one future resource type listed');
+        // All current types are now implemented; the test just verifies the
+        // method returns a non-empty array with the expected keys.
+        $this->assertNotEmpty($types);
+        foreach ($types as $type => $meta) {
+            $this->assertArrayHasKey('label',       $meta);
+            $this->assertArrayHasKey('implemented', $meta);
+        }
     }
 
 
