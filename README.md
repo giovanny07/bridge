@@ -1,47 +1,45 @@
 # Bridge — GLPI 11 Plugin
 
-Plugin para **GLPI 11** que permite explorar y migrar datos ITSM desde plataformas externas hacia GLPI. Actualmente soporta **SolarWinds Service Desk (Samanage)**.
+Bridge is a **GLPI 11** plugin for migrating ITSM data from external platforms into GLPI. It currently supports **SolarWinds Service Desk (Samanage)** and is designed to be extended to other source systems.
 
 ---
 
-## Estado — v0.6.0
+## Status — v0.6.0
 
-| Paso | Estado |
-|------|--------|
-| Plugin base (setup, hook, PSR-4) | ✅ |
-| Pestaña de configuración en GLPI | ✅ |
-| Gestión de conexiones (CRUD + cifrado GLPIKey) | ✅ |
-| Botones Editar/Borrar en lista de conexiones | ✅ |
-| Test de conexión inline | ✅ |
-| Scan de incidentes (descubrimiento, solo lectura) | ✅ |
-| Resolver de entidades / categorías / grupos / usuarios por nombre | ✅ |
-| Resolver: sufijo parentético, `C. A.`, sin puntos, comillas | ✅ |
-| Dry-run con selector de tipo de recurso | ✅ |
-| Motor de migración — Incidents → Ticket (followups + solución + adjuntos) | ✅ |
-| Motor de migración — Problems → ITILProblem (cause + symptoms + workaround) | ✅ |
-| Migración por número de ticket (#194943) o ID interno | ✅ |
-| Prefijo `[ SD #num ]` en el título | ✅ |
-| Trazabilidad de comentarios públicos/privados (`is_private`) | ✅ |
-| Solicitantes externos como `alternative_email` | ✅ |
-| Imágenes inline reemplazadas por URLs de GLPI | ✅ |
-| Tipo de ticket: Incident vs Service Request | ✅ |
-| Sincronización de usuarios desde SolarWinds | ✅ |
-| Historial: checkboxes, purge selected, status parcial, búsqueda + paginación | ✅ |
-| Migración de Changes | ⏳ |
+| Feature | Status |
+|---------|--------|
+| Plugin base (setup, hooks, PSR-4 autoload) | Done |
+| Connection management with GLPIKey encryption | Done |
+| Inline connection test | Done |
+| Incident discovery scan (read-only) | Done |
+| Entity / category / group / user resolver | Done |
+| Fuzzy entity matching (accents, legal suffixes, parentheticals, abbreviations) | Done |
+| Dry-run preview | Done |
+| Incident migration — Ticket + followups + solution + attachments | Done |
+| Problem migration — ITILProblem + cause + symptoms + workaround | Done |
+| Migration by ticket number or internal ID | Done |
+| Source traceability prefix `[ SD #N ]` in title | Done |
+| Public / private comment preservation (`is_private`) | Done |
+| External requesters stored as `alternative_email` | Done |
+| Inline image replacement with GLPI document URLs | Done |
+| Incident vs Service Request type mapping | Done |
+| User synchronisation from source system | Done |
+| Migration history with search, pagination, per-row purge, and partial status | Done |
+| Change migration | Planned |
 
 ---
 
-## Requisitos
+## Requirements
 
 | | |
 |---|---|
 | GLPI | 11.0.0 – 11.0.99 |
-| PHP | ≥ 8.1 |
-| Extensión PHP | `curl` (fallback a streams si no está disponible) |
+| PHP | >= 8.1 |
+| PHP extension | `curl` (streams fallback included) |
 
 ---
 
-## Instalación
+## Installation
 
 ```bash
 cd /var/lib/glpi/plugins
@@ -50,272 +48,252 @@ cd bridge
 composer install --no-dev
 ```
 
-En GLPI: **Configuración → Plugins → Bridge → Instalar → Activar**.
+In GLPI: **Setup > Plugins > Bridge > Install > Enable**.
 
-> La instalación crea dos tablas:
-> - `glpi_plugin_bridge_connections` — conexiones a sistemas externos
-> - `glpi_plugin_bridge_migrations` — log de auditoría de cada migración
+The installation creates two tables:
+
+- `glpi_plugin_bridge_connections` — source system connection records
+- `glpi_plugin_bridge_migrations` — per-record migration audit log
 
 ---
 
-## Estructura del código
+## Code structure
 
 ```
 bridge/
-├── setup.php                        # Declaración del plugin, hooks GLPI
-├── hook.php                         # install/uninstall de tablas
+├── setup.php                          Plugin declaration and GLPI hooks
+├── hook.php                           Table install / uninstall
 ├── ajax/
-│   └── test_connection.php          # AJAX: verifica conectividad
+│   └── test_connection.php            AJAX connectivity check
 ├── front/
-│   ├── config.php                   # Redirect al tab Bridge
-│   ├── config.form.php              # POST handler conexiones (add/update/purge)
-│   ├── scan.php                     # Scan de descubrimiento (solo lectura)
-│   ├── dryrun.php                   # Simulación con selector de recurso
-│   ├── migrate.php                  # Motor de migración
-│   └── migration_history.php        # Historial + purge + retry
+│   ├── config.php                     Redirect to Bridge tab
+│   ├── config.form.php                POST handler (add / update / purge connection)
+│   ├── scan.php                       Read-only discovery scan
+│   ├── dryrun.php                     Dry-run preview
+│   ├── migrate.php                    Migration engine front controller
+│   ├── migration_history.php          History view with purge / retry
+│   └── sync_users.php                 User synchronisation front controller
 ├── src/
-│   ├── Config.php                   # Tab Bridge en Configuración General
-│   ├── Connection.php               # Modelo CommonDBTM de conexiones
+│   ├── Config.php                     Bridge tab in GLPI General Setup
+│   ├── Connection.php                 CommonDBTM model for connections
 │   ├── Contract/
-│   │   ├── ConnectorInterface.php   # Contrato: todo conector debe implementarlo
-│   │   └── NormalizerInterface.php  # Contrato: mapeo de campos por sistema
+│   │   ├── ConnectorInterface.php     Contract every connector must implement
+│   │   └── NormalizerInterface.php    Contract for field mapping per system
 │   ├── Connector/
-│   │   ├── ConnectorFactory.php     # Crea conector/normalizador según system_type
+│   │   ├── ConnectorFactory.php       Builds connector / normalizer by system_type
 │   │   └── SolarWinds/
-│   │       ├── SolarWindsClient.php # Cliente HTTP Samanage (implements ConnectorInterface)
-│   │       └── SamanageNormalizer.php # Mapeo de campos (implements NormalizerInterface)
+│   │       ├── SolarWindsClient.php   HTTP client for Samanage API
+│   │       └── SamanageNormalizer.php Field mapping for SolarWinds
 │   ├── Resolver/
-│   │   └── GlpiResolver.php         # Busca entidades/categorías/grupos/usuarios por nombre
+│   │   └── GlpiResolver.php           Resolves entities / categories / groups / users by name
 │   ├── Migration/
-│   │   ├── IncidentMapper.php       # Combina normalizador + resolver → ticket GLPI
-│   │   ├── MappedIncident.php       # Value object: ticket + followups + solution + warnings
-│   │   ├── MigrationEngine.php      # Orquesta el proceso completo con deduplicación
-│   │   ├── MigrationRecord.php      # Log de auditoría (CommonDBTM)
-│   │   └── MigrationResult.php      # Resultado: creados / fallidos / saltados
+│   │   ├── IncidentMapper.php         Combines normalizer + resolver into GLPI input
+│   │   ├── MappedIncident.php         Value object: ITIL item + followups + solution + warnings
+│   │   ├── MigrationEngine.php        Orchestrates the full migration with deduplication
+│   │   ├── MigrationRecord.php        Audit log (CommonDBTM)
+│   │   ├── MigrationResult.php        Result: created / failed / skipped counts
+│   │   ├── UserSyncer.php             Synchronises source users into GLPI
+│   │   └── UserSyncResult.php         User sync result value object
 │   └── Page/
-│       ├── ConfigPage.php           # UI: lista de conexiones + formulario
-│       ├── DryRunPage.php           # UI: selector de recurso + tabla de resolución
-│       ├── MigratePage.php          # UI: formulario de migración + resultados
-│       └── HistoryPage.php          # UI: historial + acciones de purge
-├── locales/                         # Traducciones: en_GB, es_ES, pt_BR
+│       ├── ConfigPage.php             UI: connection list and form
+│       ├── DryRunPage.php             UI: resource selector and resolution table
+│       ├── MigratePage.php            UI: migration form and results
+│       ├── HistoryPage.php            UI: history with search, pagination, and actions
+│       └── SyncUsersPage.php          UI: user sync form and results
+├── locales/                           Translations: en_GB, es_ES, pt_BR
 ├── tools/
-│   ├── compile-mo.php               # Compila .po → .mo sin msgfmt
-│   └── import-test-scenario.sh      # Importa datos del cliente a entorno local
+│   └── compile-mo.php                 Compiles .po files to .mo without msgfmt
 └── tests/
-    ├── bootstrap.php                # Stubs GLPI para tests sin instancia real
-    ├── units/                       # Tests unitarios (sin red, sin GLPI)
-    └── api/                         # Tests de contrato contra la API real
-        └── SolarWindsApiContractTest.php
+    ├── bootstrap.php                  GLPI stubs for unit tests (no live instance needed)
+    ├── units/                         Unit tests (no network, no GLPI)
+    └── api/                           Contract tests against the live API
 ```
 
 ---
 
-## Flujo de trabajo
+## Workflow
 
-### Configurar una conexión
+### Configure a connection
 
-1. **Configuración → Configuración General → pestaña Bridge**
-2. Completar: nombre, URL base, tipo de auth, token/secreto
-3. Entidad fallback (cuando un site no se resuelve por nombre)
-4. Grupo fallback (cuando el asignado no se encuentra)
-5. Clic en **🔌** (Test) — verifica auth + conectividad en <1 segundo
-6. Clic en **📡** (Scan) — muestra JSON raw de los primeros incidentes
+1. Go to **Setup > General Setup > Bridge tab**.
+2. Fill in: name, base URL, authentication type, token or secret.
+3. Set a fallback entity (used when a source site cannot be matched by name).
+4. Set a fallback group (used when the assignee cannot be resolved).
+5. Click **Test** to verify authentication and connectivity.
+6. Click **Scan** to preview a sample of raw records from the source system.
 
-### Dry-run (previsualización)
+### Dry-run
 
-Clic en **🟡** → elige tipo de recurso → tabla de 20 incidentes con:
-- ID GLPI de entidad, categoría, grupo y solicitante resueltos
-- Warnings de los que no se encontraron por nombre
-- Conteo de comentarios (sin fetchearlos para ser rápido)
+Select **Dry-run** on a connection to preview how records will be resolved — entity, category, group, and requester — without writing anything to GLPI.
 
-### Migración real
+### Migration
 
-Clic en **🔵** (Migrate) → formulario con dos modos:
+Open the **Migrate** form for a connection. Two modes are available.
 
-#### Modo: Por filtros / paginación
+**By filters**
 
-| Campo | Descripción |
-|---|---|
-| Tipo de recurso | Incidents ✅ · Changes ⏳ · Problems ⏳ |
-| Estado | Filtra por estado en SolarWinds |
-| Created after | Fecha mínima de creación |
-| Updated after | Útil para sincronización incremental |
-| **Start from page** | La API devuelve los más recientes primero. Usa ~200 para tickets de abril 2026, ~1870 para abril 2024 |
-| Límite | Máx tickets por ejecución (1–500) |
+Select a status, a time period (recent, from date, incremental, or manual page), and a record limit. The API returns records newest-first; the time period selector abstracts away the underlying page offset.
 
-#### Modo: Por IDs específicos
+**By source IDs**
 
-Pega los IDs de SolarWinds separados por coma (`181695325, 181695326`). Ignora filtros y paginación. Útil para migrar tickets concretos o validar la migración antes de un lote masivo.
+Enter a comma-separated list of ticket numbers (e.g. `#12345`) or internal source IDs. The engine resolves ticket numbers to their internal IDs automatically before fetching.
 
-#### Opciones de contenido (ambos modos)
+**Content options**
 
-| Opción | Descripción |
-|---|---|
-| Default requester | Usuario GLPI usado cuando el origen no tiene email de solicitante |
-| Comments → Followups | Crea ITILFollowup por cada comentario |
-| Attachments → Documents | Descarga archivos y los vincula como Document |
-| Preserve private flag | Mantiene `is_private` de los comentarios (por defecto todos quedan públicos) |
+| Option | Description |
+|--------|-------------|
+| Default requester | GLPI user assigned when the source record has no requester email |
+| Comments as followups | Creates one ITILFollowup per comment |
+| Attachments as documents | Downloads files and links them as GLPI Documents |
+| Preserve private flag | Keeps the `is_private` state of source comments (default: on) |
 
-#### Lo que se crea por ticket
+**What gets created per record**
 
-1. **Ticket** con entidad, categoría, asignado y solicitante resueltos por nombre/email
-2. **ITILFollowup** por cada comentario (ordenados por `date_creation` = fecha original de SolarWinds)
-3. **ITILSolution** con el contenido de `resolution_description`, `resolution_code`, o el nombre del estado si no hay texto explícito
-4. **Document** por cada adjunto descargado y vinculado al followup y al ticket
+- An ITIL item (Ticket or Problem) with entity, category, assignee, and requester resolved by name or email.
+- One ITILFollowup per comment, ordered by the original source date.
+- An ITILSolution from `resolution_description`, `resolution_code`, or the status name as a minimal fallback.
+- One Document per downloaded attachment, linked to the corresponding followup.
+- For Problems: cause content, symptom content, and a private workaround followup when the source fields are present.
 
-### Historial
+### Migration history
 
-Clic en **⚪** (History) → tabla filtrable con:
-- Status: success / failed / skipped
-- Link directo al ticket GLPI creado
-- **Retry failed**: purga los fallidos para re-procesarlos
-- **Purge all**: reset completo para re-migrar desde cero
+The history view shows all migration attempts with status (success / partial / failed / skipped), a direct link to the created GLPI item, and the resolver warnings for partial records. Records can be selected individually and purged for retry, or purged in bulk.
+
+### User synchronisation
+
+The **Sync users** action on a connection imports source system users into GLPI as user + email records, enabling the resolver to match them on future migrations. Supports dry-run preview, role filtering, and optional update of existing records.
 
 ---
 
-## Resolución de actores
+## Actor resolution
 
 ### Assignee
-1. Si es **usuario** (`assignee.is_user = true`): busca por `email` en `glpi_useremails`
-2. Si es **grupo** (`assignee.is_user = false`): busca por nombre en `glpi_groups` (match fuzzy sin acentos)
-3. Si no se resuelve: usa el **grupo fallback** configurado en la conexión
 
-### Requester (solicitante)
-| Situación | Resultado en GLPI |
-|---|---|
-| Email encontrado en GLPI | Usuario vinculado normalmente |
-| Email existe pero no tiene cuenta GLPI | Se guarda como `alternative_email` — visible en el ticket |
-| Sin email en origen + fallback configurado | Usuario fallback del formulario de migración |
-| Sin email y sin fallback | Campo vacío |
+1. If the source assignee is a user: resolved by email in `glpi_useremails`.
+2. If the source assignee is a group: resolved by name in `glpi_groups` (fuzzy, accent-insensitive).
+3. If unresolved: the fallback group configured on the connection is used.
 
----
+### Requester
 
-## Comportamiento del timeline en GLPI
-
-- **Orden**: followups y solución se ordenan por `date_creation` = fecha original de SolarWinds, no por la fecha en que se ejecutó la migración
-- **Solución**: tickets cerrados sin `resolution_description` ni `resolution_code` reciben una solución mínima con el nombre del estado (`"Closed"`, `"Solucionado"`) para mantener la integridad del timeline
-- **Comentarios privados**: por defecto todos los followups migrados son públicos; activar "Preserve private flag" para respetar el `is_private` original
+| Situation | Result in GLPI |
+|-----------|----------------|
+| Email found in GLPI | User linked by ID |
+| Email present but no GLPI account | Stored as `alternative_email` — visible in the item |
+| No email in source, fallback configured | Fallback user from the migration form |
+| No email and no fallback | Field left empty |
 
 ---
 
-## Nota sobre autenticación SolarWinds
+## Entity name matching
 
-La API Samanage usa `X-Samanage-Authorization: Bearer <token>`, **no** el estándar `Authorization: Bearer` (devuelve 401). El plugin gestiona esto automáticamente.
+The resolver applies up to three normalisation passes to handle naming differences between source and destination systems:
 
----
+1. Exact match after lowercasing and accent transliteration.
+2. Match after stripping common legal suffixes (C.A., S.A., S.R.L., N.V., Inc.).
+3. Match after stripping trailing parenthetical content (e.g. `Empresa (Former Name)`).
 
-## Añadir un nuevo sistema fuente
-
-1. Implementar `ConnectorInterface` en `src/Connector/{Sistema}/{Sistema}Client.php`
-2. Implementar `NormalizerInterface` en `src/Connector/{Sistema}/{Sistema}Normalizer.php`
-3. Añadir una entrada en `ConnectorFactory::make()` y `makeNormalizer()`
-4. Registrar en `Connection::getSupportedSystems()`
-
-El resto del plugin (resolver, motor, UI, historial) funciona sin cambios.
+Additional normalisations applied before comparison: internal spaces in abbreviations (`C. A.` → `C.A.`), missing trailing periods (`C.A` → `C.A.`), quotation mark removal, and HTML entity decoding.
 
 ---
 
-## API SolarWinds — contexto (servicios.daycohost.com)
+## Timeline behaviour in GLPI
 
-### Endpoints disponibles
+- Items are ordered by `date_creation`, which is set to the original source timestamp so the timeline reflects the history of the source system, not the migration date.
+- Closed or solved records with no explicit resolution text receive a minimal ITILSolution using the status label to keep the GLPI timeline internally consistent.
+- Source comments marked as private are migrated as private followups when **Preserve private flag** is enabled.
+- Links to other source-system records within comment bodies are stripped to plain text to avoid dead links in GLPI.
 
-| Endpoint | Registros | Notas |
-|----------|-----------|-------|
-| `/incidents.json` | 187 500+ | Recurso principal |
-| `/changes.json` | 4 500+ | — |
-| `/users.json` | 1 550 | — |
-| `/problems.json` | 82 | — |
-| `/groups.json` | 377 | — |
-| `/sites.json` | 363 | Se mapean a entidades GLPI |
-| `/departments.json` | 15 | — |
-| `/hardware.json` | ❌ 404 | No disponible |
+---
 
-### Paginación
+## SolarWinds Service Desk — API notes
 
-La API siempre devuelve los registros más recientes primero e **ignora** `sort_order=asc`. Para acceder a tickets históricos usar `page=N`:
-- Página 1 → mayo 2026 (más recientes)
-- Página ~200 → abril 2026 (tickets manuales con `resolution_description`)
-- Página ~1870 → abril 2024
+### Authentication
 
-### Mapeo de campos
+The Samanage API requires the header `X-Samanage-Authorization: Bearer <token>`. The standard `Authorization: Bearer` header returns 401. The connector handles this automatically.
 
-| Campo Samanage | Campo GLPI | Notas |
-|---|---|---|
-| `number` + `name` | name | Formato `[ SD #<number> ] <name>` para trazabilidad |
-| `is_service_request` | type | `false` → 1 (Incident) · `true` → 2 (Service Request) |
-| `state` Pending Assignment | status = 1 (New) | — |
-| `state` En Proceso | status = 2 (Assigned) | — |
-| `state` Gestión Proveedor | status = 2 (Assigned) | — |
-| `state` Pendiente Acción Cliente | status = 4 (Pending) | — |
-| `state` Solucionado | status = 5 (Solved) | — |
-| `state` Closed | status = 6 (Closed) | — |
-| `priority` Low/Medium/High/Critical | priority 2/3/4/5 | — |
-| `origin` web/api/external/email | requesttypes_id 1/6/6/7 | — |
-| `site.name` | entities_id | Match fuzzy sin acentos; strips sufijo `(Alias)` |
-| `category.name` + `subcategory.name` | itilcategories_id | Subcategoría tiene prioridad |
-| `assignee` (user o group) | _users_id_assign / _groups_id_assign | Match por email o nombre |
-| `requester.email` | _users_id_requester / alternative_email | Ver tabla de resolución de actores |
-| `created_at` | date + date_creation | Convertido a timezone del servidor |
-| `updated_at` | solvedate / closedate | Solo para estados resueltos/cerrados |
-| `resolution_description` | ITILSolution.content | Prioridad 1 |
-| `resolution_code` | ITILSolution.content | Prioridad 2 (ej. "Alarma Mitigada") |
-| `state` (sin resolución) | ITILSolution.content | Prioridad 3 — mínima para consistencia |
-| Comment `body` | ITILFollowup.content | Comentarios anteriores a la solución |
-| Comment `is_private` | ITILFollowup.is_private | Respetado cuando "Preserve private flag" está activo (default: sí) |
-| Comment `inline_attachments` | Document + reemplazo de `<img src>` | Imagen descargada; src reemplazado con URL de GLPI |
-| Comment `attachments` | Document + Document_Item | URLs relativas se completan con baseUrl; filenames URL-decoded |
+### Pagination
 
-### Mapeo de campos — Problems
+The API always returns records newest-first and does not honour `sort_order=asc`. Reaching historical records requires advancing the page offset. The migration form's time-period selector estimates the starting page from the target date.
 
-| Campo Samanage | Campo GLPI | Notas |
-|---|---|---|
-| `number` + `name` | name | Formato `[ SD #<number> ] <name>` |
-| `description_no_html` | content | — |
-| `root_cause` | causecontent | — |
-| `symptoms` | symptomcontent | — |
-| `workaround` | ITILFollowup privado | No existe campo directo en GLPI |
-| `state` / `priority` / fechas | igual que Incidents | — |
-| Actores | `glpi_problems_users` / `glpi_groups_problems` | Misma lógica que Tickets |
+### Field mapping — Incidents
 
-### Deduplicación
+| Samanage field | GLPI field | Notes |
+|----------------|------------|-------|
+| `number` + `name` | `name` | Prefixed as `[ SD #N ] title` |
+| `is_service_request` | `type` | `false` → 1 (Incident), `true` → 2 (Service request) |
+| `state` | `status` | See status map below |
+| `priority` | `priority` | Low/Medium/High/Critical → 2/3/4/5 |
+| `origin` | `requesttypes_id` | web → 1, api/external → 6, email → 7 |
+| `site.name` | `entities_id` | Fuzzy name match |
+| `category.name` / `subcategory.name` | `itilcategories_id` | Subcategory takes precedence |
+| `assignee` | `_users_id_assign` / `_groups_id_assign` | Resolved by email or name |
+| `requester.email` | `_users_id_requester` / `alternative_email` | See actor resolution |
+| `created_at` | `date`, `date_creation` | Converted to server timezone |
+| `updated_at` | `solvedate`, `closedate` | For solved / closed states |
+| `resolution_description` | `ITILSolution.content` | Priority 1 |
+| `resolution_code` | `ITILSolution.content` | Priority 2 |
+| state label (fallback) | `ITILSolution.content` | Priority 3 — minimal entry |
+| Comment `body` | `ITILFollowup.content` | Comments before the solution date |
+| Comment `is_private` | `ITILFollowup.is_private` | Honoured when preserve flag is on |
+| Comment `inline_attachments` | Document + `<img src>` replacement | Downloaded and re-linked to GLPI |
+| Comment `attachments` | Document linked to followup | Filenames URL-decoded |
 
-Cada registro migrado se guarda en `glpi_plugin_bridge_migrations` con `source_id`. Si se corre la migración dos veces, el segundo pase salta los que ya tienen `status=success`.
+**Status map**
+
+| Samanage state | GLPI status |
+|----------------|-------------|
+| Pending Assignment / New | 1 — New |
+| En Proceso / Assigned / Gestión Proveedor | 2 — Assigned |
+| Pendiente Acción Cliente / Waiting for Customer | 4 — Pending |
+| Solucionado / Resolved | 5 — Solved |
+| Closed | 6 — Closed |
+
+### Field mapping — Problems
+
+| Samanage field | GLPI field | Notes |
+|----------------|------------|-------|
+| `number` + `name` | `name` | Prefixed as `[ SD #N ] title` |
+| `description_no_html` | `content` | — |
+| `root_cause` | `causecontent` | — |
+| `symptoms` | `symptomcontent` | — |
+| `workaround` | Private ITILFollowup | No direct GLPI column |
+| State / priority / dates | Same as Incidents | — |
+| Actors | `glpi_problems_users` / `glpi_groups_problems` | Same logic as Tickets |
+
+### Deduplication
+
+Every migrated record is written to `glpi_plugin_bridge_migrations` with its `source_id`. Re-running a migration skips records that already have `status = success`.
+
+---
+
+## Adding a new source system
+
+1. Implement `ConnectorInterface` at `src/Connector/{System}/{System}Client.php`.
+2. Implement `NormalizerInterface` at `src/Connector/{System}/{System}Normalizer.php`.
+3. Register both in `ConnectorFactory::make()` and `makeNormalizer()`.
+4. Add the system type to `Connection::getSupportedSystems()`.
+
+The resolver, migration engine, UI, and history work without further changes.
 
 ---
 
 ## Tests
 
 ```bash
-# Tests unitarios (153 tests, sin red, sin GLPI)
+# Unit tests (153 tests, no network, no GLPI instance required)
 composer test
 
-# Tests de contrato contra la API real
-BRIDGE_API_URL=https://servicios.daycohost.com \
-BRIDGE_API_TOKEN='<plain_token>' \
+# Contract tests against a live API
+BRIDGE_API_URL=https://your-instance.example.com \
+BRIDGE_API_TOKEN='<token>' \
 composer test:api
-```
-
-### Escenario de prueba local
-
-Para importar la estructura de entidades/categorías/grupos del cliente al GLPI local:
-
-```bash
-# 1. Exportar del servidor del cliente
-sshpass -p 'PASS' ssh -p 1122 user@SERVER \
-  "echo 'PASS' | sudo -S mysqldump glpi \
-    --no-tablespaces --skip-add-drop-table --single-transaction \
-    glpi_entities glpi_itilcategories glpi_groups glpi_users glpi_useremails \
-    2>/dev/null" > /tmp/bridge_testdata.sql
-
-# 2. Importar al local
-bash tools/import-test-scenario.sh /tmp/bridge_testdata.sql
 ```
 
 ---
 
-## Traducciones
+## Translations
 
-Idiomas: `en_GB`, `es_ES`, `pt_BR`. Para recompilar `.mo`:
+Supported locales: `en_GB`, `es_ES`, `pt_BR`. To recompile `.mo` files:
 
 ```bash
 php tools/compile-mo.php
@@ -323,6 +301,6 @@ php tools/compile-mo.php
 
 ---
 
-## Licencia
+## License
 
-GPLv3+. Ver [LICENSE](LICENSE).
+GPLv3+. See [LICENSE](LICENSE).
