@@ -31,69 +31,81 @@
         });
     }
 
-    function initConnectionTests() {
-        document.querySelectorAll('.bridge-test-btn').forEach(function (btn) {
-            btn.addEventListener('click', function () {
-                var id = btn.dataset.id;
-                var token = btn.dataset.token;
-                var ajaxUrl = btn.dataset.ajax;
-                var result = document.getElementById('bridge-test-result-' + id);
-                var testing = btn.dataset.testing || 'Testing...';
-                var failed = btn.dataset.failed || 'Request failed.';
-                var recordsLabel = btn.dataset.recordsLabel || 'records';
-                var originalHtml = btn.dataset.originalHtml || btn.innerHTML;
-                btn.dataset.originalHtml = originalHtml;
+    function runConnectionTest(btn) {
+        var id = btn.dataset.id;
+        var token = btn.dataset.token;
+        var ajaxUrl = btn.dataset.ajax;
+        var result = document.getElementById('bridge-test-result-' + id);
+        var testing = btn.dataset.testing || 'Testing...';
+        var failed = btn.dataset.failed || 'Request failed.';
+        var recordsLabel = btn.dataset.recordsLabel || 'records';
+        var originalHtml = btn.dataset.originalHtml || btn.innerHTML;
+        btn.dataset.originalHtml = originalHtml;
 
-                btn.disabled = true;
-                btn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status"></span>';
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status"></span>';
+        showConnectionTestResult(
+            result,
+            '<i class="ti ti-loader-2 me-1"></i>' + testing,
+            'testing'
+        );
+
+        fetch(ajaxUrl, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/x-www-form-urlencoded',
+                'X-Requested-With': 'XMLHttpRequest',
+                'X-Glpi-Csrf-Token': token
+            },
+            body: '_glpi_csrf_token=' + encodeURIComponent(token) + '&id=' + encodeURIComponent(id)
+        })
+            .then(parseJsonResponse)
+            .then(function (data) {
+                if (data.ok) {
+                    showConnectionTestResult(
+                        result,
+                        '<i class="ti ti-circle-check me-1"></i>'
+                        + data.latency_ms + 'ms &mdash; '
+                        + Number(data.total || 0).toLocaleString() + ' ' + recordsLabel,
+                        'success'
+                    );
+                } else {
+                    showConnectionTestResult(
+                        result,
+                        '<i class="ti ti-circle-x me-1"></i>'
+                        + (data.message || failed)
+                        + (data.status ? ' (HTTP ' + data.status + ')' : ''),
+                        'error'
+                    );
+                }
+            })
+            .catch(function (error) {
                 showConnectionTestResult(
                     result,
-                    '<i class="ti ti-loader-2 me-1"></i>' + testing,
-                    'testing'
+                    '<i class="ti ti-circle-x me-1"></i>'
+                    + (error.message || failed),
+                    'error'
                 );
-
-                fetch(ajaxUrl, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/x-www-form-urlencoded',
-                        'X-Requested-With': 'XMLHttpRequest',
-                        'X-Glpi-Csrf-Token': token
-                    },
-                    body: '_glpi_csrf_token=' + encodeURIComponent(token) + '&id=' + encodeURIComponent(id)
-                })
-                    .then(parseJsonResponse)
-                    .then(function (data) {
-                        if (data.ok) {
-                            showConnectionTestResult(
-                                result,
-                                '<i class="ti ti-circle-check me-1"></i>'
-                                + data.latency_ms + 'ms &mdash; '
-                                + Number(data.total || 0).toLocaleString() + ' ' + recordsLabel,
-                                'success'
-                            );
-                        } else {
-                            showConnectionTestResult(
-                                result,
-                                '<i class="ti ti-circle-x me-1"></i>'
-                                + (data.message || failed)
-                                + (data.status ? ' (HTTP ' + data.status + ')' : ''),
-                                'error'
-                            );
-                        }
-                    })
-                    .catch(function (error) {
-                        showConnectionTestResult(
-                            result,
-                            '<i class="ti ti-circle-x me-1"></i>'
-                            + (error.message || failed),
-                            'error'
-                        );
-                    })
-                    .finally(function () {
-                        btn.disabled = false;
-                        btn.innerHTML = originalHtml;
-                    });
+            })
+            .finally(function () {
+                btn.disabled = false;
+                btn.innerHTML = originalHtml;
             });
+    }
+
+    function initConnectionTests() {
+        if (window.bridgeConnectionTestsBound) {
+            return;
+        }
+        window.bridgeConnectionTestsBound = true;
+
+        document.addEventListener('click', function (event) {
+            var btn = event.target.closest('.bridge-test-btn');
+            if (!btn) {
+                return;
+            }
+            event.preventDefault();
+            runConnectionTest(btn);
         });
     }
 
