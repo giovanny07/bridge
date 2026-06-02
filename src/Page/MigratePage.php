@@ -95,48 +95,53 @@ class MigratePage
         echo '</div>';
         echo '</div>';
 
-        // Date range
-        echo '<div class="row g-3 mb-3">';
-        echo '<div class="col-md-6">';
-        echo '<label class="form-label fw-medium">' . self::h(__('Created after', 'bridge')) . '</label>';
-        echo '<input type="date" class="form-control form-control-sm" name="created_after" id="f_created_after">';
-        echo '<div class="form-text">' . self::h(__('Leave empty to fetch from the most recent.', 'bridge')) . '</div>';
-        echo '</div>';
-        echo '<div class="col-md-6">';
-        echo '<label class="form-label fw-medium">' . self::h(__('Updated after', 'bridge')) . '</label>';
-        echo '<input type="date" class="form-control form-control-sm" name="updated_after" id="f_updated_after">';
-        echo '<div class="form-text">' . self::h(__('For incremental sync — only tickets modified since this date.', 'bridge')) . '</div>';
-        echo '</div>';
+        // ── Time period ───────────────────────────────────────────────────
+        echo '<div class="mb-3">';
+        echo '<label class="form-label fw-medium d-block mb-2">' . self::h(__('Time period', 'bridge')) . '</label>';
+
+        $periods = [
+            'recent'      => ['ti-clock',        __('Recent',      'bridge'), __('Latest tickets — starts from today backward.',       'bridge'), ''],
+            'from_date'   => ['ti-calendar-plus', __('From date',   'bridge'), __('Tickets created on or after a specific date.',       'bridge'), ''],
+            'incremental' => ['ti-refresh',       __('Incremental', 'bridge'), __('Only tickets modified since a date (for re-runs).',  'bridge'), ''],
+            'manual'      => ['ti-adjustments',   __('Manual',      'bridge'), __('Specify the starting page number directly.',         'bridge'), ''],
+        ];
+
+        foreach ($periods as $pval => [$icon, $plbl, $pdesc, $_]) {
+            $checked = $pval === 'recent' ? ' checked' : '';
+            echo '<label class="bridge-period-option" id="period-label-' . $pval . '"' . ($pval === 'recent' ? ' style="border-color:#0d6efd;background:#f0f5ff"' : '') . '>';
+            echo '<div class="d-flex align-items-start gap-3">';
+            echo '<input type="radio" name="time_period" value="' . $pval . '"' . $checked . ' class="form-check-input mt-1 flex-shrink-0" onchange="bridgePeriod(this)">';
+            echo '<div>';
+            echo '<div class="fw-medium"><i class="ti ' . $icon . ' me-1"></i>' . self::h($plbl) . '</div>';
+            echo '<div class="text-muted small">' . self::h($pdesc) . '</div>';
+
+            if ($pval === 'from_date') {
+                echo '<div class="bridge-period-extra mt-2" style="display:none">';
+                echo '<input type="date" class="form-control form-control-sm" style="max-width:220px" name="created_after" id="f_created_after">';
+                echo '</div>';
+            } elseif ($pval === 'incremental') {
+                echo '<div class="bridge-period-extra mt-2" style="display:none">';
+                echo '<input type="date" class="form-control form-control-sm" style="max-width:220px" name="updated_after" id="f_updated_after">';
+                echo '</div>';
+            } elseif ($pval === 'manual') {
+                echo '<div class="bridge-period-extra mt-2" style="display:none">';
+                echo '<div class="d-flex align-items-center gap-2">';
+                echo '<label class="small text-muted mb-0">' . self::h(__('Start page:', 'bridge')) . '</label>';
+                echo '<input type="number" class="form-control form-control-sm" style="width:100px" name="start_page" id="f_start_page" value="1" min="1">';
+                echo '</div>';
+                echo '</div>';
+            }
+
+            echo '</div></div></label>';
+        }
         echo '</div>';
 
-        // Limit
-        echo '<div class="row g-3 mb-2">';
-        echo '<div class="col-md-4">';
-        echo '<label class="form-label fw-medium">' . self::h(__('Max per run', 'bridge')) . '</label>';
-        echo '<input type="number" class="form-control form-control-sm" name="limit" id="f_limit" value="50" min="1" max="500">';
+        // Limit — always visible
+        echo '<div class="d-flex align-items-center gap-3 pt-1">';
+        echo '<label class="form-label fw-medium mb-0 text-nowrap">' . self::h(__('Max per run', 'bridge')) . '</label>';
+        echo '<input type="number" class="form-control form-control-sm" style="width:100px" name="limit" id="f_limit" value="50" min="1" max="500">';
+        echo '<span class="text-muted small">' . self::h(__('tickets', 'bridge')) . '</span>';
         echo '</div>';
-        echo '</div>';
-
-        // Advanced: pagination
-        echo '<details class="mt-1">';
-        echo '<summary class="text-muted small" style="cursor:pointer;user-select:none">';
-        echo '<i class="ti ti-settings me-1"></i>' . self::h(__('Advanced — pagination', 'bridge'));
-        echo '</summary>';
-        echo '<div class="mt-2 p-3 border rounded bg-light">';
-        echo '<div class="row g-3">';
-        echo '<div class="col-md-5">';
-        echo '<label class="form-label fw-medium small">' . self::h(__('Start from page', 'bridge')) . '</label>';
-        echo '<input type="number" class="form-control form-control-sm" name="start_page" id="f_start_page" value="1" min="1">';
-        echo '</div>';
-        echo '<div class="col-md-7 d-flex align-items-end">';
-        echo '<div class="form-text mb-0">';
-        echo '<i class="ti ti-info-circle me-1"></i>';
-        echo self::h(__('The API returns newest first. Page 1 = today. Use this to reach historical tickets.', 'bridge'));
-        echo '</div>';
-        echo '</div>';
-        echo '</div>';
-        echo '</div>';
-        echo '</details>';
 
         echo '</div>'; // bridge_section_filters
 
@@ -210,6 +215,13 @@ class MigratePage
     background:#0d6efd; border-color:#0d6efd; color:#fff;
 }
 
+.bridge-period-option {
+    display:block; padding:.75rem 1rem; border:1px solid #dee2e6;
+    border-radius:.5rem; margin-bottom:.5rem; cursor:pointer;
+    transition:border-color .15s, background .15s;
+}
+.bridge-period-option:hover { border-color:#adb5bd; background:#fafafa; }
+
 .bridge-state-pill {
     display:inline-flex; align-items:center; padding:.25rem .75rem;
     border-radius:2rem; border:1px solid #dee2e6; background:#fff;
@@ -248,6 +260,26 @@ class MigratePage
     }
     window.bridgeSetMode = bridgeSetMode;
 
+    window.bridgePeriod = function(radio) {
+        // Reset all period options
+        document.querySelectorAll('.bridge-period-option').forEach(function(el) {
+            el.style.borderColor = '';
+            el.style.background  = '';
+            el.querySelectorAll('.bridge-period-extra').forEach(function(x){ x.style.display = 'none'; });
+        });
+        // Highlight selected and show its sub-input
+        var label = radio.closest('.bridge-period-option');
+        label.style.borderColor = '#0d6efd';
+        label.style.background  = '#f0f5ff';
+        var extra = label.querySelector('.bridge-period-extra');
+        if (extra) extra.style.display = '';
+        // Clear hidden fields that don't belong to this mode
+        ['f_created_after','f_updated_after','f_start_page'].forEach(function(id){
+            var el = document.getElementById(id);
+            if (el && !label.contains(el)) el.value = el.type === 'number' ? '1' : '';
+        });
+        try { sessionStorage.setItem(SK + '_period', radio.value); } catch(e){}
+    };
     window.bridgeStatePill = function(radio) {
         document.querySelectorAll('.bridge-state-pill').forEach(function(p){ p.classList.remove('active'); });
         if (radio.checked) radio.closest('.bridge-state-pill').classList.add('active');
@@ -263,6 +295,10 @@ class MigratePage
         try {
             var mode = sessionStorage.getItem(SK + '_mode') || 'filters';
             bridgeSetMode(mode);
+
+            var period = sessionStorage.getItem(SK + '_period') || 'recent';
+            var pRadio = document.querySelector('input[name=time_period][value="' + period + '"]');
+            if (pRadio) { pRadio.checked = true; bridgePeriod(pRadio); }
 
             var ids = sessionStorage.getItem(SK + '_ids') || '';
             if (ids) document.getElementById('f_source_ids').value = ids;
