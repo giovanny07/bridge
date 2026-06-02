@@ -130,7 +130,7 @@ class SamanageNormalizer implements NormalizerInterface
     public function extractSolution(array $incident, array $comments): ?array
     {
         $state    = (string) ($incident['state'] ?? '');
-        $isSolved = in_array($state, ['Solucionado', 'Closed', 'Resolved'], true);
+        $isSolved = in_array($state, ['Solucionado', 'Closed', 'Resolved', 'Cerrado', 'Finalizado', 'Completed'], true);
 
         if (!$isSolved) {
             return null;
@@ -190,7 +190,7 @@ class SamanageNormalizer implements NormalizerInterface
             'priority'        => $this->mapPriority((string) ($incident['priority'] ?? '')),
             'requesttypes_id' => $this->mapOrigin((string) ($incident['origin'] ?? '')),
             'date'            => $this->parseDate($incident['created_at'] ?? null),
-            'solvedate'       => in_array($state, ['Solucionado', 'Closed', 'Resolved'], true)
+            'solvedate'       => in_array($state, ['Solucionado', 'Closed', 'Resolved', 'Cerrado', 'Finalizado', 'Completed'], true)
                                     ? $this->parseDate($incident['updated_at'] ?? null)
                                     : null,
             'closedate'       => $state === 'Closed'
@@ -226,7 +226,7 @@ class SamanageNormalizer implements NormalizerInterface
             'status'         => $this->mapState($state),
             'priority'       => $this->mapPriority((string) ($problem['priority'] ?? '')),
             'date'           => $this->parseDate($problem['created_at'] ?? null),
-            'solvedate'      => in_array($state, ['Solucionado', 'Closed', 'Resolved'], true)
+            'solvedate'      => in_array($state, ['Solucionado', 'Closed', 'Resolved', 'Cerrado', 'Finalizado', 'Completed'], true)
                                     ? $this->parseDate($problem['updated_at'] ?? null)
                                     : null,
             'closedate'      => $state === 'Closed'
