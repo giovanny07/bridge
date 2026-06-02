@@ -229,7 +229,7 @@ class SamanageNormalizer implements NormalizerInterface
             'solvedate'      => in_array($state, ['Solucionado', 'Closed', 'Resolved', 'Cerrado', 'Finalizado', 'Completed'], true)
                                     ? $this->parseDate($problem['updated_at'] ?? null)
                                     : null,
-            'closedate'      => $state === 'Closed'
+            'closedate'      => in_array($state, ['Closed', 'Cerrado', 'Finalizado', 'Completed'], true)
                                     ? $this->parseDate($problem['updated_at'] ?? null)
                                     : null,
             '_source_id'     => $problem['id']     ?? null,

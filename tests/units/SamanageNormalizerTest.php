@@ -391,4 +391,102 @@ class SamanageNormalizerTest extends TestCase
         $this->assertSame(SamanageNormalizer::GLPI_PRIORITY_MEDIUM, $ticket['priority']);
         $this->assertNull($ticket['date']);
     }
+
+    // ------------------------------------------------------------------ //
+    // problemToITIL
+    // ------------------------------------------------------------------ //
+
+    public function testProblemToITILMapsTitle(): void
+    {
+        $result = $this->normalizer->problemToITIL([
+            'id' => 1022108, 'number' => 92, 'name' => 'Node down',
+            'state' => 'Closed', 'priority' => 'High',
+            'created_at' => '2026-05-15T09:42:11.000-04:00',
+            'updated_at' => '2026-05-18T09:57:57.000-04:00',
+        ]);
+        $this->assertSame('[ SD #92 ] Node down', $result['name']);
+    }
+
+    public function testProblemToITILMapsProblemSpecificFields(): void
+    {
+        $result = $this->normalizer->problemToITIL([
+            'number'      => 1,
+            'name'        => 'Test',
+            'state'       => 'Closed',
+            'priority'    => 'Medium',
+            'root_cause'  => '<p>Root cause text</p>',
+            'symptoms'    => '<p>Symptom text</p>',
+            'workaround'  => '<p>Workaround text</p>',
+            'created_at'  => '2026-05-01T10:00:00.000-04:00',
+            'updated_at'  => '2026-05-02T10:00:00.000-04:00',
+        ]);
+        $this->assertStringContainsString('Root cause text', $result['causecontent']);
+        $this->assertStringContainsString('Symptom text',   $result['symptomcontent']);
+        $this->assertStringContainsString('Workaround text', $result['_workaround']);
+    }
+
+    public function testProblemToITILClosedStateSetsSolvedate(): void
+    {
+        $result = $this->normalizer->problemToITIL([
+            'number' => 1, 'name' => 'T', 'state' => 'Cerrado', 'priority' => 'Low',
+            'created_at' => '2026-05-01T10:00:00.000+00:00',
+            'updated_at' => '2026-05-02T10:00:00.000+00:00',
+        ]);
+        $this->assertNotNull($result['solvedate']);
+        $this->assertNotNull($result['closedate']);
+    }
+
+    // ------------------------------------------------------------------ //
+    // changeToITIL
+    // ------------------------------------------------------------------ //
+
+    public function testChangeToITILMapsTitle(): void
+    {
+        $result = $this->normalizer->changeToITIL([
+            'id' => 1, 'number' => 4703, 'name' => 'Deploy patch',
+            'state' => 'Cerrado', 'priority' => 'High',
+            'created_at' => '2026-05-01T10:00:00.000-04:00',
+            'updated_at' => '2026-05-02T10:00:00.000-04:00',
+        ]);
+        $this->assertSame('[ SD #4703 ] Deploy patch', $result['name']);
+    }
+
+    public function testChangeToITILMapsChangePlans(): void
+    {
+        $result = $this->normalizer->changeToITIL([
+            'number'        => 1, 'name' => 'T', 'state' => 'Cerrado', 'priority' => 'Low',
+            'created_at'    => '2026-05-01T10:00:00.000+00:00',
+            'updated_at'    => '2026-05-02T10:00:00.000+00:00',
+            'change_plan'   => '<p>Step 1: do X</p>',
+            'rollback_plan' => '<p>Rollback: undo X</p>',
+            'test_plan'     => '<p>Verify: check X</p>',
+        ]);
+        $this->assertStringContainsString('Step 1',   $result['rolloutplancontent']);
+        $this->assertStringContainsString('Rollback', $result['backoutplancontent']);
+        $this->assertStringContainsString('Verify',   $result['checklistcontent']);
+    }
+
+    public function testChangeToITILStatusMap(): void
+    {
+        $cases = [
+            'Solicitado'   => 1,
+            'Pre Aprobado' => 9,
+            'Aprobado'     => 7,
+            'Iniciado'     => 2,
+            'Revisado'     => 12,
+            'Finalizado'   => 6,
+            'Cerrado'      => 6,
+            'Rechazado'    => 13,
+            'Cancelado'    => 14,
+            'Expirado'     => 14,
+        ];
+        foreach ($cases as $state => $expectedStatus) {
+            $result = $this->normalizer->changeToITIL([
+                'number' => 1, 'name' => 'T', 'state' => $state, 'priority' => 'Low',
+                'created_at' => '2026-05-01T10:00:00.000+00:00',
+                'updated_at' => '2026-05-02T10:00:00.000+00:00',
+            ]);
+            $this->assertSame($expectedStatus, $result['status'], "State '$state' should map to $expectedStatus");
+        }
+    }
 }
