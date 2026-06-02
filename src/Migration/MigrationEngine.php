@@ -236,6 +236,11 @@ class MigrationEngine
         if ($itemtype !== 'Ticket') {
             unset($createInput['type'], $createInput['requesttypes_id']);
         }
+        // Strip the target status so GLPI creates the item at INCOMING (1).
+        // If we pass a solved/closed status, GLPI honors it for Changes/Problems
+        // and then rejects ITILSolution::add() with "already solved".
+        // forceTicketFinalStatus() sets the correct status after the solution.
+        unset($createInput['status']);
 
         $itemId = (int) $item->add($createInput);
 
@@ -275,10 +280,10 @@ class MigrationEngine
             $this->createSolution($mapped->solution, $itemId, $itemtype);
         }
 
+        // Always force the correct status: since we stripped it from createInput,
+        // the item was created at INCOMING (1) regardless of the source status.
         $targetStatus = (int) ($t['status'] ?? 1);
-        if ($targetStatus === self::STATUS_SOLVED || $targetStatus === self::STATUS_CLOSED) {
-            $this->forceTicketFinalStatus($itemId, $targetStatus, $t, $itemtype);
-        }
+        $this->forceTicketFinalStatus($itemId, $targetStatus, $t, $itemtype);
 
         $this->forceAssignActors($itemId, $t);
 
