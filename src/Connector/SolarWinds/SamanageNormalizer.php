@@ -253,6 +253,7 @@ class SamanageNormalizer implements NormalizerInterface
         'Cerrado'      => 6,  // Closed
         'Rechazado'    => 13, // Refused
         'Cancelado'    => 14, // Cancelled
+        'Expirado'     => 14, // Expired → Cancelled (no direct GLPI equivalent)
         // English equivalents
         'New'          => 1,
         'Approved'     => 7,
