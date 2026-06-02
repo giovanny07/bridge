@@ -398,7 +398,11 @@ HTML;
                 echo '<td class="text-muted small">' . self::h($r['number']) . '</td>';
                 echo '<td>' . self::h($r['name']) . '</td>';
                 if (!$isDry) {
-                    $glpiClass = $resourceType === 'problems' ? 'Problem' : 'Ticket';
+                    $glpiClass = match ($resourceType) {
+                        'problems' => 'Problem',
+                        'changes'  => 'Change',
+                        default    => 'Ticket',
+                    };
                     $ticketUrl = $glpiClass::getFormURLWithID((int) $r['tickets_id']);
                     echo '<td><a href="' . self::h($ticketUrl) . '" target="_blank" class="text-decoration-none">#' . (int) $r['tickets_id'] . ' <i class="ti ti-external-link" style="font-size:.75rem"></i></a></td>';
                 }

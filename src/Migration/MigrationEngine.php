@@ -66,7 +66,7 @@ class MigrationEngine
     {
         return match ($this->resourceType) {
             'problems' => 'glpi_groups_problems',
-            'changes'  => 'glpi_groups_changes',
+            'changes'  => 'glpi_changes_groups',
             default    => 'glpi_groups_tickets',
         };
     }
