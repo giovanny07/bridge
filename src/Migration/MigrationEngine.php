@@ -239,13 +239,15 @@ class MigrationEngine
 
         // Workaround (Problems only): create as a private internal followup
         if ($itemtype === 'Problem') {
-            $workaround = trim(strip_tags((string) ($t['_workaround'] ?? '')));
-            if ($workaround !== '') {
+            // Keep the original HTML — strip only <a> links (already done in
+            // problemToITIL), do NOT strip_tags + re-encode (causes double-encoding)
+            $workaround = trim((string) ($t['_workaround'] ?? ''));
+            if ($workaround !== '' && strip_tags($workaround) !== '') {
                 $wf = new \ITILFollowup();
                 $wf->add([
                     'itemtype'        => 'Problem',
                     'items_id'        => $itemId,
-                    'content'         => '<p><strong>Workaround:</strong> ' . htmlspecialchars($workaround, ENT_QUOTES, 'UTF-8') . '</p>',
+                    'content'         => '<p><strong>Workaround:</strong></p>' . $workaround,
                     'date'            => $t['date'] ?? date('Y-m-d H:i:s'),
                     'date_creation'   => $t['date'] ?? date('Y-m-d H:i:s'),
                     'is_private'      => 1,

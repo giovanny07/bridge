@@ -119,17 +119,18 @@ class IncidentMapper
             '_requester_alt_email' => $requesterAltEmail,
         ]);
 
-        // ── Extract solution (last comment or resolution_description) ────
-        $solution        = null;
-        $skipCommentId   = null;
+        // ── Extract solution ─────────────────────────────────────────────
+        // Always attempt extraction for solved/closed records — extractSolution()
+        // uses resolution_description, resolution_code, or the state name as
+        // a fallback. It does not depend on comments for any of those paths.
+        $solution      = null;
+        $skipCommentId = null;
 
-        if (!empty($comments)) {
-            $rawSolution = $this->normalizer->extractSolution($incident, $comments);
-            if ($rawSolution !== null) {
-                $skipCommentId = $rawSolution['_skip_comment_id'];
-                $solutionUser  = $this->resolver->resolveUserByEmail($rawSolution['_author_email']);
-                $solution = array_merge($rawSolution, ['_users_id' => $solutionUser]);
-            }
+        $rawSolution = $this->normalizer->extractSolution($incident, $comments);
+        if ($rawSolution !== null) {
+            $skipCommentId = $rawSolution['_skip_comment_id'];
+            $solutionUser  = $this->resolver->resolveUserByEmail($rawSolution['_author_email']);
+            $solution = array_merge($rawSolution, ['_users_id' => $solutionUser]);
         }
 
         // ── Map remaining comments → followups (skip the solution comment) ─
