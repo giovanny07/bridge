@@ -28,7 +28,7 @@ class IncidentMapper
      *                         to avoid extra API calls; pass the real list
      *                         when doing the actual migration.
      */
-    public function map(array $incident, array $comments = []): MappedIncident
+    public function map(array $incident, array $comments = [], string $resourceType = 'incidents'): MappedIncident
     {
         $warnings = [];
 
@@ -103,8 +103,10 @@ class IncidentMapper
         }
         // Case 4: no email, no fallback → requesterId=null, altEmail='' → no actor
 
-        // ── Assemble ticket input ────────────────────────────────────────
-        $base   = $this->normalizer->incidentToTicket($incident);
+        // ── Assemble ITIL object input ───────────────────────────────────
+        $base = $resourceType === 'problems'
+            ? $this->normalizer->problemToITIL($incident)
+            : $this->normalizer->incidentToTicket($incident);
         $ticket = array_merge($base, [
             'entities_id'          => $entityId ?? 0,
             'itilcategories_id'    => $categoryId ?? 0,

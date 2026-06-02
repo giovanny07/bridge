@@ -179,7 +179,7 @@ class MigrationEngine
             }
         }
 
-        $mapped = $mapper->map($incident, $comments);
+        $mapped = $mapper->map($incident, $comments, $this->resourceType);
 
         if ($isDryRun) {
             $result->addCreated($incident, 0);

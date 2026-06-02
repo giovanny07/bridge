@@ -51,4 +51,11 @@ interface NormalizerInterface
      * mapper does NOT also add it as a followup).
      */
     public function extractSolution(array $incident, array $comments): ?array;
+
+    /**
+     * Maps a source problem to a GLPI ITILProblem input array.
+     * Same shape as incidentToTicket() plus causecontent, symptomcontent,
+     * and _workaround (stored as a private followup — no direct GLPI column).
+     */
+    public function problemToITIL(array $problem): array;
 }
