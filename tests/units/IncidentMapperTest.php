@@ -357,4 +357,33 @@ class IncidentMapperTest extends TestCase
         $this->assertArrayHasKey('status',  $result->ticket);
         $this->assertArrayHasKey('date',    $result->ticket);
     }
+
+    public function testMapProblemUsesProblemNormalizerFields(): void
+    {
+        $mapper = new IncidentMapper($this->makeFullResolver(), $this->normalizer, 99, 88);
+        $result = $mapper->map($this->makeIncident([
+            'name'        => 'Recurring outage',
+            'description' => '<p>Multiple incidents detected.</p>',
+            'state'       => 'Closed',
+        ]), [], 'problems');
+
+        $this->assertArrayHasKey('causecontent', $result->ticket);
+        $this->assertArrayHasKey('symptomcontent', $result->ticket);
+        $this->assertArrayHasKey('_workaround', $result->ticket);
+    }
+
+    public function testMapChangeUsesChangeNormalizerFields(): void
+    {
+        $mapper = new IncidentMapper($this->makeFullResolver(), $this->normalizer, 99, 88);
+        $result = $mapper->map($this->makeIncident([
+            'name'        => 'Firewall rule update',
+            'description' => '<p>Allow new subnet.</p>',
+            'state'       => 'Closed',
+            'change_plan' => '<p>Apply rule</p>',
+        ]), [], 'changes');
+
+        $this->assertArrayHasKey('rolloutplancontent', $result->ticket);
+        $this->assertArrayHasKey('backoutplancontent', $result->ticket);
+        $this->assertArrayHasKey('checklistcontent', $result->ticket);
+    }
 }

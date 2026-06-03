@@ -53,18 +53,26 @@ try {
         (int) ($connection->fields['default_groups_id'] ?? 0)
     );
 
-    // Route by resource type (new types added here as they're implemented)
+    // Route by resource type (read-only sample for preview)
     $scan = match ($resourceType) {
+        'problems'  => $client->listProblems([], 1, 20),
+        'changes'   => $client->listChanges([], 1, 20),
         'incidents' => $client->scanIncidents(20),
         default     => throw new RuntimeException("No scanner for: $resourceType"),
     };
 
     $results = [];
-    foreach ($scan['records'] as $incident) {
-        $results[] = $mapper->map($incident);
+    foreach ($scan['records'] as $record) {
+        $results[] = $mapper->map($record, [], $resourceType);
     }
 
-    DryRunPage::show($connection, $results, $scan['total'], $resourceType);
+    DryRunPage::show(
+        $connection,
+        $results,
+        $scan['total'],
+        $resourceType,
+        Plugin::getWebDir('bridge', true) . '/front/migrate.php'
+    );
 } catch (Throwable $e) {
     echo '<div class="alert alert-danger m-3">';
     echo htmlspecialchars($e->getMessage(), ENT_QUOTES, 'UTF-8');

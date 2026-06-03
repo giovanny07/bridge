@@ -215,8 +215,20 @@ msgstr "Sin resolver"
 msgid "Incident resolution preview"
 msgstr "Vista previa de resolución"
 
+msgid "Resolution preview"
+msgstr "Vista previa de resolución"
+
+msgid "Review matches before migrating."
+msgstr "Revisa los matches antes de migrar."
+
 msgid "Incident"
 msgstr "Incidente"
+
+msgid "Source item"
+msgstr "Elemento origen"
+
+msgid "GLPI preview"
+msgstr "Vista previa GLPI"
 
 msgid "Entity"
 msgstr "Entidad"
@@ -229,6 +241,15 @@ msgstr "Grupo / Asignado"
 
 msgid "Requester"
 msgstr "Solicitante"
+
+msgid "Priority"
+msgstr "Prioridad"
+
+msgid "Dry-run only preview above. Migration starts only from this button."
+msgstr "La vista anterior es solo simulación. La migración inicia solo desde este botón."
+
+msgid "Migrate selected"
+msgstr "Migrar seleccionados"
 
 msgid "Unresolved names (configure fallbacks or check spelling)"
 msgstr "Nombres sin resolver (configure valores por defecto o revise la ortografía)"

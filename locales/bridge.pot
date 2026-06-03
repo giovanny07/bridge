@@ -221,7 +221,19 @@ msgstr ""
 msgid "Incident resolution preview"
 msgstr ""
 
+msgid "Resolution preview"
+msgstr ""
+
+msgid "Review matches before migrating."
+msgstr ""
+
 msgid "Incident"
+msgstr ""
+
+msgid "Source item"
+msgstr ""
+
+msgid "GLPI preview"
 msgstr ""
 
 msgid "Entity"
@@ -234,6 +246,15 @@ msgid "Group / Assignee"
 msgstr ""
 
 msgid "Requester"
+msgstr ""
+
+msgid "Priority"
+msgstr ""
+
+msgid "Dry-run only preview above. Migration starts only from this button."
+msgstr ""
+
+msgid "Migrate selected"
 msgstr ""
 
 msgid "Unresolved names (configure fallbacks or check spelling)"

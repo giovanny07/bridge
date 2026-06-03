@@ -215,8 +215,20 @@ msgstr "Não resolvido"
 msgid "Incident resolution preview"
 msgstr "Pré-visualização da resolução"
 
+msgid "Resolution preview"
+msgstr "Pré-visualização da resolução"
+
+msgid "Review matches before migrating."
+msgstr "Revise as correspondências antes de migrar."
+
 msgid "Incident"
 msgstr "Incidente"
+
+msgid "Source item"
+msgstr "Item de origem"
+
+msgid "GLPI preview"
+msgstr "Pré-visualização GLPI"
 
 msgid "Entity"
 msgstr "Entidade"
@@ -229,6 +241,15 @@ msgstr "Grupo / Responsável"
 
 msgid "Requester"
 msgstr "Solicitante"
+
+msgid "Priority"
+msgstr "Prioridade"
+
+msgid "Dry-run only preview above. Migration starts only from this button."
+msgstr "A pré-visualização acima é apenas simulação. A migração começa somente neste botão."
+
+msgid "Migrate selected"
+msgstr "Migrar selecionados"
 
 msgid "Unresolved names (configure fallbacks or check spelling)"
 msgstr "Nomes não resolvidos (configure padrões ou verifique a ortografia)"

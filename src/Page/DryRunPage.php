@@ -83,7 +83,13 @@ class DryRunPage
      *
      * @param MappedIncident[] $results
      */
-    public static function show(Connection $connection, array $results, int $total, string $resourceType = 'incidents'): void
+    public static function show(
+        Connection $connection,
+        array $results,
+        int $total,
+        string $resourceType = 'incidents',
+        string $migrateUrl = ''
+    ): void
     {
         $ok          = count(array_filter($results, fn($r) => $r->status === 'ok'));
         $partial     = count(array_filter($results, fn($r) => $r->status === 'partial'));
@@ -116,13 +122,30 @@ class DryRunPage
         echo '</div>';
 
         // ── Table ────────────────────────────────────────────────────────
+        $creatable = array_values(array_filter($results, static fn($r) => $r->isCreatable()));
+        if ($migrateUrl !== '' && $creatable !== []) {
+            echo '<form method="post" action="' . self::h($migrateUrl) . '">';
+            echo \Html::hidden('_glpi_csrf_token', ['value' => \Session::getNewCSRFToken()]);
+            echo \Html::hidden('id', ['value' => (int) $connection->fields['id']]);
+            echo \Html::hidden('action', ['value' => 'migrate']);
+            echo \Html::hidden('resource_type', ['value' => $resourceType]);
+            echo \Html::hidden('migration_mode', ['value' => 'ids']);
+            echo \Html::hidden('include_comments', ['value' => '1']);
+            echo \Html::hidden('keep_private_comments', ['value' => '1']);
+        }
+
         echo '<div class="card">';
-        echo '<div class="card-header fw-semibold small">' . self::h(__('Incident resolution preview', 'bridge')) . '</div>';
+        echo '<div class="card-header fw-semibold small d-flex align-items-center justify-content-between">';
+        echo '<span>' . self::h(__('Resolution preview', 'bridge')) . '</span>';
+        echo '<span class="text-muted fw-normal">' . self::h(__('Review matches before migrating.', 'bridge')) . '</span>';
+        echo '</div>';
         echo '<div class="table-responsive">';
         echo '<table class="table table-sm table-hover align-middle mb-0" style="font-size:.82rem">';
         echo '<thead class="table-light"><tr>';
+        echo '<th class="text-center">' . self::h(__('Migrate', 'bridge')) . '</th>';
         echo '<th>#</th>';
-        echo '<th>' . self::h(__('Incident', 'bridge')) . '</th>';
+        echo '<th>' . self::h(__('Source item', 'bridge')) . '</th>';
+        echo '<th>' . self::h(__('GLPI preview', 'bridge')) . '</th>';
         echo '<th>' . self::h(__('Entity', 'bridge')) . '</th>';
         echo '<th>' . self::h(__('Category', 'bridge')) . '</th>';
         echo '<th>' . self::h(__('Group / Assignee', 'bridge')) . '</th>';
@@ -134,12 +157,24 @@ class DryRunPage
         foreach ($results as $mapped) {
             $t   = $mapped->ticket;
             $inc = $mapped->original;
-            self::showRow($mapped, $t, $inc);
+            self::showRow($mapped, $t, $inc, $migrateUrl !== '');
         }
 
         echo '</tbody></table>';
         echo '</div>';
         echo '</div>';
+
+        if ($migrateUrl !== '' && $creatable !== []) {
+            echo '<div class="d-flex align-items-center justify-content-between mt-3">';
+            echo '<div class="text-muted small">';
+            echo '<i class="ti ti-lock me-1"></i>' . self::h(__('Dry-run only preview above. Migration starts only from this button.', 'bridge'));
+            echo '</div>';
+            echo '<button type="submit" class="btn btn-primary">';
+            echo '<i class="ti ti-database-import me-1"></i>' . self::h(__('Migrate selected', 'bridge'));
+            echo '</button>';
+            echo '</div>';
+            echo '</form>';
+        }
 
         // ── Warnings legend ──────────────────────────────────────────────
         $allWarnings = array_merge(...array_map(fn($r) => $r->warnings, $results));
@@ -163,7 +198,7 @@ class DryRunPage
         echo '</div>';
     }
 
-    private static function showRow(MappedIncident $mapped, array $t, array $inc): void
+    private static function showRow(MappedIncident $mapped, array $t, array $inc, bool $withSelection = false): void
     {
         $rowClass = match ($mapped->status) {
             'ok'         => '',
@@ -191,12 +226,40 @@ class DryRunPage
 
         $requesterText = $t['_users_id_requester']
             ? '<span class="text-success">ID ' . $t['_users_id_requester'] . '</span>'
-            : '<span class="text-warning">—</span>';
+            : (!empty($t['_requester_alt_email'])
+                ? '<span class="text-warning">' . self::h($t['_requester_alt_email']) . '</span>'
+                : '<span class="text-warning">—</span>');
+
+        $sourceId = (string) ($inc['id'] ?? '');
+        $sourceNumber = (string) ($inc['number'] ?? $sourceId);
+        $targetStatus = self::statusLabel((int) ($t['status'] ?? 0));
+        $targetDate = (string) ($t['date'] ?? '');
+        $targetType = match (true) {
+            array_key_exists('causecontent', $t) => 'Problem',
+            array_key_exists('rolloutplancontent', $t) => 'Change',
+            default => 'Ticket',
+        };
 
         echo '<tr' . $rowClass . '>';
-        echo '<td class="text-muted">' . self::h((string) ($inc['number'] ?? '')) . '</td>';
+        echo '<td class="text-center">';
+        if ($withSelection && $mapped->isCreatable() && $sourceId !== '') {
+            echo '<input type="checkbox" class="form-check-input" name="source_ids[]" value="' . self::h($sourceId) . '" checked>';
+        } else {
+            echo '<span class="text-muted">—</span>';
+        }
+        echo '</td>';
+        echo '<td class="text-muted">' . self::h($sourceNumber) . '</td>';
         echo '<td style="max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="' . self::h((string) ($inc['name'] ?? '')) . '">';
         echo self::h(mb_substr((string) ($inc['name'] ?? ''), 0, 60));
+        echo '</td>';
+        echo '<td>';
+        echo '<div class="fw-semibold">' . self::h($targetType) . '</div>';
+        echo '<div class="text-muted small">' . self::h($targetStatus);
+        if ($targetDate !== '') {
+            echo ' &middot; ' . self::h($targetDate);
+        }
+        echo '</div>';
+        echo '<div class="text-muted small">' . self::h(__('Priority', 'bridge')) . ': ' . (int) ($t['priority'] ?? 0) . '</div>';
         echo '</td>';
         echo '<td>' . $entityText . '</td>';
         echo '<td>' . $categoryText . '</td>';
@@ -215,7 +278,7 @@ class DryRunPage
         if ($mapped->warnings !== []) {
             echo '<tr' . $rowClass . '>';
             echo '<td></td>';
-            echo '<td colspan="6" class="text-muted small pb-2">';
+            echo '<td colspan="9" class="text-muted small pb-2">';
             echo '<i class="ti ti-alert-triangle me-1 text-warning"></i>';
             echo self::h(implode(' | ', $mapped->warnings));
             echo '</td>';
@@ -232,6 +295,19 @@ class DryRunPage
         echo '<div><div class="fw-bold fs-4">' . self::h($value) . '</div>';
         echo '<div class="text-muted small">' . self::h($label) . '</div></div>';
         echo '</div></div></div>';
+    }
+
+    private static function statusLabel(int $status): string
+    {
+        return match ($status) {
+            1 => 'New',
+            2 => 'Processing',
+            3 => 'Planned',
+            4 => 'Pending',
+            5 => 'Solved',
+            6 => 'Closed',
+            default => $status > 0 ? 'Status ' . $status : '-',
+        };
     }
 
     private static function h(mixed $value): string
