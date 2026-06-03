@@ -79,13 +79,13 @@ try {
         $resourceType,
     );
 
-    $sourceIds = $_POST['source_ids'] ?? '';
+    $migrationMode = (string) ($_POST['migration_mode'] ?? 'filters');
+    $timePeriod    = (string) ($_POST['time_period'] ?? 'recent');
+
+    $sourceIds = $migrationMode === 'ids' ? ($_POST['source_ids'] ?? '') : '';
     if (is_array($sourceIds)) {
         $sourceIds = implode(',', array_map(static fn($id) => (string) $id, $sourceIds));
     }
-
-    $migrationMode = (string) ($_POST['migration_mode'] ?? 'filters');
-    $timePeriod    = (string) ($_POST['time_period'] ?? 'recent');
 
     $options = [
         'limit'               => max(1, min(500, (int) ($_POST['limit'] ?? 50))),

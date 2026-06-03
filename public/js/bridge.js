@@ -205,6 +205,13 @@
         if (period !== 'manual' && startPage) startPage.value = '1';
     }
 
+    function clearInactiveModeFields(form) {
+        var mode = getFieldValue(form, 'migration_mode_val') || 'filters';
+        var sourceIds = form.querySelector('#f_source_ids');
+
+        if (mode !== 'ids' && sourceIds) sourceIds.value = '';
+    }
+
     function restoreMigrateForm(form) {
         if (!form || form.dataset.bridgeInitialized === '1') return;
         form.dataset.bridgeInitialized = '1';
@@ -286,6 +293,7 @@
             if (!activeForm) return;
             restoreMigrateForm(activeForm);
             refreshFormCsrfToken(activeForm);
+            clearInactiveModeFields(activeForm);
             clearInactivePeriodFields(activeForm);
             var storageKey = getStorageKey(activeForm);
             try {
