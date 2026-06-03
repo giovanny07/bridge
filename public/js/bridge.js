@@ -159,11 +159,13 @@
     }
 
     function setPeriod(radio) {
+        if (!radio) return;
         document.querySelectorAll('.bridge-period-option').forEach(function (el) {
             el.classList.remove('active');
             el.querySelectorAll('.bridge-period-extra').forEach(function (x) { x.style.display = 'none'; });
         });
         var label = radio.closest('.bridge-period-option');
+        if (!label) return;
         label.classList.add('active');
         var extra = label.querySelector('.bridge-period-extra');
         if (extra) extra.style.display = '';
@@ -173,70 +175,120 @@
         });
     }
 
-    function initMigrateForm() {
-        var form = document.getElementById('bridge-migrate-form');
-        if (!form) return;
-        var storageKey = form.dataset.storageKey || 'bridge_form';
+    function getStorageKey(form) {
+        return form && form.dataset.storageKey ? form.dataset.storageKey : 'bridge_form';
+    }
 
-        document.querySelectorAll('[data-bridge-mode]').forEach(function (btn) {
-            btn.addEventListener('click', function () {
-                setBridgeMode(btn.dataset.bridgeMode);
-                try { sessionStorage.setItem(storageKey + '_mode', btn.dataset.bridgeMode); } catch (e) {}
-            });
-        });
+    function getFieldValue(form, id) {
+        var el = form ? form.querySelector('#' + id) : document.getElementById(id);
+        return el ? el.value : '';
+    }
 
-        document.querySelectorAll('.bridge-pill input[type=radio]').forEach(function (radio) {
-            radio.addEventListener('change', function () {
-                var parent = radio.closest('.d-flex');
-                if (parent) parent.querySelectorAll('.bridge-pill').forEach(function (p) { p.classList.remove('active'); });
-                radio.closest('.bridge-pill').classList.add('active');
-            });
-        });
+    function refreshFormCsrfToken(form) {
+        var input = form.querySelector('input[name="_glpi_csrf_token"]');
+        if (!input || typeof window.getAjaxCsrfToken !== 'function') return;
+        try {
+            var token = window.getAjaxCsrfToken();
+            if (token) input.value = token;
+        } catch (e) {}
+    }
 
-        document.querySelectorAll('.bridge-state-pill input[type=radio]').forEach(function (radio) {
-            radio.addEventListener('change', function () {
-                document.querySelectorAll('.bridge-state-pill').forEach(function (p) { p.classList.remove('active'); });
-                radio.closest('.bridge-state-pill').classList.add('active');
-            });
+    function restoreMigrateForm(form) {
+        if (!form || form.dataset.bridgeInitialized === '1') return;
+        form.dataset.bridgeInitialized = '1';
+        var storageKey = getStorageKey(form);
+
+        form.querySelectorAll('.bridge-state-pill input[type=radio]').forEach(function (radio) {
             if (radio.checked) {
-                radio.closest('.bridge-state-pill').classList.add('active');
+                var statePill = radio.closest('.bridge-state-pill');
+                if (statePill) statePill.classList.add('active');
             }
         });
 
-        document.querySelectorAll('input[name=time_period]').forEach(function (radio) {
-            radio.addEventListener('change', function () {
-                setPeriod(radio);
-                try { sessionStorage.setItem(storageKey + '_period', radio.value); } catch (e) {}
-            });
-            if (radio.checked) {
-                setPeriod(radio);
-            }
+        form.querySelectorAll('input[name=time_period]').forEach(function (radio) {
+            if (radio.checked) setPeriod(radio);
         });
 
         try {
             setBridgeMode(sessionStorage.getItem(storageKey + '_mode') || 'filters');
             var period = sessionStorage.getItem(storageKey + '_period') || 'recent';
-            var pRadio = document.querySelector('input[name=time_period][value="' + period + '"]');
+            var pRadio = form.querySelector('input[name=time_period][value="' + period + '"]');
             if (pRadio) {
                 pRadio.checked = true;
                 setPeriod(pRadio);
             }
             ['ids', 'created_after', 'updated_after', 'start_page', 'limit'].forEach(function (key) {
                 var value = sessionStorage.getItem(storageKey + '_' + key);
-                var el = document.getElementById(key === 'ids' ? 'f_source_ids' : 'f_' + key);
+                var el = form.querySelector('#' + (key === 'ids' ? 'f_source_ids' : 'f_' + key));
                 if (value && el) el.value = value;
             });
         } catch (e) {}
+    }
 
-        form.addEventListener('submit', function () {
+    function initMigrateForm() {
+        var form = document.getElementById('bridge-migrate-form');
+        if (form) restoreMigrateForm(form);
+        if (window.bridgeMigrateFormBound) return;
+        window.bridgeMigrateFormBound = true;
+
+        document.addEventListener('click', function (event) {
+            var btn = event.target.closest('[data-bridge-mode]');
+            if (!btn) return;
+            var activeForm = btn.closest('#bridge-migrate-form');
+            if (!activeForm) return;
+            restoreMigrateForm(activeForm);
+            setBridgeMode(btn.dataset.bridgeMode);
+            try { sessionStorage.setItem(getStorageKey(activeForm) + '_mode', btn.dataset.bridgeMode); } catch (e) {}
+        });
+
+        document.addEventListener('change', function (event) {
+            var radio = event.target.closest('.bridge-pill input[type=radio]');
+            if (!radio) return;
+            var parent = radio.closest('.d-flex');
+            if (parent) parent.querySelectorAll('.bridge-pill').forEach(function (p) { p.classList.remove('active'); });
+            var pill = radio.closest('.bridge-pill');
+            if (pill) pill.classList.add('active');
+        });
+
+        document.addEventListener('change', function (event) {
+            var radio = event.target.closest('.bridge-state-pill input[type=radio]');
+            if (!radio) return;
+            var activeForm = radio.closest('#bridge-migrate-form');
+            if (!activeForm) return;
+            activeForm.querySelectorAll('.bridge-state-pill').forEach(function (p) { p.classList.remove('active'); });
+            var pill = radio.closest('.bridge-state-pill');
+            if (pill) pill.classList.add('active');
+        });
+
+        document.addEventListener('change', function (event) {
+            var radio = event.target.closest('input[name=time_period]');
+            if (!radio || !radio.closest('#bridge-migrate-form')) return;
+            var activeForm = radio.closest('#bridge-migrate-form');
+            restoreMigrateForm(activeForm);
+            setPeriod(radio);
+            try { sessionStorage.setItem(getStorageKey(activeForm) + '_period', radio.value); } catch (e) {}
+        });
+
+        document.addEventListener('submit', function (event) {
+            var activeForm = event.target.closest('#bridge-migrate-form');
+            if (!activeForm) return;
+            restoreMigrateForm(activeForm);
+            refreshFormCsrfToken(activeForm);
+            var storageKey = getStorageKey(activeForm);
             try {
-                sessionStorage.setItem(storageKey + '_mode', document.getElementById('migration_mode_val').value);
-                sessionStorage.setItem(storageKey + '_ids', document.getElementById('f_source_ids').value);
-                sessionStorage.setItem(storageKey + '_created_after', document.getElementById('f_created_after').value);
-                sessionStorage.setItem(storageKey + '_updated_after', document.getElementById('f_updated_after').value);
-                sessionStorage.setItem(storageKey + '_start_page', document.getElementById('f_start_page').value);
-                sessionStorage.setItem(storageKey + '_limit', document.getElementById('f_limit').value);
+                sessionStorage.setItem(storageKey + '_mode', getFieldValue(activeForm, 'migration_mode_val'));
+                sessionStorage.setItem(storageKey + '_ids', getFieldValue(activeForm, 'f_source_ids'));
+                sessionStorage.setItem(storageKey + '_created_after', getFieldValue(activeForm, 'f_created_after'));
+                sessionStorage.setItem(storageKey + '_updated_after', getFieldValue(activeForm, 'f_updated_after'));
+                sessionStorage.setItem(storageKey + '_start_page', getFieldValue(activeForm, 'f_start_page'));
+                sessionStorage.setItem(storageKey + '_limit', getFieldValue(activeForm, 'f_limit'));
             } catch (e) {}
+        });
+
+        window.addEventListener('pageshow', function (event) {
+            if (event.persisted && document.getElementById('bridge-migrate-form')) {
+                window.location.reload();
+            }
         });
     }
 
