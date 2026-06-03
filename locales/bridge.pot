@@ -275,6 +275,12 @@ msgstr ""
 msgid "Choose the resource type to preview before migrating."
 msgstr ""
 
+msgid "Choose the resource type to migrate."
+msgstr ""
+
+msgid "Change type"
+msgstr ""
+
 msgid "Not implemented yet"
 msgstr ""
 

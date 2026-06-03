@@ -7,14 +7,67 @@ use GlpiPlugin\Bridge\Migration\MigrationResult;
 
 class MigratePage
 {
+    public static function showSelector(
+        Connection $connection,
+        array $resourceTypes,
+        string $migrateUrl,
+        string $historyUrl
+    ): void {
+        $id = (int) $connection->fields['id'];
+
+        echo '<div class="container-fluid p-3" style="max-width:640px">';
+        echo '<div class="d-flex align-items-center justify-content-between mb-3">';
+        echo '<h4 class="m-0"><i class="ti ti-database-import me-2 text-primary"></i>';
+        echo self::h(__('Migration', 'bridge')) . '</h4>';
+        echo '<div class="d-flex gap-2">';
+        echo '<a class="btn btn-outline-secondary btn-sm" href="' . self::h($historyUrl . '?id=' . $id) . '">';
+        echo '<i class="ti ti-history me-1"></i>' . self::h(__('History', 'bridge')) . '</a>';
+        echo '<a class="btn btn-outline-secondary btn-sm" href="' . self::h(Connection::getConfigURL($id)) . '">';
+        echo '<i class="ti ti-arrow-left me-1"></i>' . self::h(__('Back', 'bridge')) . '</a>';
+        echo '</div>';
+        echo '</div>';
+
+        echo '<div class="card">';
+        echo '<div class="card-header fw-semibold">';
+        echo '<i class="ti ti-plug me-1"></i>' . self::h($connection->fields['name']);
+        echo '</div>';
+        echo '<div class="card-body">';
+        echo '<p class="text-muted mb-3">' . self::h(__('Choose the resource type to migrate.', 'bridge')) . '</p>';
+
+        foreach ($resourceTypes as $key => $meta) {
+            $implemented = (bool) ($meta['implemented'] ?? false);
+            $label       = (string) ($meta['label'] ?? $key);
+
+            echo '<div class="mb-2">';
+            if ($implemented) {
+                $url = $migrateUrl . '?id=' . $id . '&resource_type=' . rawurlencode($key);
+                echo '<a class="btn btn-outline-primary w-100 text-start" href="' . self::h($url) . '">';
+                echo '<i class="ti ti-arrow-right me-2"></i>' . self::h($label);
+                echo '</a>';
+            } else {
+                echo '<div class="btn btn-outline-secondary w-100 text-start disabled d-flex justify-content-between align-items-center">';
+                echo '<span><i class="ti ti-lock me-2 text-muted"></i>' . self::h($label) . '</span>';
+                echo '<span class="badge bg-secondary">' . self::h(__('Not implemented yet', 'bridge')) . '</span>';
+                echo '</div>';
+            }
+            echo '</div>';
+        }
+
+        echo '</div>';
+        echo '</div>';
+        echo '</div>';
+    }
+
     public static function showForm(
         Connection $connection,
         array      $resourceTypes,
         string     $migrateUrl,
-        string     $historyUrl
+        string     $historyUrl,
+        string     $resourceType = 'incidents'
     ): void {
         $id  = (int) $connection->fields['id'];
         $key = 'bridge_form_' . $id; // sessionStorage key per connection
+        $resourceLabel = (string) ($resourceTypes[$resourceType]['label'] ?? ucfirst($resourceType));
 
         echo '<div class="container-fluid py-3 px-4" style="max-width:780px">';
 
@@ -22,9 +75,12 @@ class MigratePage
         echo '<div class="d-flex align-items-center justify-content-between mb-4">';
         echo '<div>';
         echo '<h4 class="mb-0"><i class="ti ti-database-import me-2 text-primary"></i>' . self::h(__('Migration', 'bridge')) . '</h4>';
-        echo '<div class="text-muted small mt-1"><i class="ti ti-plug me-1"></i><strong>' . self::h($connection->fields['name']) . '</strong> &mdash; ' . self::h($connection->fields['base_url'] ?? '') . '</div>';
+        echo '<div class="text-muted small mt-1"><i class="ti ti-plug me-1"></i><strong>' . self::h($connection->fields['name']) . '</strong>';
+        echo ' &mdash; <span class="badge bg-primary me-1">' . self::h($resourceLabel) . '</span>';
+        echo self::h($connection->fields['base_url'] ?? '') . '</div>';
         echo '</div>';
         echo '<div class="d-flex gap-2">';
+        echo '<a class="btn btn-sm btn-outline-secondary" href="' . self::h($migrateUrl . '?id=' . $id) . '"><i class="ti ti-switch-horizontal me-1"></i>' . self::h(__('Change type', 'bridge')) . '</a>';
         echo '<a class="btn btn-sm btn-outline-secondary" href="' . self::h($historyUrl . '?id=' . $id) . '"><i class="ti ti-history me-1"></i>' . self::h(__('History', 'bridge')) . '</a>';
         echo '<a class="btn btn-sm btn-outline-secondary" href="' . self::h(Connection::getConfigURL($id)) . '"><i class="ti ti-arrow-left me-1"></i>' . self::h(__('Back', 'bridge')) . '</a>';
         echo '</div>';
@@ -33,27 +89,7 @@ class MigratePage
         echo '<form method="post" action="' . self::h($migrateUrl) . '" id="bridge-migrate-form" data-storage-key="' . self::h($key) . '">';
         echo \Html::hidden('_glpi_csrf_token', ['value' => \Session::getNewCSRFToken()]);
         echo \Html::hidden('id', ['value' => $id]);
-
-        // ── Resource type ────────────────────────────────────────────────
-        echo self::sectionCard('ti-box', __('Resource type', 'bridge'));
-        echo '<div class="d-flex flex-wrap gap-2">';
-        $first = true;
-        foreach ($resourceTypes as $key2 => $meta) {
-            $implemented = (bool) ($meta['implemented'] ?? false);
-            $label       = self::h((string) ($meta['label'] ?? $key2));
-            if ($implemented) {
-                $checked = $first ? ' checked' : '';
-                echo '<label class="bridge-pill' . ($first ? ' active' : '') . '">';
-                echo '<input type="radio" name="resource_type" value="' . self::h($key2) . '"' . $checked . '>';
-                echo $label;
-                echo '</label>';
-                $first = false;
-            } else {
-                echo '<span class="bridge-pill disabled"><i class="ti ti-lock me-1"></i>' . $label . ' <span class="badge bg-secondary ms-1 fw-normal" style="font-size:.7rem">' . self::h(__('Soon', 'bridge')) . '</span></span>';
-            }
-        }
-        echo '</div>';
-        echo '</div>'; // card
+        echo \Html::hidden('resource_type', ['value' => $resourceType]);
 
         // ── Migration mode ───────────────────────────────────────────────
         echo self::sectionCard('ti-adjustments-horizontal', __('Mode', 'bridge'));

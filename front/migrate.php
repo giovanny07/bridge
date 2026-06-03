@@ -30,20 +30,28 @@ try {
     $client        = ConnectorFactory::make($connection);
     $resourceTypes = $client->getResourceTypes();
     $action        = (string) ($_POST['action'] ?? '');
+    $resourceType  = (string) ($_REQUEST['resource_type'] ?? '');
 
-    // GET or no action → show form
+    // GET or no action → first choose resource, then show the focused form.
     if ($action === '' || $_SERVER['REQUEST_METHOD'] !== 'POST') {
-        MigratePage::showForm($connection, $resourceTypes, $migrateUrl, $historyUrl);
+        if ($resourceType === '' || !isset($resourceTypes[$resourceType])) {
+            MigratePage::showSelector($connection, $resourceTypes, $migrateUrl, $historyUrl);
+        } elseif (!($resourceTypes[$resourceType]['implemented'] ?? false)) {
+            Session::addMessageAfterRedirect(__('That resource type is not implemented yet.', 'bridge'), false, WARNING);
+            MigratePage::showSelector($connection, $resourceTypes, $migrateUrl, $historyUrl);
+        } else {
+            MigratePage::showForm($connection, $resourceTypes, $migrateUrl, $historyUrl, $resourceType);
+        }
         Html::footer();
         exit;
     }
 
-    $resourceType = (string) ($_POST['resource_type'] ?? 'incidents');
+    $resourceType = $resourceType !== '' ? $resourceType : 'incidents';
 
     // Validate resource type is implemented
     if (!($resourceTypes[$resourceType]['implemented'] ?? false)) {
         Session::addMessageAfterRedirect(__('That resource type is not implemented yet.', 'bridge'), false, WARNING);
-        MigratePage::showForm($connection, $resourceTypes, $migrateUrl, $historyUrl);
+        MigratePage::showSelector($connection, $resourceTypes, $migrateUrl, $historyUrl);
         Html::footer();
         exit;
     }

@@ -269,6 +269,12 @@ msgstr "Used when an assignee group cannot be matched by name."
 msgid "Choose the resource type to preview before migrating."
 msgstr "Choose the resource type to preview before migrating."
 
+msgid "Choose the resource type to migrate."
+msgstr "Choose the resource type to migrate."
+
+msgid "Change type"
+msgstr "Change type"
+
 msgid "Not implemented yet"
 msgstr "Not implemented yet"
 

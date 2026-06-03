@@ -269,6 +269,12 @@ msgstr "Usado cuando el grupo asignado no puede resolverse por nombre."
 msgid "Choose the resource type to preview before migrating."
 msgstr "Elige el tipo de recurso a previsualizar antes de migrar."
 
+msgid "Choose the resource type to migrate."
+msgstr "Elige el tipo de recurso a migrar."
+
+msgid "Change type"
+msgstr "Cambiar tipo"
+
 msgid "Not implemented yet"
 msgstr "Aún no implementado"
 

@@ -4,7 +4,7 @@ Bridge is a **GLPI 11** plugin for migrating ITSM data from external platforms i
 
 ---
 
-## Status — v0.7.2
+## Status — v0.8.0
 
 | Feature | Status |
 |---------|--------|
