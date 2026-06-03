@@ -37,6 +37,11 @@ class ConfigPage
 
     public static function showScanResult(Connection $connection, array $result): void
     {
+        if (isset($result['resources']) && is_array($result['resources'])) {
+            self::showResourceScanResult($connection, $result);
+            return;
+        }
+
         $jsonText = json_encode($result['records'] ?? [], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
         $statusCode = (int) ($result['status_code'] ?? 0);
         $statusClass = ($statusCode >= 200 && $statusCode < 300) ? 'text-success' : 'text-danger';
@@ -91,6 +96,127 @@ class ConfigPage
         echo '</div>';
         echo '</div>';
 
+        echo '</div>';
+    }
+
+    private static function showResourceScanResult(Connection $connection, array $result): void
+    {
+        $resources = $result['resources'] ?? [];
+        $available = count(array_filter($resources, static fn($r) => ($r['status'] ?? '') === 'available'));
+        $unavailable = count(array_filter($resources, static fn($r) => ($r['status'] ?? '') === 'unavailable'));
+        $errors = count(array_filter($resources, static fn($r) => ($r['status'] ?? '') === 'error'));
+
+        echo '<div class="container-fluid p-3">';
+
+        echo '<div class="d-flex align-items-center justify-content-between mb-3">';
+        echo '<div>';
+        echo '<h4 class="m-0"><i class="ti ti-radar me-2 text-primary"></i>';
+        echo self::h(__('SolarWinds discovery scan', 'bridge')) . '</h4>';
+        echo '<div class="text-muted small mt-1">';
+        echo '<i class="ti ti-plug me-1"></i>' . self::h($connection->fields['name']);
+        echo '</div>';
+        echo '</div>';
+        echo '<a class="btn btn-outline-secondary btn-sm" href="' . self::h(Connection::getConfigURL((int) $connection->fields['id'])) . '">';
+        echo '<i class="ti ti-arrow-left me-1"></i>' . self::h(__('Back', 'bridge'));
+        echo '</a>';
+        echo '</div>';
+
+        echo '<div class="alert alert-info d-flex align-items-center gap-2">';
+        echo '<i class="ti ti-lock"></i>';
+        echo '<span>' . self::h(__('Read-only discovery data. No data was written to GLPI.', 'bridge')) . '</span>';
+        echo '</div>';
+
+        echo '<div class="row g-3 mb-3">';
+        self::scanStatCard('circle-check', 'success', $available, __('Available', 'bridge'));
+        self::scanStatCard('circle-minus', 'secondary', $unavailable, __('Unavailable', 'bridge'));
+        self::scanStatCard('alert-triangle', 'danger', $errors, __('Errors', 'bridge'));
+        echo '</div>';
+
+        echo '<div class="card mb-3">';
+        echo '<div class="card-header fw-semibold"><i class="ti ti-list-search me-1"></i>' . self::h(__('Resource summary', 'bridge')) . '</div>';
+        echo '<div class="table-responsive">';
+        echo '<table class="table table-hover align-middle mb-0">';
+        echo '<thead class="table-light"><tr>';
+        echo '<th>' . self::h(__('Resource', 'bridge')) . '</th>';
+        echo '<th>' . self::h(__('Status', 'bridge')) . '</th>';
+        echo '<th>' . self::h(__('HTTP status', 'bridge')) . '</th>';
+        echo '<th>' . self::h(__('Total', 'bridge')) . '</th>';
+        echo '<th>' . self::h(__('Sample', 'bridge')) . '</th>';
+        echo '<th>' . self::h(__('Endpoint', 'bridge')) . '</th>';
+        echo '</tr></thead><tbody>';
+
+        foreach ($resources as $resource) {
+            $status = (string) ($resource['status'] ?? 'error');
+            $badge = match ($status) {
+                'available'   => 'success',
+                'unavailable' => 'secondary',
+                default       => 'danger',
+            };
+            $statusLabel = match ($status) {
+                'available'   => __('Available', 'bridge'),
+                'unavailable' => __('Unavailable', 'bridge'),
+                default       => __('Error', 'bridge'),
+            };
+
+            echo '<tr>';
+            echo '<td class="fw-semibold">' . self::h($resource['label'] ?? $resource['key'] ?? '') . '</td>';
+            echo '<td><span class="badge bg-' . $badge . '">' . self::h($statusLabel) . '</span></td>';
+            echo '<td>' . self::h((string) ((int) ($resource['status_code'] ?? 0) ?: '-')) . '</td>';
+            echo '<td><span class="badge bg-primary">' . (int) ($resource['total'] ?? 0) . '</span></td>';
+            echo '<td>' . (int) ($resource['count'] ?? 0) . '</td>';
+            echo '<td><code class="small text-break">' . self::h($resource['endpoint'] ?? '') . '</code>';
+            if ($status !== 'available' && !empty($resource['message'])) {
+                echo '<div class="text-muted small mt-1">' . self::h($resource['message']) . '</div>';
+            }
+            echo '</td>';
+            echo '</tr>';
+        }
+
+        echo '</tbody></table>';
+        echo '</div>';
+        echo '</div>';
+
+        foreach ($resources as $resource) {
+            if (($resource['status'] ?? '') !== 'available') {
+                continue;
+            }
+            $records = $resource['records'] ?? [];
+            $jsonText = json_encode($records, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+            $targetId = 'bridge-raw-json-' . preg_replace('/[^a-z0-9_-]/i', '-', (string) ($resource['key'] ?? 'resource'));
+
+            echo '<div class="card mb-3">';
+            echo '<div class="card-header d-flex align-items-center justify-content-between">';
+            echo '<span class="fw-semibold"><i class="ti ti-code me-1"></i>' . self::h($resource['label'] ?? '') . ' — ' . self::h(__('Raw sample', 'bridge')) . '</span>';
+            echo '<button type="button" class="btn btn-sm btn-outline-secondary bridge-copy-btn"';
+            echo ' data-copy-target="' . self::h($targetId) . '"';
+            echo ' data-copy="' . self::h(__('Copy', 'bridge')) . '"';
+            echo ' data-copied="' . self::h(__('Copied', 'bridge')) . '">';
+            echo '<i class="ti ti-copy me-1"></i>' . self::h(__('Copy', 'bridge'));
+            echo '</button>';
+            echo '</div>';
+            echo '<div class="card-body p-0">';
+            echo '<pre id="' . self::h($targetId) . '" class="p-3 mb-0 bg-light bridge-raw-json">';
+            echo self::h($jsonText);
+            echo '</pre>';
+            echo '</div>';
+            echo '</div>';
+        }
+
+        echo '</div>';
+    }
+
+    private static function scanStatCard(string $icon, string $color, int $value, string $label): void
+    {
+        echo '<div class="col-md-4">';
+        echo '<div class="card h-100">';
+        echo '<div class="card-body d-flex align-items-center gap-3">';
+        echo '<span class="text-' . self::h($color) . '"><i class="ti ti-' . self::h($icon) . '" style="font-size:1.6rem"></i></span>';
+        echo '<div>';
+        echo '<div class="fs-4 fw-semibold">' . $value . '</div>';
+        echo '<div class="text-muted small">' . self::h($label) . '</div>';
+        echo '</div>';
+        echo '</div>';
+        echo '</div>';
         echo '</div>';
     }
 

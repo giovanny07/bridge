@@ -84,6 +84,64 @@ class SolarWindsClient implements ConnectorInterface
         ];
     }
 
+    /**
+     * Read-only discovery for Fase 2. Each resource is checked independently
+     * so an unavailable SolarWinds endpoint does not abort the whole scan.
+     */
+    public function scanResources(int $sampleSize = 5): array
+    {
+        $sampleSize = max(1, min($sampleSize, 25));
+        $resources = [
+            'incidents'        => ['label' => 'Incidents',        'endpoint' => '/incidents.json'],
+            'service_requests' => ['label' => 'Service Requests', 'endpoint' => '/service_requests.json'],
+            'problems'         => ['label' => 'Problems',         'endpoint' => '/problems.json'],
+            'changes'          => ['label' => 'Changes',          'endpoint' => '/changes.json'],
+            'users'            => ['label' => 'Users',            'endpoint' => '/users.json'],
+            'assets'           => ['label' => 'Assets / ITAM',    'endpoint' => '/assets.json'],
+        ];
+
+        $results = [];
+        foreach ($resources as $key => $meta) {
+            $query = ['per_page' => $sampleSize, 'page' => 1];
+            try {
+                $scan = $this->scanResourceSample($key, $meta['endpoint'], $query);
+                $results[$key] = [
+                    'key'         => $key,
+                    'label'       => $meta['label'],
+                    'status'      => 'available',
+                    'endpoint'    => $scan['endpoint'],
+                    'status_code' => $scan['status_code'],
+                    'total'       => $scan['total'],
+                    'page'        => 1,
+                    'per_page'    => $sampleSize,
+                    'count'       => $scan['count'],
+                    'records'     => $scan['records'],
+                    'message'     => 'OK',
+                ];
+            } catch (\Throwable $e) {
+                $statusCode = $this->extractStatusCode($e->getMessage());
+                $results[$key] = [
+                    'key'         => $key,
+                    'label'       => $meta['label'],
+                    'status'      => $statusCode === 404 ? 'unavailable' : 'error',
+                    'endpoint'    => $this->buildUrl($meta['endpoint'], $query),
+                    'status_code' => $statusCode,
+                    'total'       => 0,
+                    'page'        => 1,
+                    'per_page'    => $sampleSize,
+                    'count'       => 0,
+                    'records'     => [],
+                    'message'     => $e->getMessage(),
+                ];
+            }
+        }
+
+        return [
+            'sample_size' => $sampleSize,
+            'resources'   => $results,
+        ];
+    }
+
     public function listIncidents(array $filters = [], int $page = 1, int $perPage = 50): array
     {
         $perPage  = max(1, min($perPage, 100));
@@ -200,11 +258,13 @@ class SolarWindsClient implements ConnectorInterface
         $records  = is_array($response['json']) ? $response['json'] : [];
 
         return [
-            'total'    => $response['total_count'],
-            'page'     => $page,
-            'per_page' => $perPage,
-            'count'    => count($records),
-            'records'  => $records,
+            'endpoint'    => $response['url'],
+            'status_code' => $response['status_code'],
+            'total'       => $response['total_count'],
+            'page'        => $page,
+            'per_page'    => $perPage,
+            'count'       => count($records),
+            'records'     => $records,
         ];
     }
 
@@ -225,11 +285,13 @@ class SolarWindsClient implements ConnectorInterface
         }
 
         return [
-            'total'    => $response['total_count'],
-            'page'     => $page,
-            'per_page' => $perPage,
-            'count'    => count($records),
-            'records'  => $records,
+            'endpoint'    => $response['url'],
+            'status_code' => $response['status_code'],
+            'total'       => $response['total_count'],
+            'page'        => $page,
+            'per_page'    => $perPage,
+            'count'       => count($records),
+            'records'     => $records,
         ];
     }
 
@@ -250,11 +312,13 @@ class SolarWindsClient implements ConnectorInterface
         }
 
         return [
-            'total'    => $response['total_count'],
-            'page'     => $page,
-            'per_page' => $perPage,
-            'count'    => count($records),
-            'records'  => $records,
+            'endpoint'    => $response['url'],
+            'status_code' => $response['status_code'],
+            'total'       => $response['total_count'],
+            'page'        => $page,
+            'per_page'    => $perPage,
+            'count'       => count($records),
+            'records'     => $records,
         ];
     }
 
@@ -389,6 +453,31 @@ class SolarWindsClient implements ConnectorInterface
             'total_count' => $totalCount,
             'json'        => $json,
         ];
+    }
+
+    /**
+     * @return array{endpoint:string,status_code:int,total:int,count:int,records:array}
+     */
+    protected function scanResourceSample(string $collectionName, string $endpoint, array $query): array
+    {
+        $response = $this->request($endpoint, $query);
+        $records  = $this->extractRecords($response['json'], $collectionName);
+
+        return [
+            'endpoint'    => $response['url'],
+            'status_code' => $response['status_code'],
+            'total'       => $response['total_count'],
+            'count'       => count($records),
+            'records'     => $records,
+        ];
+    }
+
+    private function extractStatusCode(string $message): int
+    {
+        if (preg_match('/HTTP (\d{3})/', $message, $m)) {
+            return (int) $m[1];
+        }
+        return 0;
     }
 
     private function buildUrl(string $path, array $query): string

@@ -226,6 +226,58 @@ class SolarWindsClientTest extends TestCase
         }
     }
 
+    public function testScanResourcesReturnsAllDiscoveryTypes(): void
+    {
+        $client = new class('https://example.com', Connection::AUTH_BEARER, 'tok') extends SolarWindsClient {
+            protected function scanResourceSample(string $collectionName, string $endpoint, array $query): array
+            {
+                return [
+                    'endpoint'    => 'https://example.com' . $endpoint . '?per_page=' . $query['per_page'] . '&page=' . $query['page'],
+                    'status_code' => 200,
+                    'total'       => 2,
+                    'count'       => 1,
+                    'records'     => [['id' => 1, 'type' => $collectionName]],
+                ];
+            }
+        };
+
+        $result = $client->scanResources(5);
+
+        $this->assertArrayHasKey('resources', $result);
+        foreach (['incidents', 'service_requests', 'problems', 'changes', 'users', 'assets'] as $key) {
+            $this->assertArrayHasKey($key, $result['resources']);
+            $this->assertSame('available', $result['resources'][$key]['status']);
+            $this->assertSame(200, $result['resources'][$key]['status_code']);
+        }
+    }
+
+    public function testScanResourcesKeepsGoingWhenEndpointIsUnavailable(): void
+    {
+        $client = new class('https://example.com', Connection::AUTH_BEARER, 'tok') extends SolarWindsClient {
+            protected function scanResourceSample(string $collectionName, string $endpoint, array $query): array
+            {
+                if ($collectionName === 'assets') {
+                    throw new \RuntimeException('SolarWinds returned HTTP 404: not found');
+                }
+
+                return [
+                    'endpoint'    => 'https://example.com' . $endpoint,
+                    'status_code' => 200,
+                    'total'       => 1,
+                    'count'       => 1,
+                    'records'     => [['id' => 1]],
+                ];
+            }
+        };
+
+        $result = $client->scanResources(5);
+
+        $this->assertSame('available', $result['resources']['incidents']['status']);
+        $this->assertSame('unavailable', $result['resources']['assets']['status']);
+        $this->assertSame(404, $result['resources']['assets']['status_code']);
+        $this->assertSame([], $result['resources']['assets']['records']);
+    }
+
 
     // ------------------------------------------------------------------ //
     // request — missing secret guard

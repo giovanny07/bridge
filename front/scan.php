@@ -23,7 +23,9 @@ Html::header(__('Bridge scan', 'bridge'), '', 'config', 'plugins');
 
 try {
     $client = ConnectorFactory::make($connection);
-    $result = $client->scanIncidents(10);
+    $result = method_exists($client, 'scanResources')
+        ? $client->scanResources(5)
+        : $client->scanIncidents(10);
     ConfigPage::showScanResult($connection, $result);
 } catch (Throwable $e) {
     echo '<div class="alert alert-danger m-3">';

@@ -38,6 +38,9 @@ msgstr "Tipo de autenticação não suportado."
 msgid "SolarWinds scan"
 msgstr "Varredura SolarWinds"
 
+msgid "SolarWinds discovery scan"
+msgstr "Descoberta SolarWinds"
+
 msgid "Back"
 msgstr "Voltar"
 
@@ -52,6 +55,33 @@ msgstr "Status HTTP"
 
 msgid "Records found"
 msgstr "Registros encontrados"
+
+msgid "Available"
+msgstr "Disponível"
+
+msgid "Unavailable"
+msgstr "Indisponível"
+
+msgid "Errors"
+msgstr "Erros"
+
+msgid "Resource summary"
+msgstr "Resumo de recursos"
+
+msgid "Resource"
+msgstr "Recurso"
+
+msgid "Status"
+msgstr "Status"
+
+msgid "Total"
+msgstr "Total"
+
+msgid "Sample"
+msgstr "Amostra"
+
+msgid "Error"
+msgstr "Erro"
 
 msgid "Raw sample"
 msgstr "Amostra bruta"

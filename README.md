@@ -11,7 +11,7 @@ Bridge is a **GLPI 11** plugin for migrating ITSM data from external platforms i
 | Plugin base (setup, hooks, PSR-4 autoload) | Done |
 | Connection management with GLPIKey encryption | Done |
 | Inline connection test | Done |
-| Incident discovery scan (read-only) | Done |
+| Multi-resource discovery scan (read-only) | Done |
 | Entity / category / group / user resolver | Done |
 | Fuzzy entity matching (accents, legal suffixes, parentheticals, abbreviations, quotes) | Done |
 | Dry-run preview | Done |
