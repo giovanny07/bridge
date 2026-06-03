@@ -8,6 +8,15 @@ use GlpiPlugin\Bridge\Resolver\GlpiResolver;
 
 Session::checkRight('config', UPDATE);
 
+$normalizeDate = static function (string $date): string {
+    $date = trim($date);
+    if ($date === '') {
+        return '';
+    }
+    $parsed = DateTimeImmutable::createFromFormat('!Y-m-d', $date);
+    return $parsed instanceof DateTimeImmutable ? $parsed->format('Y-m-d') : '';
+};
+
 $id         = (int) ($_REQUEST['id'] ?? 0);
 $connection = new Connection();
 
@@ -75,13 +84,20 @@ try {
         $sourceIds = implode(',', array_map(static fn($id) => (string) $id, $sourceIds));
     }
 
+    $migrationMode = (string) ($_POST['migration_mode'] ?? 'filters');
+    $timePeriod    = (string) ($_POST['time_period'] ?? 'recent');
+
     $options = [
         'limit'               => max(1, min(500, (int) ($_POST['limit'] ?? 50))),
-        'start_page'          => max(1, (int) ($_POST['start_page'] ?? 1)),
+        'start_page'          => $timePeriod === 'manual' ? max(1, (int) ($_POST['start_page'] ?? 1)) : 1,
         'source_ids'          => (string) $sourceIds,
-        'state'               => (string) ($_POST['state'] ?? ''),
-        'created_after'       => (string) ($_POST['created_after'] ?? ''),
-        'updated_after'       => (string) ($_POST['updated_after'] ?? ''),
+        'state'               => $migrationMode === 'filters' ? (string) ($_POST['state'] ?? '') : '',
+        'created_after'       => $migrationMode === 'filters' && $timePeriod === 'from_date'
+            ? $normalizeDate((string) ($_POST['created_after'] ?? ''))
+            : '',
+        'updated_after'       => $migrationMode === 'filters' && $timePeriod === 'incremental'
+            ? $normalizeDate((string) ($_POST['updated_after'] ?? ''))
+            : '',
         'include_comments'      => isset($_POST['include_comments']),
         'include_attachments'   => isset($_POST['include_attachments']),
         'keep_private_comments' => isset($_POST['keep_private_comments']),

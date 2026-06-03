@@ -193,6 +193,18 @@
         } catch (e) {}
     }
 
+    function clearInactivePeriodFields(form) {
+        var activePeriod = form.querySelector('input[name=time_period]:checked');
+        var period = activePeriod ? activePeriod.value : 'recent';
+        var createdAfter = form.querySelector('#f_created_after');
+        var updatedAfter = form.querySelector('#f_updated_after');
+        var startPage = form.querySelector('#f_start_page');
+
+        if (period !== 'from_date' && createdAfter) createdAfter.value = '';
+        if (period !== 'incremental' && updatedAfter) updatedAfter.value = '';
+        if (period !== 'manual' && startPage) startPage.value = '1';
+    }
+
     function restoreMigrateForm(form) {
         if (!form || form.dataset.bridgeInitialized === '1') return;
         form.dataset.bridgeInitialized = '1';
@@ -274,6 +286,7 @@
             if (!activeForm) return;
             restoreMigrateForm(activeForm);
             refreshFormCsrfToken(activeForm);
+            clearInactivePeriodFields(activeForm);
             var storageKey = getStorageKey(activeForm);
             try {
                 sessionStorage.setItem(storageKey + '_mode', getFieldValue(activeForm, 'migration_mode_val'));

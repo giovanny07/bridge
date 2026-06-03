@@ -128,9 +128,8 @@ class MigrationEngine
         $filters = $this->buildFilters($options);
         $page    = $startPage;
 
-        while ($result->total() < $limit) {
-            $remaining = $limit - $result->total();
-            $perPage   = min(self::PER_PAGE, $remaining);
+        while ($this->attemptedTotal($result) < $limit) {
+            $perPage = min(self::PER_PAGE, $limit);
 
             $batch = match ($this->resourceType) {
                 'problems' => $this->connector->listProblems($filters, $page, $perPage),
@@ -143,8 +142,11 @@ class MigrationEngine
             }
 
             foreach ($batch['records'] as $incident) {
-                if ($result->total() >= $limit) {
+                if ($this->attemptedTotal($result) >= $limit) {
                     break;
+                }
+                if (!$this->matchesLocalDateFilters($incident, $options)) {
+                    continue;
                 }
                 $this->processIncident($incident, $mapper, $includeComm, $includeAtt, $keepPrivate, $isDryRun, $result);
             }
@@ -153,10 +155,49 @@ class MigrationEngine
                 break;
             }
 
+            $totalPages = (int) ceil(max(0, (int) ($batch['total'] ?? 0)) / $perPage);
+            if ($totalPages > 0 && $page >= $totalPages) {
+                break;
+            }
+
             $page++;
         }
 
         return $result;
+    }
+
+    private function attemptedTotal(MigrationResult $result): int
+    {
+        return count($result->created) + count($result->failed);
+    }
+
+    private function matchesLocalDateFilters(array $incident, array $options): bool
+    {
+        if (!empty($options['created_after']) && !$this->dateIsOnOrAfter($incident['created_at'] ?? null, (string) $options['created_after'])) {
+            return false;
+        }
+
+        if (!empty($options['updated_after']) && !$this->dateIsOnOrAfter($incident['updated_at'] ?? null, (string) $options['updated_after'])) {
+            return false;
+        }
+
+        return true;
+    }
+
+    private function dateIsOnOrAfter(mixed $sourceDate, string $cutoff): bool
+    {
+        if (!is_string($sourceDate) || trim($sourceDate) === '') {
+            return false;
+        }
+
+        try {
+            $source = new \DateTimeImmutable($sourceDate);
+            $limit  = new \DateTimeImmutable($cutoff . ' 00:00:00');
+        } catch (\Throwable) {
+            return false;
+        }
+
+        return $source >= $limit;
     }
 
     // ------------------------------------------------------------------ //
