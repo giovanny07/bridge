@@ -126,22 +126,24 @@ class MigrationEngine
         }
 
         $filters = $this->buildFilters($options);
-        $page    = $startPage;
+        $perPage = min(self::PER_PAGE, $limit);
+        $chronologicalFromDate = !empty($options['created_after']) && $startPage === 1;
+        $page = $chronologicalFromDate
+            ? $this->findCreatedAfterBoundaryPage($filters, (string) $options['created_after'], $perPage)
+            : $startPage;
 
         while ($this->attemptedTotal($result) < $limit) {
-            $perPage = min(self::PER_PAGE, $limit);
-
-            $batch = match ($this->resourceType) {
-                'problems' => $this->connector->listProblems($filters, $page, $perPage),
-                'changes'  => $this->connector->listChanges($filters, $page, $perPage),
-                default    => $this->connector->listIncidents($filters, $page, $perPage),
-            };
+            $batch = $this->listBatch($filters, $page, $perPage);
 
             if (empty($batch['records'])) {
                 break;
             }
 
-            foreach ($batch['records'] as $incident) {
+            $records = $chronologicalFromDate
+                ? array_reverse($batch['records'])
+                : $batch['records'];
+
+            foreach ($records as $incident) {
                 if ($this->attemptedTotal($result) >= $limit) {
                     break;
                 }
@@ -155,15 +157,72 @@ class MigrationEngine
                 break;
             }
 
-            $totalPages = (int) ceil(max(0, (int) ($batch['total'] ?? 0)) / $perPage);
-            if ($totalPages > 0 && $page >= $totalPages) {
-                break;
+            if (!$chronologicalFromDate) {
+                $totalPages = (int) ceil(max(0, (int) ($batch['total'] ?? 0)) / $perPage);
+                if ($totalPages > 0 && $page >= $totalPages) {
+                    break;
+                }
             }
 
-            $page++;
+            if ($chronologicalFromDate) {
+                $page--;
+                if ($page < 1) {
+                    break;
+                }
+            } else {
+                $page++;
+            }
         }
 
         return $result;
+    }
+
+    private function listBatch(array $filters, int $page, int $perPage): array
+    {
+        return match ($this->resourceType) {
+            'problems' => $this->connector->listProblems($filters, $page, $perPage),
+            'changes'  => $this->connector->listChanges($filters, $page, $perPage),
+            default    => $this->connector->listIncidents($filters, $page, $perPage),
+        };
+    }
+
+    private function findCreatedAfterBoundaryPage(array $filters, string $cutoff, int $perPage): int
+    {
+        $firstBatch = $this->listBatch($filters, 1, $perPage);
+        $totalPages = (int) ceil(max(0, (int) ($firstBatch['total'] ?? 0)) / $perPage);
+
+        if ($totalPages <= 1) {
+            return 1;
+        }
+
+        $low = 1;
+        $high = $totalPages;
+        $boundary = 1;
+
+        while ($low <= $high) {
+            $mid = intdiv($low + $high, 2);
+            $batch = $mid === 1 ? $firstBatch : $this->listBatch($filters, $mid, $perPage);
+
+            if ($this->batchHasRecordOnOrAfter($batch['records'] ?? [], $cutoff)) {
+                $boundary = $mid;
+                $low = $mid + 1;
+            } else {
+                $high = $mid - 1;
+            }
+        }
+
+        return $boundary;
+    }
+
+    private function batchHasRecordOnOrAfter(array $records, string $cutoff): bool
+    {
+        foreach ($records as $record) {
+            if ($this->dateIsOnOrAfter($record['created_at'] ?? null, $cutoff)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private function attemptedTotal(MigrationResult $result): int
@@ -583,16 +642,6 @@ class MigrationEngine
 
         if (!empty($options['state'])) {
             $filters['state'] = $options['state'];
-        }
-        if (!empty($options['created_after'])) {
-            $filters['created_after'] = $options['created_after'];
-            // Sort oldest-first so created_after retrieves historical records,
-            // not the most recent ones (Samanage default is newest-first).
-            $filters['sort_by']    = 'created_at';
-            $filters['sort_order'] = 'asc';
-        }
-        if (!empty($options['updated_after'])) {
-            $filters['updated_after'] = $options['updated_after'];
         }
 
         return $filters;
