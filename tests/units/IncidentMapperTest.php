@@ -189,13 +189,25 @@ class IncidentMapperTest extends TestCase
     // Unresolved — no entity, no fallback
     // ------------------------------------------------------------------ //
 
-    public function testMapUnresolvedWhenNoEntityAndNoFallback(): void
+    public function testMapUsesRootEntityFallbackWhenSiteNotFound(): void
     {
         $mapper = new IncidentMapper($this->makeFullResolver(), $this->normalizer, 0, 0);
         $result = $mapper->map($this->makeIncident(['site' => ['name' => 'Empresa Inexistente']]));
 
-        $this->assertSame('unresolved', $result->status);
-        $this->assertFalse($result->isCreatable());
+        $this->assertSame('partial', $result->status);
+        $this->assertSame(0, $result->ticket['entities_id']);
+        $this->assertTrue($result->isCreatable());
+    }
+
+    public function testMapUsesRootEntityFallbackWhenSiteEmpty(): void
+    {
+        $mapper = new IncidentMapper($this->makeFullResolver(), $this->normalizer, 0, 0);
+        $result = $mapper->map($this->makeIncident(['site' => ['name' => '']]));
+
+        $this->assertSame('partial', $result->status);
+        $this->assertSame(0, $result->ticket['entities_id']);
+        $this->assertTrue($result->isCreatable());
+        $this->assertNotEmpty($result->warnings);
     }
 
     // ------------------------------------------------------------------ //

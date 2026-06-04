@@ -25,7 +25,7 @@ readonly class MappedIncident
     ) {
         if ($warnings === []) {
             $this->status = 'ok';
-        } elseif (($ticket['entities_id'] ?? 0) > 0) {
+        } elseif (isset($ticket['entities_id']) && (int) $ticket['entities_id'] >= 0) {
             $this->status = 'partial';
         } else {
             $this->status = 'unresolved';

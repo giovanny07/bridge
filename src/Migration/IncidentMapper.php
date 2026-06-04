@@ -41,9 +41,11 @@ class IncidentMapper
             if ($entityId === null) {
                 $warnings[] = "Entity not found: «{$siteName}» → fallback used";
             }
+        } else {
+            $warnings[] = 'Entity empty in source → fallback used';
         }
 
-        $entityId = $entityId ?? ($this->fallbackEntityId ?: null);
+        $entityId = $entityId ?? $this->fallbackEntityId;
 
         // ── Category ────────────────────────────────────────────────────
         $catName  = (string) ($incident['category']['name']    ?? '');
