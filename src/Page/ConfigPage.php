@@ -231,6 +231,7 @@ class ConfigPage
         $migrateUrl  = self::h(Plugin::getWebDir('bridge', true) . '/front/migrate.php');
         $historyUrl  = self::h(Plugin::getWebDir('bridge', true) . '/front/migration_history.php');
         $syncUsrUrl  = self::h(Plugin::getWebDir('bridge', true) . '/front/sync_users.php');
+        $jobsUrl     = self::h(Plugin::getWebDir('bridge', true) . '/front/jobs.php');
 
         echo '<div class="card h-100">';
         echo '<div class="card-header fw-semibold">';
@@ -338,6 +339,11 @@ class ConfigPage
                 echo '<a href="' . $syncUsrUrl . '?id=' . $id . '"';
                 echo ' class="dropdown-item">';
                 echo '<i class="ti ti-users me-2"></i>' . self::h(__('Sync users', 'bridge'));
+                echo '</a>';
+
+                echo '<a href="' . $jobsUrl . '?id=' . $id . '"';
+                echo ' class="dropdown-item">';
+                echo '<i class="ti ti-list-details me-2"></i>' . self::h(__('Migration jobs', 'bridge'));
                 echo '</a>';
 
                 echo '<div class="dropdown-divider"></div>';

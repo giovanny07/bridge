@@ -290,8 +290,60 @@ class BridgeJob extends CommonDBTM
     }
 
     // ------------------------------------------------------------------ //
+    // Retry
+    // ------------------------------------------------------------------ //
+
+    /**
+     * Creates a new pending job with the same options as this one.
+     * Cancels the current job and any active cursor so the new run
+     * starts fresh from the boundary page.
+     */
+    public function retry(int $requestedBy): self
+    {
+        // Cancel this job
+        if (!$this->isFinished()) {
+            $this->cancel();
+        } else {
+            // Still cancel the associated cursor so the new job re-calculates boundary
+            MigrationCursor::cancelForConnection($this->connectionId(), $this->resourceType());
+        }
+
+        return self::create(
+            $this->connectionId(),
+            $this->resourceType(),
+            $this->options(),
+            $requestedBy
+        );
+    }
+
+    /**
+     * Purges only failed migration records for this job's connection+type,
+     * so the next run will retry them without affecting successful records.
+     * Returns the number of purged records.
+     */
+    public function retryFailedRecords(): int
+    {
+        return MigrationRecord::purgeFailed($this->connectionId(), $this->resourceType());
+    }
+
+    // ------------------------------------------------------------------ //
     // Queries
     // ------------------------------------------------------------------ //
+
+    public static function getForConnection(int $connectionId, int $limit = 50): array
+    {
+        global $DB;
+        $rows = [];
+        foreach ($DB->request([
+            'FROM'  => self::getTable(),
+            'WHERE' => ['connections_id' => $connectionId],
+            'ORDER' => ['created_at DESC'],
+            'LIMIT' => $limit,
+        ]) as $row) {
+            $rows[] = $row;
+        }
+        return $rows;
+    }
 
     public static function getById(int $id): ?self
     {

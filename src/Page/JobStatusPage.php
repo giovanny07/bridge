@@ -57,10 +57,21 @@ class JobStatusPage
         echo '<div id="bridge-error-msg" class="alert alert-danger py-2 small" style="display:none"></div>';
 
         // Actions
-        echo '<div class="d-flex gap-2" id="bridge-job-actions">';
+        $stats   = $job->stats();
+        $hasFailed = ($stats['failed'] ?? 0) > 0;
+        echo '<div class="d-flex flex-wrap gap-2" id="bridge-job-actions">';
         if (!$isFinished) {
-            echo '<button id="bridge-cancel-btn" class="btn btn-sm btn-outline-danger" onclick="bridgeCancelJob(' . $jobId . ')">';
+            echo '<button class="btn btn-sm btn-outline-danger" onclick="bridgeJobAction(\'cancel\', \'' . self::h(__('Cancel this migration job?', 'bridge')) . '\')">';
             echo '<i class="ti ti-player-stop me-1"></i>' . self::h(__('Cancel', 'bridge'));
+            echo '</button>';
+        } else {
+            echo '<button class="btn btn-sm btn-outline-primary" onclick="bridgeJobAction(\'retry\', \'' . self::h(__('Retry this job from the beginning?', 'bridge')) . '\')">';
+            echo '<i class="ti ti-refresh me-1"></i>' . self::h(__('Retry job', 'bridge'));
+            echo '</button>';
+        }
+        if ($hasFailed) {
+            echo '<button class="btn btn-sm btn-outline-warning" onclick="bridgeJobAction(\'retry_failed_records\', \'' . self::h(__('Retry failed records? This will allow them to be re-migrated.', 'bridge')) . '\')">';
+            echo '<i class="ti ti-player-skip-forward me-1"></i>' . self::h(__('Retry failed records', 'bridge'));
             echo '</button>';
         }
         echo '</div>';
@@ -204,13 +215,25 @@ class JobStatusPage
             .catch(function() {});
     }
 
-    window.bridgeCancelJob = function(id) {
-        if (!confirm('{$cancelConfirm}')) return;
+    window.bridgeJobAction = function(action, confirmMsg) {
+        if (!confirm(confirmMsg)) return;
         var fd = new FormData();
-        fd.append('cancel', '1');
-        fetch(ajaxUrl + '?job_id=' + id, { method: 'POST', body: fd, credentials: 'same-origin' })
+        fd.append(action, '1');
+        fetch(ajaxUrl + '?job_id=' + jobId, { method: 'POST', body: fd, credentials: 'same-origin' })
             .then(function(r) { return r.json(); })
-            .then(update);
+            .then(function(data) {
+                if (data.redirected_job_id) {
+                    // Retry created a new job — navigate to it
+                    window.location.href = window.location.pathname + '?job_id=' + data.redirected_job_id;
+                    return;
+                }
+                if (data.purged_records !== undefined) {
+                    var msg = data.purged_records + ' failed record(s) purged. Run a new migration to retry them.';
+                    alert(msg);
+                    return;
+                }
+                update(data);
+            });
     };
 
     if (!finished) {

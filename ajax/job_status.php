@@ -11,12 +11,23 @@ if ($jobId <= 0) {
     exit;
 }
 
-// Allow cancellation via POST
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['cancel'])) {
+// Handle POST actions
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     Session::checkRight('config', UPDATE);
     $job = BridgeJob::getById($jobId);
-    if ($job && !$job->isFinished()) {
-        $job->cancel();
+    if ($job) {
+        if (isset($_POST['cancel']) && !$job->isFinished()) {
+            $job->cancel();
+        } elseif (isset($_POST['retry'])) {
+            $newJob = $job->retry((int) ($_SESSION['glpiID'] ?? 0));
+            // Return new job id so UI can redirect
+            echo json_encode(['redirected_job_id' => $newJob->id()]);
+            exit;
+        } elseif (isset($_POST['retry_failed_records'])) {
+            $purged = $job->retryFailedRecords();
+            echo json_encode(['purged_records' => $purged]);
+            exit;
+        }
     }
 }
 
