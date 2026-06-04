@@ -268,6 +268,24 @@ class MigratePage
             echo '</div>';
         }
 
+        if (!empty($result->stats)) {
+            echo '<div class="card mb-3 border-0 shadow-sm">';
+            echo '<div class="card-header bg-light border-0 fw-semibold py-2">';
+            echo '<i class="ti ti-route me-1"></i>' . self::h(__('Pipeline', 'bridge'));
+            echo '</div>';
+            echo '<div class="card-body py-2">';
+            echo '<div class="d-flex flex-wrap gap-2 small">';
+            self::metricPill(__('API pages', 'bridge'), (int) ($result->stats['api_pages'] ?? 0));
+            self::metricPill(__('Scanned', 'bridge'), (int) ($result->stats['scanned'] ?? 0));
+            self::metricPill(__('Date matched', 'bridge'), (int) ($result->stats['date_matched'] ?? 0));
+            self::metricPill(__('Duplicates', 'bridge'), (int) ($result->stats['duplicates'] ?? 0));
+            self::metricPill(__('Queued', 'bridge'), (int) ($result->stats['queued'] ?? 0));
+            self::metricPill(__('Comment calls', 'bridge'), (int) ($result->stats['comments_requests'] ?? 0));
+            echo '</div>';
+            echo '</div>';
+            echo '</div>';
+        }
+
         // Created
         if (!empty($result->created)) {
             echo '<div class="card mb-3 border-0 shadow-sm">';
@@ -353,6 +371,13 @@ class MigratePage
         echo '<div class="text-muted small mt-1">' . self::h($label) . '</div>';
         echo '</div>';
         echo '</div></div></div>';
+    }
+
+    private static function metricPill(string $label, int $value): void
+    {
+        echo '<span class="badge bg-secondary-subtle text-secondary border">';
+        echo self::h($label) . ': <strong>' . $value . '</strong>';
+        echo '</span>';
     }
 
     private static function h(mixed $v): string

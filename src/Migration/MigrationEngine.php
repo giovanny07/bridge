@@ -134,6 +134,8 @@ class MigrationEngine
 
         while ($this->attemptedTotal($result) < $limit) {
             $batch = $this->listBatch($filters, $page, $perPage);
+            $result->incStat('api_pages');
+            $result->incStat('scanned', count($batch['records'] ?? []));
 
             if (empty($batch['records'])) {
                 break;
@@ -142,14 +144,11 @@ class MigrationEngine
             $records = $chronologicalFromDate
                 ? array_reverse($batch['records'])
                 : $batch['records'];
-            $alreadyMigrated = $isDryRun ? [] : $this->alreadyMigratedForRecords($records);
+            [$records, $alreadyMigrated] = $this->prepareBatchRecords($records, $options, $isDryRun, $result);
 
             foreach ($records as $incident) {
                 if ($this->attemptedTotal($result) >= $limit) {
                     break;
-                }
-                if (!$this->matchesLocalDateFilters($incident, $options)) {
-                    continue;
                 }
                 $this->processIncident($incident, $mapper, $includeComm, $includeAtt, $keepPrivate, $isDryRun, $result, $alreadyMigrated);
             }
@@ -224,6 +223,50 @@ class MigrationEngine
         }
 
         return false;
+    }
+
+    /**
+     * Applies local filters and dedupes a full API page before expensive
+     * per-ticket work starts.
+     *
+     * @param array<int,array<string,mixed>> $records
+     * @return array{0:array<int,array<string,mixed>>,1:array<string,true>}
+     */
+    private function prepareBatchRecords(array $records, array $options, bool $isDryRun, MigrationResult $result): array
+    {
+        $dateMatched = [];
+        foreach ($records as $record) {
+            if ($this->matchesLocalDateFilters($record, $options)) {
+                $dateMatched[] = $record;
+            }
+        }
+        $result->incStat('date_matched', count($dateMatched));
+
+        if ($isDryRun) {
+            $result->incStat('queued', count($dateMatched));
+            return [$dateMatched, []];
+        }
+
+        $alreadyMigrated = $this->alreadyMigratedForRecords($dateMatched);
+        if ($alreadyMigrated === []) {
+            $result->incStat('queued', count($dateMatched));
+            return [$dateMatched, []];
+        }
+
+        $queued = [];
+        foreach ($dateMatched as $record) {
+            $sourceId = (string) ($record['id'] ?? '');
+            if ($sourceId !== '' && isset($alreadyMigrated[$sourceId])) {
+                $result->addSkipped($record);
+                $result->incStat('duplicates');
+                continue;
+            }
+            $queued[] = $record;
+        }
+
+        $result->incStat('queued', count($queued));
+
+        return [$queued, []];
     }
 
     /**
@@ -304,19 +347,8 @@ class MigrationEngine
             }
         }
 
-        $comments = [];
-        if ($includeComm && !$isDryRun) {
-            try {
-                $comments = match ($this->resourceType) {
-                    'problems' => $this->connector->getProblemComments((int) $sourceId),
-                    'changes'  => $this->connector->getChangeComments((int) $sourceId),
-                    default    => $this->connector->getIncidentComments((int) $sourceId),
-                };
-            } catch (\Throwable) {
-            }
-        }
-
-        $mapped = $mapper->map($incident, $comments, $this->resourceType);
+        $mapped = $mapper->map($incident, [], $this->resourceType);
+        $result->incStat('mapped');
 
         if ($isDryRun) {
             $result->addCreated($incident, 0);
@@ -328,6 +360,22 @@ class MigrationEngine
             $result->addFailed($incident, $error);
             MigrationRecord::log($this->connectionId, $this->resourceType, $sourceId, (string) ($incident['number'] ?? ''), MigrationRecord::STATUS_FAILED, 0, $error);
             return;
+        }
+
+        if ($includeComm) {
+            try {
+                $comments = match ($this->resourceType) {
+                    'problems' => $this->connector->getProblemComments((int) $sourceId),
+                    'changes'  => $this->connector->getChangeComments((int) $sourceId),
+                    default    => $this->connector->getIncidentComments((int) $sourceId),
+                };
+                $result->incStat('comments_requests');
+                if ($comments !== []) {
+                    $mapped = $mapper->map($incident, $comments, $this->resourceType);
+                    $result->incStat('mapped');
+                }
+            } catch (\Throwable) {
+            }
         }
 
         try {
