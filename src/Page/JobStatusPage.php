@@ -150,7 +150,6 @@ class JobStatusPage
         ]);
 
         $initiallyFinished = $isFinished ? 'true' : 'false';
-        $cancelConfirm = self::h(__('Cancel this migration job?', 'bridge'));
 
         echo <<<JS
 <script>

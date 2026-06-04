@@ -259,7 +259,7 @@ class BridgeJob extends CommonDBTM
                 'connections_id' => $job->connectionId(),
                 'resource_type'  => $job->resourceType(),
                 'status'         => self::STATUS_RUNNING,
-                ['id'            => ['<>', $job->id()]],
+                'NOT'            => ['id' => $job->id()],
             ],
             'LIMIT' => 1,
         ]) as $_) {
@@ -370,8 +370,8 @@ class BridgeJob extends CommonDBTM
             'finished_at'   => date('Y-m-d H:i:s'),
             'error_message' => 'Job timed out (no heartbeat for ' . self::ZOMBIE_MINUTES . ' minutes).',
         ], [
-            'status'          => self::STATUS_RUNNING,
-            ['last_heartbeat' => ['<', $cutoff]],
+            'status'         => self::STATUS_RUNNING,
+            'last_heartbeat' => ['<', $cutoff],
         ]);
     }
 

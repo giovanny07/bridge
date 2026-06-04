@@ -106,6 +106,43 @@ class Connection extends CommonDBTM
         return $result;
     }
 
+    /**
+     * Cascade-delete all plugin data associated with this connection when it
+     * is purged.  Without this, records in migrations/cursors/jobs/logs tables
+     * become orphaned and pollute the database.
+     */
+    /**
+     * Cascade-delete all plugin data associated with this connection when it
+     * is purged.  Without this, records in migrations/cursors/jobs/logs tables
+     * become orphaned and pollute the database.
+     */
+    public function post_purgeItem(): void
+    {
+        global $DB;
+
+        $id = (int) $this->fields['id'];
+
+        // Collect job IDs before deleting jobs (logs reference them)
+        $jobIds = [];
+        foreach ($DB->request(['SELECT' => ['id'], 'FROM' => 'glpi_plugin_bridge_jobs', 'WHERE' => ['connections_id' => $id]]) as $row) {
+            $jobIds[] = (int) $row['id'];
+        }
+
+        // Delete operational logs for those jobs
+        if (!empty($jobIds)) {
+            $DB->delete('glpi_plugin_bridge_job_logs', ['jobs_id' => $jobIds]);
+        }
+
+        // Delete remaining related tables
+        foreach ([
+            'glpi_plugin_bridge_jobs',
+            'glpi_plugin_bridge_cursors',
+            'glpi_plugin_bridge_migrations',
+        ] as $table) {
+            $DB->delete($table, ['connections_id' => $id]);
+        }
+    }
+
     public function prepareInputForAdd($input): array|bool
     {
         $input['date_creation'] = $_SESSION['glpi_currenttime'];
