@@ -26,8 +26,9 @@ class MigrationCursor extends CommonDBTM
     public const STATUS_COMPLETED = 'completed';
     public const STATUS_CANCELLED = 'cancelled';
 
-    /** Pages processed per run in chronological (from_date) mode. */
-    public const CHUNK_PAGES = 40;
+    /** Pages processed per run in chronological (from_date) mode.
+     *  20 pages × 50 records × ~300ms API = ~6 s per cron tick. */
+    public const CHUNK_PAGES = 20;
 
     public static function getTable($classname = null): string
     {

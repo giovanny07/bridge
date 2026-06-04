@@ -20,11 +20,14 @@ function plugin_init_bridge(): void
     // Register background job processor (runs every 60 seconds).
     // The itemtype must be the full class name so GLPI 11 (PSR-4) can
     // locate the static method BridgeJob::cronProcessJobs().
+    // MODE_EXTERNAL: runs only via OS cron/CLI, NOT inside web requests.
+    // MODE_INTERNAL blocks GLPI since each chunk makes ~40 external API calls
+    // (~12 s) while holding a PHP worker thread.
     CronTask::register(BridgeJob::class, 'ProcessJobs', 60, [
         'state'          => CronTask::STATE_WAITING,
-        'mode'           => CronTask::MODE_INTERNAL,
+        'mode'           => CronTask::MODE_EXTERNAL,
         'logs_lifetime'  => 7,
-        'comment'        => 'Process pending Bridge migration jobs',
+        'comment'        => 'Process pending Bridge migration jobs (external mode — run via OS cron)',
     ]);
 
     $PLUGIN_HOOKS['config_page']['bridge'] = 'front/config.form.php';

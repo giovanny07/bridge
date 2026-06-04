@@ -178,8 +178,8 @@ try {
         echo '</div>';
     }
 } catch (Throwable $e) {
-    // Log to GLPI so it appears in the error log
-    \Toolbox::logError('Bridge plugin error in migrate.php: ' . $e->getMessage() . ' in ' . $e->getFile() . ':' . $e->getLine());
+    // Log to PHP error log (Toolbox::logError removed in GLPI 11)
+    error_log('Bridge plugin error in migrate.php: ' . $e->getMessage() . ' in ' . $e->getFile() . ':' . $e->getLine());
 
     $msg  = $e->getMessage();
     $hint = '';
