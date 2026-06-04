@@ -97,10 +97,26 @@ class MigrationRecord extends CommonDBTM
         try {
             $DB->request(['SELECT' => [new \QueryExpression('1')], 'FROM' => self::getTable(), 'LIMIT' => 0]);
         } catch (\Throwable) {
-            // Reconnect if the ping fails
-            if (method_exists($DB, 'checkConnectionAndReconnect')) {
-                $DB->checkConnectionAndReconnect();
-            }
+            self::reconnectDB($DB);
+        }
+    }
+
+    /**
+     * Reconnects across GLPI versions.
+     */
+    private static function reconnectDB(object $DB): void
+    {
+        if (method_exists($DB, 'checkConnectionAndReconnect')) {
+            $DB->checkConnectionAndReconnect();
+            return;
+        }
+
+        if (method_exists($DB, 'close')) {
+            @$DB->close();
+        }
+
+        if (method_exists($DB, 'connect')) {
+            $DB->connect();
         }
     }
 
