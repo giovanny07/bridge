@@ -122,24 +122,32 @@ class Connection extends CommonDBTM
 
         $id = (int) $this->fields['id'];
 
-        // Collect job IDs before deleting jobs (logs reference them)
-        $jobIds = [];
-        foreach ($DB->request(['SELECT' => ['id'], 'FROM' => 'glpi_plugin_bridge_jobs', 'WHERE' => ['connections_id' => $id]]) as $row) {
-            $jobIds[] = (int) $row['id'];
-        }
+        try {
+            // Collect job IDs before deleting jobs (logs reference them)
+            $jobIds = [];
+            if ($DB->tableExists('glpi_plugin_bridge_jobs')) {
+                foreach ($DB->request(['SELECT' => ['id'], 'FROM' => 'glpi_plugin_bridge_jobs', 'WHERE' => ['connections_id' => $id]]) as $row) {
+                    $jobIds[] = (int) $row['id'];
+                }
+            }
 
-        // Delete operational logs for those jobs
-        if (!empty($jobIds)) {
-            $DB->delete('glpi_plugin_bridge_job_logs', ['jobs_id' => $jobIds]);
-        }
+            // Delete operational logs for those jobs
+            if (!empty($jobIds) && $DB->tableExists('glpi_plugin_bridge_job_logs')) {
+                $DB->delete('glpi_plugin_bridge_job_logs', ['jobs_id' => $jobIds]);
+            }
 
-        // Delete remaining related tables
-        foreach ([
-            'glpi_plugin_bridge_jobs',
-            'glpi_plugin_bridge_cursors',
-            'glpi_plugin_bridge_migrations',
-        ] as $table) {
-            $DB->delete($table, ['connections_id' => $id]);
+            // Delete remaining related tables (skip if not yet created)
+            foreach ([
+                'glpi_plugin_bridge_jobs'        => 'connections_id',
+                'glpi_plugin_bridge_cursors'     => 'connections_id',
+                'glpi_plugin_bridge_migrations'  => 'connections_id',
+            ] as $table => $fk) {
+                if ($DB->tableExists($table)) {
+                    $DB->delete($table, [$fk => $id]);
+                }
+            }
+        } catch (\Throwable) {
+            // Silently ignore cleanup errors — the connection itself is already deleted
         }
     }
 
