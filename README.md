@@ -4,7 +4,9 @@ Bridge is a **GLPI 11** plugin for migrating ITSM data from external platforms i
 
 ---
 
-## Status — v0.9.0
+## Status — v1.0.0
+
+> **First stable release.** All core migration features, background job system, and UX hardening are complete.
 
 | Feature | Status |
 |---------|--------|
@@ -26,6 +28,12 @@ Bridge is a **GLPI 11** plugin for migrating ITSM data from external platforms i
 | Incident vs Service Request type mapping | Done |
 | User synchronisation from source system | Done |
 | Migration history with search, pagination, per-row purge, and partial status | Done |
+| **Background job system** — BridgeJob + GLPI CronTask (60s polling) | Done |
+| **Resumable migrations** — cursor-based chunked processing (40 pages/chunk) | Done |
+| **Live progress UI** — real-time feed, stats, logs per chunk | Done |
+| **Job management** — cancel, retry job, retry failed records, job list | Done |
+| **Hardening** — concurrent job blocking, input validation, cascade delete | Done |
+| Readable scan results with state/priority badges | Done |
 
 ---
 
@@ -50,10 +58,15 @@ composer install --no-dev
 
 In GLPI: **Setup > Plugins > Bridge > Install > Enable**.
 
-The installation creates two tables:
+The installation creates the following tables:
 
 - `glpi_plugin_bridge_connections` — source system connection records
 - `glpi_plugin_bridge_migrations` — per-record migration audit log
+- `glpi_plugin_bridge_cursors` — resumable migration cursors
+- `glpi_plugin_bridge_jobs` — background migration job queue
+- `glpi_plugin_bridge_job_logs` — operational log per chunk
+
+It also registers a GLPI automatic action **Bridge ProcessJobs** (60 s interval) that processes queued migration jobs in the background.
 
 ---
 
@@ -70,8 +83,10 @@ bridge/
 │   ├── config.form.php                POST handler (add / update / purge connection)
 │   ├── scan.php                       Read-only discovery scan
 │   ├── dryrun.php                     Dry-run preview
-│   ├── migrate.php                    Migration engine front controller
+│   ├── migrate.php                    Creates migration job and redirects to status
 │   ├── migration_history.php          History view with purge / retry
+│   ├── job_status.php                 Live job progress page
+│   ├── jobs.php                       Job list per connection
 │   └── sync_users.php                 User synchronisation front controller
 ├── src/
 │   ├── Config.php                     Bridge tab in GLPI General Setup
@@ -99,6 +114,7 @@ bridge/
 │       ├── DryRunPage.php             UI: resource selector and resolution table
 │       ├── MigratePage.php            UI: migration form and results
 │       ├── HistoryPage.php            UI: history with search, pagination, and actions
+│       ├── JobStatusPage.php          UI: live job progress with polling
 │       └── SyncUsersPage.php          UI: user sync form and results
 ├── locales/                           Translations: en_GB, es_ES, pt_BR
 ├── tools/
