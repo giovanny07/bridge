@@ -214,8 +214,8 @@ class MigrationCursor extends CommonDBTM
                 `scanned_total`  int          NOT NULL DEFAULT 0,
                 `status`         varchar(16)  NOT NULL DEFAULT 'active',
                 `options_json`   text,
-                `started_at`     datetime     NOT NULL,
-                `updated_at`     datetime     NOT NULL,
+                `started_at`     timestamp    NOT NULL,
+                `updated_at`     timestamp    NOT NULL,
                 PRIMARY KEY (`id`),
                 KEY `slot` (`connections_id`, `resource_type`, `options_hash`, `status`)
             ) ENGINE=InnoDB DEFAULT CHARSET={$cs} COLLATE={$coll} ROW_FORMAT=DYNAMIC;

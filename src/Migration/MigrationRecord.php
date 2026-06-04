@@ -343,7 +343,7 @@ class MigrationRecord extends CommonDBTM
                 `tickets_id`     int {$ks} NOT NULL DEFAULT 0,
                 `status`         varchar(16) NOT NULL DEFAULT 'success',
                 `error_message`  text,
-                `migrated_at`    datetime NOT NULL,
+                `migrated_at`    timestamp NOT NULL,
                 `migrated_by`    int {$ks} NOT NULL DEFAULT 0,
                 PRIMARY KEY (`id`),
                 KEY `connections_id` (`connections_id`),

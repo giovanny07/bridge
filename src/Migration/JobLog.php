@@ -115,7 +115,7 @@ class JobLog
                 `id`           int {$ks} NOT NULL AUTO_INCREMENT,
                 `jobs_id`      int {$ks} NOT NULL DEFAULT 0,
                 `chunk`        int          NOT NULL DEFAULT 0,
-                `logged_at`    datetime     NOT NULL,
+                `logged_at`    timestamp    NOT NULL,
                 `pages_read`   int          NOT NULL DEFAULT 0,
                 `scanned`      int          NOT NULL DEFAULT 0,
                 `created`      int          NOT NULL DEFAULT 0,

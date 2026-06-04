@@ -479,8 +479,11 @@ class BridgeJob extends CommonDBTM
         return $rows;
     }
 
-    public static function getById(int $id): ?self
+    public static function getById(?int $id): ?self
     {
+        if ($id === null || $id <= 0) {
+            return null;
+        }
         $job = new self();
         if (!$job->getFromDB($id)) {
             return null;
@@ -552,10 +555,10 @@ class BridgeJob extends CommonDBTM
                 `stats_json`     text,
                 `error_message`  text,
                 `created_by`     int {$ks} NOT NULL DEFAULT 0,
-                `created_at`     datetime     NOT NULL,
-                `started_at`     datetime     DEFAULT NULL,
-                `finished_at`    datetime     DEFAULT NULL,
-                `last_heartbeat` datetime     DEFAULT NULL,
+                `created_at`     timestamp    NOT NULL,
+                `started_at`     timestamp    DEFAULT NULL,
+                `finished_at`    timestamp    DEFAULT NULL,
+                `last_heartbeat` timestamp    DEFAULT NULL,
                 PRIMARY KEY (`id`),
                 KEY `status`    (`status`),
                 KEY `connection`(`connections_id`, `resource_type`, `status`)
