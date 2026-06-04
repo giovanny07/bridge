@@ -163,11 +163,31 @@ try {
         exit;
     }
 } catch (Throwable $e) {
-    echo '<div class="alert alert-danger m-3">';
-    echo htmlspecialchars($e->getMessage(), ENT_QUOTES, 'UTF-8');
+    // Log to GLPI so it appears in the error log
+    \Toolbox::logError('Bridge plugin error in migrate.php: ' . $e->getMessage() . ' in ' . $e->getFile() . ':' . $e->getLine());
+
+    $msg  = $e->getMessage();
+    $hint = '';
+
+    // Detect missing tables (plugin not reinstalled after update)
+    if (str_contains($msg, "doesn't exist") || str_contains($msg, 'Table') || str_contains($msg, 'glpi_plugin_bridge')) {
+        $hint = __("A required plugin table is missing. Please go to Setup → Plugins → Bridge → Uninstall → Install to recreate the tables, then try again.", 'bridge');
+    }
+
+    echo '<div class="container-fluid p-4" style="max-width:700px">';
+    echo '<div class="alert alert-danger">';
+    echo '<h5 class="alert-heading"><i class="ti ti-alert-circle me-1"></i>' . htmlspecialchars(__('Migration error', 'bridge'), ENT_QUOTES, 'UTF-8') . '</h5>';
+    if ($msg !== '') {
+        echo '<p class="mb-0"><code>' . htmlspecialchars($msg, ENT_QUOTES, 'UTF-8') . '</code></p>';
+    }
+    if ($hint !== '') {
+        echo '<hr><p class="mb-0"><i class="ti ti-info-circle me-1"></i>' . htmlspecialchars($hint, ENT_QUOTES, 'UTF-8') . '</p>';
+    }
     echo '</div>';
-    echo '<div class="m-3"><a class="btn btn-secondary" href="' . htmlspecialchars(Connection::getConfigURL($id), ENT_QUOTES, 'UTF-8') . '">';
-    echo __('Back', 'bridge') . '</a></div>';
+    echo '<a class="btn btn-secondary" href="' . htmlspecialchars(Connection::getConfigURL($id), ENT_QUOTES, 'UTF-8') . '">';
+    echo '<i class="ti ti-arrow-left me-1"></i>' . htmlspecialchars(__('Back', 'bridge'), ENT_QUOTES, 'UTF-8');
+    echo '</a>';
+    echo '</div>';
 }
 
 Html::footer();
