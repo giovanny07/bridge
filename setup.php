@@ -17,8 +17,10 @@ function plugin_init_bridge(): void
     Plugin::registerClass(Config::class, ['addtabon' => \Config::class]);
     Plugin::registerClass(BridgeJob::class);
 
-    // Register background job processor (runs every 60 seconds)
-    CronTask::register('bridge', 'ProcessJobs', 60, [
+    // Register background job processor (runs every 60 seconds).
+    // The itemtype must be the full class name so GLPI 11 (PSR-4) can
+    // locate the static method BridgeJob::cronProcessJobs().
+    CronTask::register(BridgeJob::class, 'ProcessJobs', 60, [
         'state'          => CronTask::STATE_WAITING,
         'mode'           => CronTask::MODE_INTERNAL,
         'logs_lifetime'  => 7,
@@ -51,11 +53,6 @@ function plugin_version_bridge(): array
     ];
 }
 
-/** GLPI cron callback — called once per minute when jobs are pending. */
-function plugin_bridge_ProcessJobs(CronTask $task): int
-{
-    return BridgeJob::cronProcessJobs($task);
-}
 
 function plugin_bridge_check_prerequisites(): bool
 {
