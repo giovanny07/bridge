@@ -263,6 +263,25 @@ class MigrationRecord extends CommonDBTM
         return 0;
     }
 
+    /**
+     * Returns the N most recent migration records for a connection+type,
+     * ordered newest first. Used for live progress display on the job status page.
+     */
+    public static function getRecent(int $connectionId, string $resourceType, int $limit = 20): array
+    {
+        global $DB;
+        $rows = [];
+        foreach ($DB->request([
+            'FROM'   => self::getTable(),
+            'WHERE'  => ['connections_id' => $connectionId, 'source_type' => $resourceType],
+            'ORDER'  => ['migrated_at DESC'],
+            'LIMIT'  => $limit,
+        ]) as $row) {
+            $rows[] = $row;
+        }
+        return $rows;
+    }
+
     public static function getHistory(int $connectionId, array $filters = [], int $limit = 100, int $offset = 0): array
     {
         global $DB;

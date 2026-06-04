@@ -31,5 +31,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 }
 
-$includeLogs = isset($_GET['logs']);
-echo json_encode(BridgeJob::getStatusPayload($jobId, $includeLogs));
+$includeLogs   = isset($_GET['logs']);
+$includeRecent = isset($_GET['recent']);
+echo json_encode(BridgeJob::getStatusPayload($jobId, $includeLogs, $includeRecent));

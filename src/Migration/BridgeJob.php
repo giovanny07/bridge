@@ -440,7 +440,7 @@ class BridgeJob extends CommonDBTM
         return $job;
     }
 
-    public static function getStatusPayload(int $id, bool $includeLogs = false): array
+    public static function getStatusPayload(int $id, bool $includeLogs = false, bool $includeRecent = false): array
     {
         $job = self::getById($id);
         if ($job === null) {
@@ -459,6 +459,22 @@ class BridgeJob extends CommonDBTM
         ];
         if ($includeLogs) {
             $payload['logs'] = JobLog::forJob($id);
+        }
+        if ($includeRecent) {
+            $records = MigrationRecord::getRecent($job->connectionId(), $job->resourceType(), 25);
+            // Build GLPI ticket URL per record
+            $glpiClass = match ($job->resourceType()) {
+                'problems' => 'Problem',
+                'changes'  => 'Change',
+                default    => 'Ticket',
+            };
+            foreach ($records as &$r) {
+                $r['glpi_url'] = (int) ($r['tickets_id'] ?? 0) > 0
+                    ? $glpiClass::getFormURLWithID((int) $r['tickets_id'])
+                    : null;
+            }
+            unset($r);
+            $payload['recent'] = $records;
         }
         return $payload;
     }

@@ -86,6 +86,28 @@ class JobStatusPage
             echo '</div>';
         }
 
+        // ── Recent migrations (live feed) ────────────────────────────────
+        echo '<div class="card border-0 shadow-sm mb-3">';
+        echo '<div class="card-header bg-light border-0 d-flex align-items-center justify-content-between py-2">';
+        echo '<span class="fw-semibold small"><i class="ti ti-list-check me-1"></i>';
+        echo self::h(__('Recent migrations', 'bridge')) . '</span>';
+        echo '<span class="badge bg-secondary" id="bridge-recent-count">0</span>';
+        echo '</div>';
+        echo '<div class="table-responsive" style="max-height:380px;overflow-y:auto">';
+        echo '<table class="table table-sm table-hover mb-0" style="font-size:.78rem">';
+        echo '<thead class="table-light sticky-top"><tr>';
+        echo '<th class="text-muted fw-normal">' . self::h(__('Time', 'bridge')) . '</th>';
+        echo '<th class="text-muted fw-normal">#SW</th>';
+        echo '<th class="fw-normal">' . self::h(__('Name', 'bridge')) . '</th>';
+        echo '<th class="text-muted fw-normal">' . self::h(__('Status', 'bridge')) . '</th>';
+        echo '<th class="fw-normal">GLPI</th>';
+        echo '</tr></thead>';
+        echo '<tbody id="bridge-recent-tbody">';
+        echo '<tr><td colspan="5" class="text-center text-muted py-3">';
+        echo '<i class="ti ti-clock me-1"></i>' . self::h(__('Waiting for the first batch to complete…', 'bridge'));
+        echo '</td></tr>';
+        echo '</tbody></table></div></div>';
+
         // ── Operational logs ──────────────────────────────────────────────
         echo '<details id="bridge-log-details" class="mb-3">';
         echo '<summary class="text-muted small" style="cursor:pointer;user-select:none">';
@@ -182,6 +204,42 @@ class JobStatusPage
         }
     }
 
+    var statusColors = {
+        'success': 'bg-success',
+        'failed':  'bg-danger',
+        'skipped': 'bg-secondary',
+        'warning': 'bg-warning text-dark',
+    };
+
+    function renderRecent(records) {
+        if (!records) return;
+        var tbody = document.getElementById('bridge-recent-tbody');
+        var count = document.getElementById('bridge-recent-count');
+        if (!tbody) return;
+        count.textContent = records.length;
+        if (!records.length) return;
+        tbody.innerHTML = records.map(function(r) {
+            var status = r.status || 'skipped';
+            var badge  = '<span class="badge ' + (statusColors[status] || 'bg-secondary') + '">' + status + '</span>';
+            var name   = (r.name || '').substring(0, 55);
+            var glpi   = r.glpi_url && r.tickets_id > 0
+                ? '<a href="' + r.glpi_url + '" target="_blank" class="text-decoration-none">#' + r.tickets_id + ' <i class="ti ti-external-link" style="font-size:.7rem"></i></a>'
+                : '<span class="text-muted">—</span>';
+            var time   = (r.migrated_at || '').substring(11, 19);
+            var row    = '<tr>'
+                + '<td class="text-muted">' + time + '</td>'
+                + '<td class="text-muted font-monospace">' + (r.source_number || '') + '</td>'
+                + '<td>' + name.replace(/</g,'&lt;') + '</td>'
+                + '<td>' + badge + '</td>'
+                + '<td>' + glpi + '</td>'
+                + '</tr>';
+            if (r.error_message) {
+                row += '<tr><td colspan="5" class="text-danger small px-3 pb-1">↳ ' + r.error_message.substring(0, 120).replace(/</g,'&lt;') + '</td></tr>';
+            }
+            return row;
+        }).join('');
+    }
+
     function renderLogs(logs) {
         if (!logs || !logs.length) return;
         var tbody = document.getElementById('bridge-log-tbody');
@@ -209,9 +267,13 @@ class JobStatusPage
 
     function poll() {
         if (finished) return;
-        fetch(ajaxUrl + '?job_id=' + jobId + '&logs=1', { credentials: 'same-origin' })
+        fetch(ajaxUrl + '?job_id=' + jobId + '&logs=1&recent=1', { credentials: 'same-origin' })
             .then(function(r) { return r.json(); })
-            .then(function(data) { update(data); renderLogs(data.logs); })
+            .then(function(data) {
+                update(data);
+                renderRecent(data.recent);
+                renderLogs(data.logs);
+            })
             .catch(function() {});
     }
 
