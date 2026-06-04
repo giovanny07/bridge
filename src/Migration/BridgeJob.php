@@ -6,6 +6,7 @@ use CommonDBTM;
 use CronTask;
 use DBConnection;
 use GlpiPlugin\Bridge\Connector\ConnectorFactory;
+use GlpiPlugin\Bridge\Migration\JobLog;
 use GlpiPlugin\Bridge\Resolver\GlpiResolver;
 use Migration;
 
@@ -184,6 +185,7 @@ class BridgeJob extends CommonDBTM
         $task->log('Processing job #' . $job->id() . ' (' . $job->resourceType() . ')');
 
         $job->markRunning();
+        $chunkStart = microtime(true);
 
         try {
             $connection = new \GlpiPlugin\Bridge\Connection();
@@ -212,6 +214,29 @@ class BridgeJob extends CommonDBTM
 
             [$result, $cursor] = $engine->run($options, $cursor);
 
+            $durationMs = (int) round((microtime(true) - $chunkStart) * 1000);
+
+            // Collect error messages from this chunk for the log
+            $chunkErrors = array_map(
+                static fn(array $r) => sprintf('#%s %s: %s', $r['number'] ?? '?', mb_substr($r['name'] ?? '', 0, 40), $r['reason'] ?? ''),
+                $result->failed
+            );
+
+            // Append operational log entry
+            $chunkNumber = JobLog::chunkCount($job->id()) + 1;
+            JobLog::append(
+                jobId:       $job->id(),
+                chunk:       $chunkNumber,
+                pagesRead:   (int) ($result->stats['api_pages'] ?? 0),
+                scanned:     (int) ($result->stats['scanned']   ?? 0),
+                created:     count($result->created),
+                failed:      count($result->failed),
+                skipped:     count($result->skipped),
+                durationMs:  $durationMs,
+                cursorPage:  $cursor?->currentPage() ?? 0,
+                errors:      $chunkErrors
+            );
+
             // Merge stats with accumulated totals
             $prev  = $job->stats();
             $stats = [
@@ -220,14 +245,15 @@ class BridgeJob extends CommonDBTM
                 'skipped'   => ($prev['skipped']    ?? 0) + count($result->skipped),
                 'scanned'   => ($prev['scanned']    ?? 0) + (int) ($result->stats['scanned']   ?? 0),
                 'api_pages' => ($prev['api_pages']  ?? 0) + (int) ($result->stats['api_pages'] ?? 0),
+                'chunks'    => $chunkNumber,
+                'duration_ms_total' => ($prev['duration_ms_total'] ?? 0) + $durationMs,
             ];
 
             $task->log(sprintf(
-                'Job #%d chunk done: +%d created, %d scanned, cursor at page %d',
-                $job->id(),
-                count($result->created),
-                (int) ($result->stats['scanned'] ?? 0),
-                $cursor?->currentPage() ?? 0
+                'Job #%d chunk #%d done in %dms: +%d created, %d scanned, %d failed, cursor page %d',
+                $job->id(), $chunkNumber, $durationMs,
+                count($result->created), (int) ($result->stats['scanned'] ?? 0),
+                count($result->failed), $cursor?->currentPage() ?? 0
             ));
 
             // Done when cursor is completed or no cursor was used (by-IDs / recent mode)
@@ -235,7 +261,7 @@ class BridgeJob extends CommonDBTM
 
             if ($done) {
                 $job->complete($stats);
-                $task->log('Job #' . $job->id() . ' completed.');
+                $task->log('Job #' . $job->id() . ' completed. Total: ' . $stats['created'] . ' created in ' . $chunkNumber . ' chunks.');
             } else {
                 $job->heartbeat($stats);
                 // Re-queue for next cron tick
@@ -276,13 +302,13 @@ class BridgeJob extends CommonDBTM
         return $job;
     }
 
-    public static function getStatusPayload(int $id): array
+    public static function getStatusPayload(int $id, bool $includeLogs = false): array
     {
         $job = self::getById($id);
         if ($job === null) {
             return ['error' => 'Job not found'];
         }
-        return [
+        $payload = [
             'id'             => $job->id(),
             'status'         => $job->status(),
             'resource_type'  => $job->resourceType(),
@@ -293,6 +319,10 @@ class BridgeJob extends CommonDBTM
             'finished_at'    => (string) ($job->fields['finished_at']   ?? ''),
             'last_heartbeat' => (string) ($job->fields['last_heartbeat'] ?? ''),
         ];
+        if ($includeLogs) {
+            $payload['logs'] = JobLog::forJob($id);
+        }
+        return $payload;
     }
 
     // ------------------------------------------------------------------ //

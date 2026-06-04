@@ -20,4 +20,5 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['cancel'])) {
     }
 }
 
-echo json_encode(BridgeJob::getStatusPayload($jobId));
+$includeLogs = isset($_GET['logs']);
+echo json_encode(BridgeJob::getStatusPayload($jobId, $includeLogs));

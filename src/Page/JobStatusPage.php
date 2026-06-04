@@ -75,6 +75,29 @@ class JobStatusPage
             echo '</div>';
         }
 
+        // ── Operational logs ──────────────────────────────────────────────
+        echo '<details id="bridge-log-details" class="mb-3">';
+        echo '<summary class="text-muted small" style="cursor:pointer;user-select:none">';
+        echo '<i class="ti ti-terminal me-1"></i>';
+        echo self::h(__('Operational logs', 'bridge'));
+        echo ' <span class="badge bg-secondary ms-1" id="bridge-log-count">0</span>';
+        echo '</summary>';
+        echo '<div class="mt-2 table-responsive">';
+        echo '<table class="table table-sm table-hover mb-0" style="font-size:.78rem">';
+        echo '<thead class="table-light"><tr>';
+        echo '<th class="text-muted fw-normal">#</th>';
+        echo '<th class="text-muted fw-normal">' . self::h(__('Time', 'bridge')) . '</th>';
+        echo '<th class="text-muted fw-normal">' . self::h(__('Pages', 'bridge')) . '</th>';
+        echo '<th class="text-muted fw-normal">' . self::h(__('Scanned', 'bridge')) . '</th>';
+        echo '<th class="text-muted fw-normal text-success">' . self::h(__('Created', 'bridge')) . '</th>';
+        echo '<th class="text-muted fw-normal text-danger">' . self::h(__('Failed', 'bridge')) . '</th>';
+        echo '<th class="text-muted fw-normal">' . self::h(__('Duration', 'bridge')) . '</th>';
+        echo '<th class="text-muted fw-normal">' . self::h(__('Cursor page', 'bridge')) . '</th>';
+        echo '</tr></thead>';
+        echo '<tbody id="bridge-log-tbody"><tr><td colspan="8" class="text-center text-muted py-2">';
+        echo self::h(__('No log entries yet.', 'bridge')) . '</td></tr></tbody>';
+        echo '</table></div></details>';
+
         echo '</div>'; // container
 
         // ── JS polling ────────────────────────────────────────────────────
@@ -148,11 +171,36 @@ class JobStatusPage
         }
     }
 
+    function renderLogs(logs) {
+        if (!logs || !logs.length) return;
+        var tbody = document.getElementById('bridge-log-tbody');
+        document.getElementById('bridge-log-count').textContent = logs.length;
+        tbody.innerHTML = logs.map(function(l) {
+            var err = '';
+            if (l.errors_json) {
+                try {
+                    var errs = JSON.parse(l.errors_json);
+                    if (errs.length) err = '<div class="text-danger mt-1 small">' + errs.slice(0,3).map(function(e){ return '• ' + e; }).join('<br>') + '</div>';
+                } catch(e) {}
+            }
+            return '<tr>' +
+                '<td class="text-muted">' + l.chunk + '</td>' +
+                '<td class="text-muted">' + (l.logged_at || '').substring(11,19) + '</td>' +
+                '<td>' + l.pages_read + '</td>' +
+                '<td>' + l.scanned + '</td>' +
+                '<td class="text-success">' + l.created + '</td>' +
+                '<td class="text-danger">' + l.failed + '</td>' +
+                '<td>' + (l.duration_ms > 999 ? (l.duration_ms/1000).toFixed(1) + 's' : l.duration_ms + 'ms') + '</td>' +
+                '<td>' + (l.cursor_page || '—') + '</td>' +
+                '</tr>' + (err ? '<tr><td colspan="8">' + err + '</td></tr>' : '');
+        }).join('');
+    }
+
     function poll() {
         if (finished) return;
-        fetch(ajaxUrl + '?job_id=' + jobId, { credentials: 'same-origin' })
+        fetch(ajaxUrl + '?job_id=' + jobId + '&logs=1', { credentials: 'same-origin' })
             .then(function(r) { return r.json(); })
-            .then(update)
+            .then(function(data) { update(data); renderLogs(data.logs); })
             .catch(function() {});
     }
 
