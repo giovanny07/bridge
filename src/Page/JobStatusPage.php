@@ -90,7 +90,7 @@ class JobStatusPage
             } else {
                 echo '<strong>' . self::h(__('GLPI scheduler may not be running.', 'bridge')) . '</strong> ';
                 echo self::h(__('The job is queued but will not start until the scheduler runs.', 'bridge'));
-                echo ' <a href="' . self::h(\Toolbox::getItemTypeFormURL('CronTask')) . '" target="_blank" class="alert-link">';
+                echo ' <a href="' . self::h(\Plugin::getWebDir('', false) . '/front/crontask.php') . '" target="_blank" class="alert-link">';
                 echo self::h(__('Check Automatic Actions', 'bridge')) . '</a>.';
             }
             echo '</div>';
