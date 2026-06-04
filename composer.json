@@ -1,7 +1,7 @@
 {
     "name": "imagunet/bridge",
     "description": "GLPI plugin to scan and migrate ITSM/ITAM data from external platforms.",
-    "version": "0.9.2",
+    "version": "0.9.3",
     "license": "GPL-3.0-or-later",
     "require": {
         "php": ">=8.1"
