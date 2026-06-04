@@ -12,13 +12,14 @@ class MigrationResult
     public array $skipped = [];
     /** @var array<string,int> lightweight pipeline counters for observability */
     public array $stats = [
-        'api_pages'         => 0,
-        'scanned'           => 0,
-        'date_matched'      => 0,
-        'duplicates'        => 0,
-        'queued'            => 0,
-        'comments_requests' => 0,
-        'mapped'            => 0,
+        'api_pages'          => 0,
+        'scanned'            => 0,
+        'date_matched'       => 0,
+        'duplicates'         => 0,
+        'queued'             => 0,
+        'comments_requests'  => 0,
+        'mapped'             => 0,
+        'stopped_empty_pages'=> 0,
     ];
 
     public bool $isDryRun = false;

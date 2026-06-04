@@ -126,11 +126,20 @@ class MigrationEngine
         }
 
         $filters = $this->buildFilters($options);
-        $perPage = min(self::PER_PAGE, $limit);
+        // Always use full page size regardless of limit.
+        // Using min(PER_PAGE, limit) meant limit=10 → 10 records/page → 18 750 pages
+        // for 187 500 tickets — the binary search and scan loop hit PHP timeout before
+        // finding any un-migrated records in a large already-partially-migrated dataset.
+        $perPage = self::PER_PAGE;
         $chronologicalFromDate = !empty($options['created_after']) && $startPage === 1;
         $page = $chronologicalFromDate
             ? $this->findCreatedAfterBoundaryPage($filters, (string) $options['created_after'], $perPage)
             : $startPage;
+
+        // Safety: stop scanning after this many pages with no new records found.
+        // Prevents indefinite PHP execution when the date range is fully migrated.
+        $maxEmptyPages   = 100;
+        $consecutiveEmpty = 0;
 
         while ($this->attemptedTotal($result) < $limit) {
             $batch = $this->listBatch($filters, $page, $perPage);
@@ -146,11 +155,21 @@ class MigrationEngine
                 : $batch['records'];
             [$records, $alreadyMigrated] = $this->prepareBatchRecords($records, $options, $isDryRun, $result);
 
-            foreach ($records as $incident) {
-                if ($this->attemptedTotal($result) >= $limit) {
+            if (empty($records)) {
+                // Entire page was already migrated or filtered out — track consecutive empty pages
+                $consecutiveEmpty++;
+                if ($consecutiveEmpty >= $maxEmptyPages) {
+                    $result->incStat('stopped_empty_pages');
                     break;
                 }
-                $this->processIncident($incident, $mapper, $includeComm, $includeAtt, $keepPrivate, $isDryRun, $result, $alreadyMigrated);
+            } else {
+                $consecutiveEmpty = 0; // reset on any page with new records
+                foreach ($records as $incident) {
+                    if ($this->attemptedTotal($result) >= $limit) {
+                        break;
+                    }
+                    $this->processIncident($incident, $mapper, $includeComm, $includeAtt, $keepPrivate, $isDryRun, $result, $alreadyMigrated);
+                }
             }
 
             if (count($batch['records']) < $perPage) {
