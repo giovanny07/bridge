@@ -136,11 +136,6 @@ class MigrationEngine
             ? $this->findCreatedAfterBoundaryPage($filters, (string) $options['created_after'], $perPage)
             : $startPage;
 
-        // Safety: stop scanning after this many pages with no new records found.
-        // Prevents indefinite PHP execution when the date range is fully migrated.
-        $maxEmptyPages   = 100;
-        $consecutiveEmpty = 0;
-
         while ($this->attemptedTotal($result) < $limit) {
             $batch = $this->listBatch($filters, $page, $perPage);
             $result->incStat('api_pages');
@@ -155,21 +150,11 @@ class MigrationEngine
                 : $batch['records'];
             [$records, $alreadyMigrated] = $this->prepareBatchRecords($records, $options, $isDryRun, $result);
 
-            if (empty($records)) {
-                // Entire page was already migrated or filtered out — track consecutive empty pages
-                $consecutiveEmpty++;
-                if ($consecutiveEmpty >= $maxEmptyPages) {
-                    $result->incStat('stopped_empty_pages');
+            foreach ($records as $incident) {
+                if ($this->attemptedTotal($result) >= $limit) {
                     break;
                 }
-            } else {
-                $consecutiveEmpty = 0; // reset on any page with new records
-                foreach ($records as $incident) {
-                    if ($this->attemptedTotal($result) >= $limit) {
-                        break;
-                    }
-                    $this->processIncident($incident, $mapper, $includeComm, $includeAtt, $keepPrivate, $isDryRun, $result, $alreadyMigrated);
-                }
+                $this->processIncident($incident, $mapper, $includeComm, $includeAtt, $keepPrivate, $isDryRun, $result, $alreadyMigrated);
             }
 
             if (count($batch['records']) < $perPage) {

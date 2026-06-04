@@ -19,7 +19,6 @@ class MigrationResult
         'queued'             => 0,
         'comments_requests'  => 0,
         'mapped'             => 0,
-        'stopped_empty_pages'=> 0,
     ];
 
     public bool $isDryRun = false;
