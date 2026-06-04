@@ -32,8 +32,11 @@ if (!(int) ($connection->fields['is_active'] ?? 1)) {
     Html::redirect(Connection::getConfigURL($id));
 }
 
-$migrateUrl = Plugin::getWebDir('bridge', true) . '/front/migrate.php';
-$historyUrl = Plugin::getWebDir('bridge', true) . '/front/migration_history.php';
+// Build URLs relative to the current script so they work in both
+// /plugins/bridge/front/ and /marketplace/bridge/front/ contexts.
+$_frontDir   = rtrim(dirname($_SERVER['SCRIPT_NAME'] ?? ''), '/');
+$migrateUrl  = $_frontDir . '/migrate.php';
+$historyUrl  = $_frontDir . '/migration_history.php';
 
 Html::header(__('Migration', 'bridge'), '', 'config', 'plugins');
 
@@ -123,7 +126,7 @@ try {
         // ── P4: block concurrent jobs ─────────────────────────────────────
         $activeJob = BridgeJob::findActive($id, $resourceType);
         if ($activeJob !== null) {
-            $jobUrl = Plugin::getWebDir('bridge', true) . '/front/job_status.php?job_id=' . $activeJob->id();
+            $jobUrl = $_frontDir . '/job_status.php?job_id=' . $activeJob->id();
             Session::addMessageAfterRedirect(
                 sprintf(
                     __('A migration job for this connection is already %s. View it or wait for it to finish.', 'bridge'),
@@ -155,7 +158,9 @@ try {
         // with a direct link. Using Html::redirect() after Html::header() can
         // fail in some GLPI versions / contexts; an inline page is always safe.
         $job    = BridgeJob::create($id, $resourceType, $options, (int) ($_SESSION['glpiID'] ?? 0));
-        $jobUrl = Plugin::getWebDir('bridge', false) . '/front/job_status.php?job_id=' . $job->id();
+        // Build URL relative to the current script path so it works in both
+        // /plugins/bridge/front/ and /marketplace/bridge/front/ contexts.
+        $jobUrl = rtrim(dirname($_SERVER['SCRIPT_NAME'] ?? ''), '/') . '/job_status.php?job_id=' . $job->id();
 
         $h = static fn($v) => htmlspecialchars((string) $v, ENT_QUOTES, 'UTF-8');
         echo '<div class="container-fluid py-4 px-4" style="max-width:560px">';
