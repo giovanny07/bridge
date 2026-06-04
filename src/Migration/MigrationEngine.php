@@ -142,6 +142,7 @@ class MigrationEngine
             $records = $chronologicalFromDate
                 ? array_reverse($batch['records'])
                 : $batch['records'];
+            $alreadyMigrated = $isDryRun ? [] : $this->alreadyMigratedForRecords($records);
 
             foreach ($records as $incident) {
                 if ($this->attemptedTotal($result) >= $limit) {
@@ -150,7 +151,7 @@ class MigrationEngine
                 if (!$this->matchesLocalDateFilters($incident, $options)) {
                     continue;
                 }
-                $this->processIncident($incident, $mapper, $includeComm, $includeAtt, $keepPrivate, $isDryRun, $result);
+                $this->processIncident($incident, $mapper, $includeComm, $includeAtt, $keepPrivate, $isDryRun, $result, $alreadyMigrated);
             }
 
             if (count($batch['records']) < $perPage) {
@@ -225,6 +226,23 @@ class MigrationEngine
         return false;
     }
 
+    /**
+     * @param array<int,array<string,mixed>> $records
+     * @return array<string,true>
+     */
+    private function alreadyMigratedForRecords(array $records): array
+    {
+        $sourceIds = [];
+        foreach ($records as $record) {
+            $sourceId = (string) ($record['id'] ?? '');
+            if ($sourceId !== '') {
+                $sourceIds[] = $sourceId;
+            }
+        }
+
+        return MigrationRecord::getMigratedSourceIds($this->connectionId, $this->resourceType, $sourceIds);
+    }
+
     private function attemptedTotal(MigrationResult $result): int
     {
         return count($result->created) + count($result->failed);
@@ -270,17 +288,24 @@ class MigrationEngine
         bool            $includeAtt,
         bool            $keepPrivate,
         bool            $isDryRun,
-        MigrationResult $result
+        MigrationResult $result,
+        ?array          $alreadyMigrated = null
     ): void {
         $sourceId = (string) ($incident['id'] ?? '');
 
-        if (!$isDryRun && MigrationRecord::isAlreadyMigrated($this->connectionId, $this->resourceType, $sourceId)) {
-            $result->addSkipped($incident);
-            return;
+        if (!$isDryRun) {
+            $isAlreadyMigrated = $alreadyMigrated !== null
+                ? isset($alreadyMigrated[$sourceId])
+                : MigrationRecord::isAlreadyMigrated($this->connectionId, $this->resourceType, $sourceId);
+
+            if ($isAlreadyMigrated) {
+                $result->addSkipped($incident);
+                return;
+            }
         }
 
         $comments = [];
-        if ($includeComm) {
+        if ($includeComm && !$isDryRun) {
             try {
                 $comments = match ($this->resourceType) {
                     'problems' => $this->connector->getProblemComments((int) $sourceId),

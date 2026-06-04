@@ -51,6 +51,36 @@ class MigrationRecord extends CommonDBTM
         return false;
     }
 
+    /**
+     * @param string[] $sourceIds
+     * @return array<string,true>
+     */
+    public static function getMigratedSourceIds(int $connectionId, string $sourceType, array $sourceIds): array
+    {
+        global $DB;
+
+        $sourceIds = array_values(array_unique(array_filter(array_map('strval', $sourceIds))));
+        if ($sourceIds === []) {
+            return [];
+        }
+
+        $found = [];
+        foreach ($DB->request([
+            'SELECT' => ['source_id'],
+            'FROM'   => self::getTable(),
+            'WHERE'  => [
+                'connections_id' => $connectionId,
+                'source_type'    => $sourceType,
+                'source_id'      => $sourceIds,
+                'status'         => self::STATUS_SUCCESS,
+            ],
+        ]) as $row) {
+            $found[(string) $row['source_id']] = true;
+        }
+
+        return $found;
+    }
+
     public static function log(
         int    $connectionId,
         string $sourceType,
