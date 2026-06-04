@@ -157,23 +157,23 @@ class MigrationEngine
                 $this->processIncident($incident, $mapper, $includeComm, $includeAtt, $keepPrivate, $isDryRun, $result, $alreadyMigrated);
             }
 
-            if (count($batch['records']) < $perPage) {
-                break;
-            }
-
-            if (!$chronologicalFromDate) {
-                $totalPages = (int) ceil(max(0, (int) ($batch['total'] ?? 0)) / $perPage);
-                if ($totalPages > 0 && $page >= $totalPages) {
-                    break;
-                }
-            }
-
             if ($chronologicalFromDate) {
+                // Scanning backward (oldest → newest): the boundary page is the API's last page
+                // and may have fewer records than perPage — that must NOT stop the scan.
+                // Only stop when we have gone past page 1.
                 $page--;
                 if ($page < 1) {
                     break;
                 }
             } else {
+                // Scanning forward (newest → oldest): a partial page means we hit the end.
+                if (count($batch['records']) < $perPage) {
+                    break;
+                }
+                $totalPages = (int) ceil(max(0, (int) ($batch['total'] ?? 0)) / $perPage);
+                if ($totalPages > 0 && $page >= $totalPages) {
+                    break;
+                }
                 $page++;
             }
         }
