@@ -5,6 +5,7 @@ namespace GlpiPlugin\Bridge\Migration;
 use GlpiPlugin\Bridge\Contract\ConnectorInterface;
 use GlpiPlugin\Bridge\Contract\NormalizerInterface;
 use GlpiPlugin\Bridge\Resolver\GlpiResolver;
+use GlpiPlugin\Bridge\Migration\MigrationCursor;
 
 /**
  * Orchestrates the migration of source records into GLPI tickets.
@@ -81,13 +82,24 @@ class MigrationEngine
         };
     }
 
-    public function run(array $options): MigrationResult
+    /**
+     * Runs the migration engine, optionally resuming from a saved cursor.
+     *
+     * In from_date (chronological) mode the engine processes at most
+     * MigrationCursor::CHUNK_PAGES pages per call to stay within PHP
+     * max_execution_time.  The caller is responsible for persisting the
+     * returned cursor so the next run continues where this one stopped.
+     *
+     * @param  MigrationCursor|null $cursor  Existing cursor to resume, or null to start fresh.
+     * @return array{0:MigrationResult, 1:MigrationCursor|null}
+     */
+    public function run(array $options, ?MigrationCursor $cursor = null): array
     {
         $limit       = max(1, (int) ($options['limit'] ?? 50));
-        $includeComm    = (bool) ($options['include_comments'] ?? true);
-        $includeAtt     = (bool) ($options['include_attachments'] ?? false);
-        $keepPrivate    = (bool) ($options['keep_private_comments'] ?? false);
-        $isDryRun    = (bool) ($options['dry_run'] ?? false);
+        $includeComm = (bool) ($options['include_comments']      ?? true);
+        $includeAtt  = (bool) ($options['include_attachments']   ?? false);
+        $keepPrivate = (bool) ($options['keep_private_comments'] ?? false);
+        $isDryRun    = (bool) ($options['dry_run']               ?? false);
         $startPage   = max(1, (int) ($options['start_page'] ?? 1));
         $rawIds      = trim((string) ($options['source_ids'] ?? ''));
         $sourceIds   = $rawIds !== '' ? array_values(array_filter(array_map('trim', explode(',', $rawIds)))) : [];
@@ -103,6 +115,7 @@ class MigrationEngine
         $result           = new MigrationResult();
         $result->isDryRun = $isDryRun;
 
+        // ── By-IDs mode: no pagination, no cursor ────────────────────────
         if (!empty($sourceIds)) {
             foreach ($sourceIds as $rawId) {
                 $rawId = ltrim(trim($rawId), '#');
@@ -122,24 +135,47 @@ class MigrationEngine
                 }
                 $this->processIncident($record, $mapper, $includeComm, $includeAtt, $keepPrivate, $isDryRun, $result);
             }
-            return $result;
+            return [$result, null];
         }
 
+        // ── Paginated mode ────────────────────────────────────────────────
         $filters = $this->buildFilters($options);
-        // Always use full page size regardless of limit.
-        // Using min(PER_PAGE, limit) meant limit=10 → 10 records/page → 18 750 pages
-        // for 187 500 tickets — the binary search and scan loop hit PHP timeout before
-        // finding any un-migrated records in a large already-partially-migrated dataset.
         $perPage = self::PER_PAGE;
-        $chronologicalFromDate = !empty($options['created_after']) && $startPage === 1;
-        $page = $chronologicalFromDate
-            ? $this->findCreatedAfterBoundaryPage($filters, (string) $options['created_after'], $perPage)
-            : $startPage;
 
-        while ($this->attemptedTotal($result) < $limit) {
+        $chronologicalFromDate = !empty($options['created_after']) && $startPage === 1 && $cursor === null;
+
+        // Determine starting page: cursor > explicit start_page > boundary search
+        if ($cursor !== null) {
+            $page                  = $cursor->currentPage();
+            $chronologicalFromDate = $cursor->direction() === 'backward';
+        } elseif ($chronologicalFromDate) {
+            $page = $this->findCreatedAfterBoundaryPage($filters, (string) $options['created_after'], $perPage);
+        } else {
+            $page = $startPage;
+        }
+
+        // Create cursor for from_date runs (not for dry-runs or manual page mode)
+        $useCursor = $chronologicalFromDate && !$isDryRun && $cursor === null;
+        if ($useCursor) {
+            $cursor = MigrationCursor::create(
+                $this->connectionId,
+                $this->resourceType,
+                MigrationCursor::hashOptions($options),
+                $page,
+                'backward',
+                $page,
+                $options
+            );
+        }
+
+        $pagesThisRun  = 0;
+        $maxPagesPerRun = $chronologicalFromDate ? MigrationCursor::CHUNK_PAGES : PHP_INT_MAX;
+
+        while ($this->attemptedTotal($result) < $limit && $pagesThisRun < $maxPagesPerRun) {
             $batch = $this->listBatch($filters, $page, $perPage);
             $result->incStat('api_pages');
             $result->incStat('scanned', count($batch['records'] ?? []));
+            $pagesThisRun++;
 
             if (empty($batch['records'])) {
                 break;
@@ -158,15 +194,16 @@ class MigrationEngine
             }
 
             if ($chronologicalFromDate) {
-                // Scanning backward (oldest → newest): the boundary page is the API's last page
-                // and may have fewer records than perPage — that must NOT stop the scan.
-                // Only stop when we have gone past page 1.
                 $page--;
                 if ($page < 1) {
+                    // Exhausted the entire date range
+                    if ($cursor !== null) {
+                        $cursor->advance(0, count($result->created), (int) ($result->stats['scanned'] ?? 0));
+                        $cursor->complete();
+                    }
                     break;
                 }
             } else {
-                // Scanning forward (newest → oldest): a partial page means we hit the end.
                 if (count($batch['records']) < $perPage) {
                     break;
                 }
@@ -178,7 +215,20 @@ class MigrationEngine
             }
         }
 
-        return $result;
+        // Persist cursor position after the chunk
+        if ($cursor !== null && $cursor->isActive()) {
+            $cursor->advance(
+                $page,
+                count($result->created),
+                (int) ($result->stats['scanned'] ?? 0)
+            );
+            // Mark complete if we reached the limit or exhausted pages
+            if ($page < 1 || $this->attemptedTotal($result) >= $limit) {
+                $cursor->complete();
+            }
+        }
+
+        return [$result, $cursor];
     }
 
     private function listBatch(array $filters, int $page, int $perPage): array

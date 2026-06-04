@@ -3,6 +3,7 @@
 namespace GlpiPlugin\Bridge\Page;
 
 use GlpiPlugin\Bridge\Connection;
+use GlpiPlugin\Bridge\Migration\MigrationCursor;
 use GlpiPlugin\Bridge\Migration\MigrationResult;
 
 class MigratePage
@@ -232,15 +233,21 @@ class MigratePage
     }
 
     public static function showResult(
-        Connection      $connection,
-        MigrationResult $result,
-        string          $resourceType,
-        string          $historyUrl
+        Connection       $connection,
+        MigrationResult  $result,
+        string           $resourceType,
+        string           $historyUrl,
+        ?\GlpiPlugin\Bridge\Migration\MigrationCursor $cursor = null
     ): void {
         $id    = (int) $connection->fields['id'];
         $isDry = $result->isDryRun;
-        $title = $isDry ? __('Dry-run preview', 'bridge') : __('Migration complete', 'bridge');
-        $icon  = $isDry ? 'list-check text-warning' : 'circle-check text-success';
+
+        $cursorActive = $cursor !== null && $cursor->isActive();
+        $title = $isDry
+            ? __('Dry-run preview', 'bridge')
+            : ($cursorActive ? __('Batch complete — more pages ahead', 'bridge') : __('Migration complete', 'bridge'));
+        $icon  = $isDry ? 'list-check text-warning'
+            : ($cursorActive ? 'player-skip-forward text-primary' : 'circle-check text-success');
 
         echo '<div class="container-fluid py-3 px-4" style="max-width:860px">';
 
@@ -267,6 +274,65 @@ class MigratePage
             echo '<i class="ti ti-alert-triangle fs-5"></i>';
             echo '<span>' . self::h(__('Dry-run — nothing was written to GLPI.', 'bridge')) . '</span>';
             echo '</div>';
+        }
+
+        // ── Cursor progress banner ────────────────────────────────────────
+        if ($cursor !== null && !$isDry) {
+            $migrateUrl = \Plugin::getWebDir('bridge', true) . '/front/migrate.php';
+            if ($cursor->isActive()) {
+                echo '<div class="alert alert-primary d-flex align-items-center justify-content-between gap-3 mb-3">';
+                echo '<div>';
+                echo '<i class="ti ti-player-skip-forward me-1"></i>';
+                echo '<strong>' . self::h(__('Batch complete', 'bridge')) . '</strong> — ';
+                echo sprintf(
+                    self::h(__('resuming at page %d · %d migrated so far across all runs', 'bridge')),
+                    $cursor->currentPage(),
+                    $cursor->createdTotal()
+                );
+                echo '</div>';
+                echo '<div class="d-flex gap-2 flex-shrink-0">';
+                // Continue form — resubmits the same resource_type so the form re-runs with the stored cursor
+                echo '<form method="post" action="' . self::h($migrateUrl) . '" class="d-inline">';
+                echo \Html::hidden('_glpi_csrf_token', ['value' => \Session::getNewCSRFToken()]);
+                echo \Html::hidden('id',            ['value' => $id]);
+                echo \Html::hidden('action',        ['value' => 'migrate']);
+                echo \Html::hidden('resource_type', ['value' => $resourceType]);
+                // Reuse cursor options (state, created_after, limit, etc.)
+                foreach ($cursor->optionsJson() as $k => $v) {
+                    if (is_scalar($v)) {
+                        echo \Html::hidden($k, ['value' => (string) $v]);
+                    }
+                }
+                echo '<button type="submit" class="btn btn-sm btn-primary">';
+                echo '<i class="ti ti-player-play me-1"></i>' . self::h(__('Continue', 'bridge'));
+                echo '</button></form>';
+                // Reset cursor
+                echo '<form method="post" action="' . self::h($migrateUrl) . '" class="d-inline">';
+                echo \Html::hidden('_glpi_csrf_token', ['value' => \Session::getNewCSRFToken()]);
+                echo \Html::hidden('id',            ['value' => $id]);
+                echo \Html::hidden('action',        ['value' => 'migrate']);
+                echo \Html::hidden('resource_type', ['value' => $resourceType]);
+                echo \Html::hidden('reset_cursor',  ['value' => '1']);
+                foreach ($cursor->optionsJson() as $k => $v) {
+                    if (is_scalar($v)) {
+                        echo \Html::hidden($k, ['value' => (string) $v]);
+                    }
+                }
+                echo '<button type="submit" class="btn btn-sm btn-outline-secondary">';
+                echo '<i class="ti ti-refresh me-1"></i>' . self::h(__('Reset', 'bridge'));
+                echo '</button></form>';
+                echo '</div>';
+                echo '</div>';
+            } else {
+                // Completed
+                echo '<div class="alert alert-success d-flex align-items-center gap-2 mb-3">';
+                echo '<i class="ti ti-circle-check fs-5"></i>';
+                echo '<span>' . sprintf(
+                    self::h(__('All pages scanned. %d records migrated in total across all runs.', 'bridge')),
+                    $cursor->createdTotal()
+                ) . '</span>';
+                echo '</div>';
+            }
         }
 
         if (!empty($result->stats)) {

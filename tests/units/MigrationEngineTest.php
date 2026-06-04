@@ -100,7 +100,7 @@ class MigrationEngineTest extends TestCase
     public function testDryRunDoesNotCallGlpiCreate(): void
     {
         $engine = $this->makeEngine([$this->makeIncident()]);
-        $result = $engine->run(['dry_run' => true, 'limit' => 10]);
+        [$result] = $engine->run(['dry_run' => true, 'limit' => 10]);
 
         // tickets_id = 0 in dry-run (nothing created)
         $this->assertSame(0, $result->created[0]['tickets_id'] ?? -1);
@@ -111,7 +111,7 @@ class MigrationEngineTest extends TestCase
     {
         $incidents = [$this->makeIncident(['id' => 1]), $this->makeIncident(['id' => 2])];
         $engine    = $this->makeEngine($incidents);
-        $result    = $engine->run(['dry_run' => true, 'limit' => 10]);
+        [$result]    = $engine->run(['dry_run' => true, 'limit' => 10]);
 
         $this->assertCount(2, $result->created);
         $this->assertCount(0, $result->failed);
@@ -129,7 +129,7 @@ class MigrationEngineTest extends TestCase
         );
 
         $engine = $this->makeEngine($incidents);
-        $result = $engine->run(['dry_run' => true, 'limit' => 3]);
+        [$result] = $engine->run(['dry_run' => true, 'limit' => 3]);
 
         $this->assertSame(3, $result->total());
     }
@@ -141,7 +141,7 @@ class MigrationEngineTest extends TestCase
     public function testRunWithEmptyFiltersReturnsAllRecords(): void
     {
         $engine = $this->makeEngine([$this->makeIncident()]);
-        $result = $engine->run(['dry_run' => true, 'limit' => 50]);
+        [$result] = $engine->run(['dry_run' => true, 'limit' => 50]);
 
         $this->assertGreaterThan(0, $result->total());
     }
@@ -155,7 +155,7 @@ class MigrationEngineTest extends TestCase
         // Dry-run doesn't check creatability — it counts all records as "would create".
         // Real-mode behaviour (unresolved → failed) requires a live GLPI DB and
         // is tested via integration/API tests instead.
-        $result = $this->makeEngine(
+        [$result] = $this->makeEngine(
             [$this->makeIncident(['site' => ['name' => 'Unknown Company XYZ']])],
             fallbackEntity: 0
         )->run(['dry_run' => true, 'limit' => 10]);
@@ -170,7 +170,7 @@ class MigrationEngineTest extends TestCase
     public function testMigrationResultTotalSumsAllCategories(): void
     {
         $engine = $this->makeEngine([$this->makeIncident()]);
-        $result = $engine->run(['dry_run' => true, 'limit' => 1]);
+        [$result] = $engine->run(['dry_run' => true, 'limit' => 1]);
 
         $this->assertSame($result->total(), count($result->created) + count($result->failed) + count($result->skipped));
     }
@@ -178,7 +178,7 @@ class MigrationEngineTest extends TestCase
     public function testMigrationResultIsFullSuccessWhenNoFailed(): void
     {
         $engine = $this->makeEngine([$this->makeIncident()]);
-        $result = $engine->run(['dry_run' => true, 'limit' => 1]);
+        [$result] = $engine->run(['dry_run' => true, 'limit' => 1]);
 
         $this->assertTrue($result->isFullSuccess());
     }
@@ -193,7 +193,7 @@ class MigrationEngineTest extends TestCase
         $engine   = $this->makeEngine([$incident]);
 
         // source_ids overrides limit/pagination
-        $result = $engine->run(['dry_run' => true, 'source_ids' => '181695325']);
+        [$result] = $engine->run(['dry_run' => true, 'source_ids' => '181695325']);
 
         $this->assertCount(1, $result->created);
         $this->assertSame('191723', $result->created[0]['number']);
@@ -204,7 +204,7 @@ class MigrationEngineTest extends TestCase
         $incident = $this->makeIncident(['id' => 1, 'number' => 100]);
         $engine   = $this->makeEngine([$incident]);
 
-        $result = $engine->run(['dry_run' => true, 'source_ids' => '1, 2, 3']);
+        [$result] = $engine->run(['dry_run' => true, 'source_ids' => '1, 2, 3']);
 
         // Stub always returns incidents[0]; 3 IDs → 3 results
         $this->assertSame(3, $result->total());

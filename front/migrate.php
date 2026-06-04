@@ -2,6 +2,7 @@
 
 use GlpiPlugin\Bridge\Connection;
 use GlpiPlugin\Bridge\Connector\ConnectorFactory;
+use GlpiPlugin\Bridge\Migration\MigrationCursor;
 use GlpiPlugin\Bridge\Migration\MigrationEngine;
 use GlpiPlugin\Bridge\Page\MigratePage;
 use GlpiPlugin\Bridge\Resolver\GlpiResolver;
@@ -104,9 +105,24 @@ try {
         'dry_run'             => $action === 'dryrun',
     ];
 
-    $result = $engine->run($options);
+    // Load existing cursor for from_date runs so the engine resumes
+    // from where it stopped in the previous run.
+    $cursor = null;
+    $isDryRun = $action === 'dryrun';
+    if (!$isDryRun && !empty($options['source_ids']) === false && !empty($options['created_after'])) {
+        $optionsHash = MigrationCursor::hashOptions($options);
+        $cursor      = MigrationCursor::findActive($id, $resourceType, $optionsHash);
+    }
 
-    MigratePage::showResult($connection, $result, $resourceType, $historyUrl);
+    // Allow explicit cursor reset via form
+    if (isset($_POST['reset_cursor']) && $cursor !== null) {
+        $cursor->cancel();
+        $cursor = null;
+    }
+
+    [$result, $cursor] = $engine->run($options, $cursor);
+
+    MigratePage::showResult($connection, $result, $resourceType, $historyUrl, $cursor);
 } catch (Throwable $e) {
     echo '<div class="alert alert-danger m-3">';
     echo htmlspecialchars($e->getMessage(), ENT_QUOTES, 'UTF-8');
