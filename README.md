@@ -4,7 +4,7 @@ Bridge is a **GLPI 11** plugin for migrating ITSM data from external platforms i
 
 ---
 
-## Status — v1.0.0
+## Status — v1.0.2
 
 > **First stable release.** All core migration features, background job system, and UX hardening are complete.
 
@@ -66,7 +66,17 @@ The installation creates the following tables:
 - `glpi_plugin_bridge_jobs` — background migration job queue
 - `glpi_plugin_bridge_job_logs` — operational log per chunk
 
-It also registers a GLPI automatic action **Bridge ProcessJobs** (60 s interval) that processes queued migration jobs in the background.
+It also registers a GLPI automatic action **Bridge ProcessJobs** that processes queued migration jobs.
+
+> **Important:** After installing, set up the OS-level cron so GLPI automatic actions run:
+>
+> ```bash
+> # AlmaLinux / RHEL — install cronie if needed
+> dnf install -y cronie && systemctl enable --now crond
+>
+> # Add to /etc/cron.d/glpi  (runs every minute as apache user)
+> echo "* * * * * apache /usr/bin/php /usr/share/glpi/front/cron.php" > /etc/cron.d/glpi
+> ```
 
 ---
 
