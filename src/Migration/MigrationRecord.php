@@ -64,6 +64,11 @@ class MigrationRecord extends CommonDBTM
             return [];
         }
 
+        // Ensure the DB connection is alive before querying.
+        // Long-running migrations (attachment downloads) can exceed MySQL
+        // wait_timeout, causing "server has gone away" (error 2006).
+        self::pingDB($DB);
+
         $found = [];
         foreach ($DB->request([
             'SELECT' => ['source_id'],
@@ -81,6 +86,24 @@ class MigrationRecord extends CommonDBTM
         return $found;
     }
 
+    /**
+     * Pings the DB connection and reconnects if it has gone away.
+     * Prevents "MySQL server has gone away" (error 2006) during long
+     * migrations where attachment downloads idle the connection beyond
+     * the server's wait_timeout.
+     */
+    private static function pingDB(object $DB): void
+    {
+        try {
+            $DB->request(['SELECT' => [new \QueryExpression('1')], 'FROM' => self::getTable(), 'LIMIT' => 0]);
+        } catch (\Throwable) {
+            // Reconnect if the ping fails
+            if (method_exists($DB, 'checkConnectionAndReconnect')) {
+                $DB->checkConnectionAndReconnect();
+            }
+        }
+    }
+
     public static function log(
         int    $connectionId,
         string $sourceType,
@@ -91,6 +114,7 @@ class MigrationRecord extends CommonDBTM
         string $errorMessage = ''
     ): void {
         global $DB;
+        self::pingDB($DB);
         $DB->insert(self::getTable(), [
             'connections_id' => $connectionId,
             'source_type'    => $sourceType,
