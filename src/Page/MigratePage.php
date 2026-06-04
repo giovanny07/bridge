@@ -202,6 +202,7 @@ class MigratePage
             'name'  => 'default_requesters_id',
             'value' => 0,
             'width' => '100%',
+            'right' => 'all',   // show all active users, not just those with entity profiles
         ]);
         echo '<div class="form-text">' . self::h(__('Used when source has no requester email.', 'bridge')) . '</div>';
         echo '</div>';
