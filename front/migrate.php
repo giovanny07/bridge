@@ -151,16 +151,31 @@ try {
         [$result, $cursor] = $engine->run($options, $cursor);
         MigratePage::showResult($connection, $result, $resourceType, $historyUrl, $cursor);
     } else {
-        // Real migration: create a background job and redirect to status page
-        $job        = BridgeJob::create($id, $resourceType, $options, (int) ($_SESSION['glpiID'] ?? 0));
-        $jobUrl     = Plugin::getWebDir('bridge', true) . '/front/job_status.php?job_id=' . $job->id();
-        Session::addMessageAfterRedirect(
-            sprintf(__('Migration job #%d created. It will start within 60 seconds.', 'bridge'), $job->id()),
-            true,
-            INFO
-        );
-        Html::redirect($jobUrl);
-        exit;
+        // Real migration: create a background job, then show a success page
+        // with a direct link. Using Html::redirect() after Html::header() can
+        // fail in some GLPI versions / contexts; an inline page is always safe.
+        $job    = BridgeJob::create($id, $resourceType, $options, (int) ($_SESSION['glpiID'] ?? 0));
+        $jobUrl = Plugin::getWebDir('bridge', false) . '/front/job_status.php?job_id=' . $job->id();
+
+        $h = static fn($v) => htmlspecialchars((string) $v, ENT_QUOTES, 'UTF-8');
+        echo '<div class="container-fluid py-4 px-4" style="max-width:560px">';
+        echo '<div class="alert alert-success d-flex align-items-center gap-3 mb-4">';
+        echo '<i class="ti ti-circle-check fs-3"></i>';
+        echo '<div>';
+        echo '<div class="fw-semibold">' . $h(sprintf(__('Migration job #%d created successfully.', 'bridge'), $job->id())) . '</div>';
+        echo '<div class="small">' . $h(__('The job will start within 60 seconds via the GLPI scheduler.', 'bridge')) . '</div>';
+        echo '</div>';
+        echo '</div>';
+        echo '<div class="d-flex gap-2">';
+        echo '<a class="btn btn-primary" href="' . $h($jobUrl) . '">';
+        echo '<i class="ti ti-eye me-1"></i>' . $h(__('View job progress', 'bridge'));
+        echo '</a>';
+        echo '<a class="btn btn-outline-secondary" href="' . $h(Connection::getConfigURL($id)) . '">';
+        echo '<i class="ti ti-arrow-left me-1"></i>' . $h(__('Back', 'bridge'));
+        echo '</a>';
+        echo '</div>';
+        echo '<script>setTimeout(function(){ window.location=' . json_encode($jobUrl) . '; }, 1500);</script>';
+        echo '</div>';
     }
 } catch (Throwable $e) {
     // Log to GLPI so it appears in the error log
