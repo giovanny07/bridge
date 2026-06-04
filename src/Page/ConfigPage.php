@@ -249,8 +249,7 @@ class ConfigPage
             echo '<table class="table table-hover align-middle mb-0">';
             echo '<thead class="table-light"><tr>';
             echo '<th>' . self::h(__('Name', 'bridge')) . '</th>';
-            echo '<th class="text-center">' . self::h(__('Active', 'bridge')) . '</th>';
-            echo '<th>' . self::h(__('Last test', 'bridge')) . '</th>';
+            echo '<th>' . self::h(__('Migration status', 'bridge')) . '</th>';
             echo '<th></th>';
             echo '</tr></thead><tbody>';
 
@@ -264,6 +263,11 @@ class ConfigPage
                 $host       = parse_url((string) $row['base_url'], PHP_URL_HOST) ?: $row['base_url'];
                 $csrfToken  = Session::getNewCSRFToken();
 
+                // Job summary for this connection
+                $jobSummary  = \GlpiPlugin\Bridge\Migration\BridgeJob::getConnectionSummary($id);
+                $lastStatus  = $jobSummary['last_status'];
+                $activeJobId = $jobSummary['active_job_id'];
+
                 echo '<tr' . $rowClass . '>';
 
                 // Name + host
@@ -274,17 +278,34 @@ class ConfigPage
                 echo '<div class="text-muted small">' . self::h($host) . '</div>';
                 echo '</td>';
 
-                // Active
-                echo '<td class="text-center">';
-                echo (int) $row['is_active']
-                    ? '<span class="badge bg-success">&#10003;</span>'
-                    : '<span class="badge bg-secondary">&#8212;</span>';
-                echo '</td>';
-
+                // Migration status column
                 echo '<td>';
-                echo '<div id="bridge-test-result-' . $id . '" class="bridge-test-result text-muted small">';
-                echo '<i class="ti ti-minus me-1"></i>' . self::h(__('Not tested yet', 'bridge'));
-                echo '</div>';
+                if ($activeJobId !== null) {
+                    $jobUrl = Plugin::getWebDir('bridge', true) . '/front/job_status.php?job_id=' . $activeJobId;
+                    $isRunning = ($lastStatus === \GlpiPlugin\Bridge\Migration\BridgeJob::STATUS_RUNNING);
+                    $badge = $isRunning ? 'bg-primary' : 'bg-secondary';
+                    $label = $isRunning ? __('Running', 'bridge') : __('Pending', 'bridge');
+                    echo '<a href="' . self::h($jobUrl) . '" class="text-decoration-none">';
+                    echo '<span class="badge ' . $badge . ' me-1">' . self::h($label) . '</span>';
+                    echo '<span class="text-muted small">' . self::h(__('View job', 'bridge')) . ' →</span>';
+                    echo '</a>';
+                } elseif ($lastStatus !== null) {
+                    $badgeMap = [
+                        'completed' => 'bg-success',
+                        'failed'    => 'bg-danger',
+                        'cancelled' => 'bg-warning text-dark',
+                    ];
+                    $badge = $badgeMap[$lastStatus] ?? 'bg-secondary';
+                    echo '<span class="badge ' . $badge . ' me-1">' . self::h($lastStatus) . '</span>';
+                    if ($jobSummary['total_created'] > 0) {
+                        echo '<span class="text-muted small">' . number_format($jobSummary['total_created']) . ' ' . self::h(__('migrated', 'bridge')) . '</span>';
+                    }
+                    if ($jobSummary['total_failed'] > 0) {
+                        echo ' <span class="text-danger small">' . $jobSummary['total_failed'] . ' ' . self::h(__('failed', 'bridge')) . '</span>';
+                    }
+                } else {
+                    echo '<span class="text-muted small"><i class="ti ti-minus me-1"></i>' . self::h(__('No migrations yet', 'bridge')) . '</span>';
+                }
                 echo '</td>';
 
                 echo '<td class="text-end text-nowrap">';

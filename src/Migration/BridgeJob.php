@@ -416,6 +416,54 @@ class BridgeJob extends CommonDBTM
     // Queries
     // ------------------------------------------------------------------ //
 
+    /**
+     * Returns a compact status snapshot for the connection list UI:
+     * last job status/date and accumulated created/failed counts.
+     */
+    public static function getConnectionSummary(int $connectionId): array
+    {
+        global $DB;
+
+        $summary = ['last_status' => null, 'last_at' => null, 'total_created' => 0, 'total_failed' => 0, 'active_job_id' => null];
+
+        // Most recent job
+        foreach ($DB->request([
+            'FROM'  => self::getTable(),
+            'WHERE' => ['connections_id' => $connectionId],
+            'ORDER' => ['created_at DESC'],
+            'LIMIT' => 1,
+        ]) as $row) {
+            $stats = json_decode($row['stats_json'] ?? '{}', true) ?? [];
+            $summary['last_status']    = $row['status'];
+            $summary['last_at']        = $row['created_at'];
+            $summary['total_created'] += (int) ($stats['created'] ?? 0);
+            $summary['total_failed']  += (int) ($stats['failed']  ?? 0);
+        }
+
+        // Active job (pending/running)
+        foreach ($DB->request([
+            'SELECT' => ['id'],
+            'FROM'   => self::getTable(),
+            'WHERE'  => ['connections_id' => $connectionId, 'status' => [self::STATUS_PENDING, self::STATUS_RUNNING]],
+            'ORDER'  => ['created_at DESC'],
+            'LIMIT'  => 1,
+        ]) as $row) {
+            $summary['active_job_id'] = (int) $row['id'];
+        }
+
+        // Lifetime totals from all completed jobs
+        foreach ($DB->request([
+            'FROM'   => self::getTable(),
+            'WHERE'  => ['connections_id' => $connectionId, 'status' => self::STATUS_COMPLETED],
+        ]) as $row) {
+            $stats = json_decode($row['stats_json'] ?? '{}', true) ?? [];
+            $summary['total_created'] += (int) ($stats['created'] ?? 0);
+            $summary['total_failed']  += (int) ($stats['failed']  ?? 0);
+        }
+
+        return $summary;
+    }
+
     public static function getForConnection(int $connectionId, int $limit = 50): array
     {
         global $DB;

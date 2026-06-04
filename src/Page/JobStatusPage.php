@@ -80,9 +80,19 @@ class JobStatusPage
 
         // ── Cron notice ───────────────────────────────────────────────────
         if (!$isFinished) {
-            echo '<div class="alert alert-light border small">';
-            echo '<i class="ti ti-info-circle me-1 text-primary"></i>';
-            echo self::h(__('The migration runs in the background via the GLPI scheduler. It will start within 60 seconds and process chunks automatically until complete.', 'bridge'));
+            $cronOk      = self::isCronHealthy();
+            $alertClass  = $cronOk ? 'alert-light border' : 'alert-warning';
+            $alertIcon   = $cronOk ? 'ti-info-circle text-primary' : 'ti-alert-triangle text-warning';
+            echo '<div class="alert ' . $alertClass . ' small">';
+            echo '<i class="ti ' . $alertIcon . ' me-1"></i>';
+            if ($cronOk) {
+                echo self::h(__('The migration runs via the GLPI scheduler. It will start within 60 seconds and process chunks automatically until complete.', 'bridge'));
+            } else {
+                echo '<strong>' . self::h(__('GLPI scheduler may not be running.', 'bridge')) . '</strong> ';
+                echo self::h(__('The job is queued but will not start until the scheduler runs.', 'bridge'));
+                echo ' <a href="' . self::h(\Toolbox::getItemTypeFormURL('CronTask')) . '" target="_blank" class="alert-link">';
+                echo self::h(__('Check Automatic Actions', 'bridge')) . '</a>.';
+            }
             echo '</div>';
         }
 
@@ -308,6 +318,28 @@ class JobStatusPage
 .bridge-spin { display: inline-block; animation: bridge-spin 1s linear infinite; }
 </style>
 JS;
+    }
+
+    /**
+     * Returns true when the GLPI cron has run within the last 5 minutes,
+     * meaning the scheduler is active and the job will be picked up soon.
+     */
+    private static function isCronHealthy(): bool
+    {
+        global $DB;
+        foreach ($DB->request([
+            'SELECT' => ['lastrun'],
+            'FROM'   => 'glpi_crontasks',
+            'WHERE'  => ['itemtype' => 'bridge', 'name' => 'ProcessJobs'],
+            'LIMIT'  => 1,
+        ]) as $row) {
+            if (empty($row['lastrun'])) {
+                return false; // never ran
+            }
+            $lastRun = strtotime((string) $row['lastrun']);
+            return (time() - $lastRun) < 300; // ran within 5 minutes
+        }
+        return false;
     }
 
     private static function statBox(string $icon, string $color, int $value, string $label, string $id): void

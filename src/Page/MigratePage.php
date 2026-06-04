@@ -218,10 +218,15 @@ class MigratePage
         echo '</div>'; // card
 
         // ── Action buttons ───────────────────────────────────────────────
-        echo '<div class="d-flex gap-2 mt-2">';
+        echo '<div class="d-flex flex-wrap align-items-center gap-3 mt-2">';
+        echo '<div>';
         echo '<button type="submit" name="action" value="migrate" class="btn btn-primary">';
-        echo '<i class="ti ti-database-import me-1"></i>' . self::h(__('Migrate now', 'bridge'));
+        echo '<i class="ti ti-player-play me-1"></i>' . self::h(__('Start migration', 'bridge'));
         echo '</button>';
+        echo '<div class="text-muted" style="font-size:.73rem;margin-top:.2rem">';
+        echo '<i class="ti ti-clock me-1"></i>' . self::h(__('Creates a background job — progress visible on the next screen.', 'bridge'));
+        echo '</div>';
+        echo '</div>';
         echo '<button type="submit" name="action" value="dryrun" class="btn btn-outline-warning">';
         echo '<i class="ti ti-list-check me-1"></i>' . self::h(__('Dry-run preview', 'bridge'));
         echo '</button>';
@@ -303,8 +308,9 @@ class MigratePage
                         echo \Html::hidden($k, ['value' => (string) $v]);
                     }
                 }
-                echo '<button type="submit" class="btn btn-sm btn-primary">';
-                echo '<i class="ti ti-player-play me-1"></i>' . self::h(__('Continue', 'bridge'));
+                $continueConfirm = addslashes(self::h(__('This will start a real migration (not a dry-run). Continue?', 'bridge')));
+                echo '<button type="submit" class="btn btn-sm btn-primary" onclick="return confirm(\'' . $continueConfirm . '\')">';
+                echo '<i class="ti ti-player-play me-1"></i>' . self::h(__('Start real migration', 'bridge'));
                 echo '</button></form>';
                 // Reset cursor
                 echo '<form method="post" action="' . self::h($migrateUrl) . '" class="d-inline">';
