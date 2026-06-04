@@ -108,6 +108,35 @@ try {
 
     $isDryRun = $action === 'dryrun';
 
+    // ── P4: validate options ──────────────────────────────────────────────
+    if (!$isDryRun) {
+        $validationErrors = BridgeJob::validateOptions($options);
+        if (!empty($validationErrors)) {
+            foreach ($validationErrors as $err) {
+                Session::addMessageAfterRedirect(htmlspecialchars($err, ENT_QUOTES, 'UTF-8'), false, ERROR);
+            }
+            MigratePage::showForm($connection, $resourceTypes, $migrateUrl, $historyUrl, $resourceType);
+            Html::footer();
+            exit;
+        }
+
+        // ── P4: block concurrent jobs ─────────────────────────────────────
+        $activeJob = BridgeJob::findActive($id, $resourceType);
+        if ($activeJob !== null) {
+            $jobUrl = Plugin::getWebDir('bridge', true) . '/front/job_status.php?job_id=' . $activeJob->id();
+            Session::addMessageAfterRedirect(
+                sprintf(
+                    __('A migration job for this connection is already %s. View it or wait for it to finish.', 'bridge'),
+                    $activeJob->status()
+                ),
+                false,
+                WARNING
+            );
+            Html::redirect($jobUrl);
+            exit;
+        }
+    }
+
     if ($isDryRun) {
         // Dry-run: execute inline and show preview immediately
         $cursor = null;

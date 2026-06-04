@@ -66,6 +66,76 @@ class BridgeJob extends CommonDBTM
         return $job;
     }
 
+    /**
+     * Returns the active (pending or running) job for a connection+type, or null.
+     * Used to block concurrent job creation.
+     */
+    public static function findActive(int $connectionId, string $resourceType): ?self
+    {
+        global $DB;
+        foreach ($DB->request([
+            'FROM'  => self::getTable(),
+            'WHERE' => [
+                'connections_id' => $connectionId,
+                'resource_type'  => $resourceType,
+                'status'         => [self::STATUS_PENDING, self::STATUS_RUNNING],
+            ],
+            'ORDER' => ['created_at DESC'],
+            'LIMIT' => 1,
+        ]) as $row) {
+            $job = new self();
+            $job->fields = $row;
+            return $job;
+        }
+        return null;
+    }
+
+    /**
+     * Validates migration options and returns an array of error strings.
+     * An empty array means the options are valid.
+     */
+    public static function validateOptions(array $options): array
+    {
+        $errors = [];
+
+        // Validate created_after / updated_after dates
+        foreach (['created_after' => 'Created after', 'updated_after' => 'Updated after'] as $key => $label) {
+            $val = trim((string) ($options[$key] ?? ''));
+            if ($val === '') continue;
+            $parsed = \DateTimeImmutable::createFromFormat('!Y-m-d', $val);
+            if ($parsed === false) {
+                $errors[] = "$label: invalid date format (expected YYYY-MM-DD).";
+                continue;
+            }
+            if ($parsed > new \DateTimeImmutable('+1 day')) {
+                $errors[] = "$label: date cannot be in the future.";
+            }
+            if ($parsed < new \DateTimeImmutable('-20 years')) {
+                $errors[] = "$label: date is more than 20 years ago — please narrow the range.";
+            }
+        }
+
+        // Validate limit
+        $limit = (int) ($options['limit'] ?? 50);
+        if ($limit < 1 || $limit > 500) {
+            $errors[] = 'Limit must be between 1 and 500.';
+        }
+
+        // Validate source_ids format when provided
+        $sourceIds = trim((string) ($options['source_ids'] ?? ''));
+        if ($sourceIds !== '') {
+            foreach (array_map('trim', explode(',', $sourceIds)) as $rawId) {
+                $id = ltrim($rawId, '#');
+                if ($id !== '' && !ctype_digit($id)) {
+                    $errors[] = "Source IDs: \"$rawId\" is not a valid ticket number or ID.";
+                    break;
+                }
+            }
+        }
+
+        return $errors;
+    }
+
     // ------------------------------------------------------------------ //
     // Accessors
     // ------------------------------------------------------------------ //
@@ -179,6 +249,22 @@ class BridgeJob extends CommonDBTM
 
         if ($job === null) {
             return 0; // nothing to do
+        }
+
+        // Guard: do not run if another job for the same connection+type is already running
+        // (protects against cron overlap when two cron instances fire simultaneously)
+        foreach ($DB->request([
+            'FROM'  => self::getTable(),
+            'WHERE' => [
+                'connections_id' => $job->connectionId(),
+                'resource_type'  => $job->resourceType(),
+                'status'         => self::STATUS_RUNNING,
+                ['id'            => ['<>', $job->id()]],
+            ],
+            'LIMIT' => 1,
+        ]) as $_) {
+            $task->log('Job #' . $job->id() . ' skipped — another job for the same connection is already running.');
+            return 0;
         }
 
         $task->addVolume(1);
