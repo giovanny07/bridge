@@ -75,9 +75,56 @@ class ConfigPage
         echo '</div>';
         echo '</div>';
 
-        echo '<div class="card">';
-        echo '<div class="card-header d-flex align-items-center justify-content-between">';
-        echo '<span class="fw-semibold"><i class="ti ti-code me-1"></i>' . self::h(__('Raw sample', 'bridge')) . '</span>';
+        // Readable records table
+        $records = $result['records'] ?? [];
+        if (!empty($records)) {
+            echo '<div class="card mb-3 border-0 shadow-sm">';
+            echo '<div class="card-header fw-semibold py-2"><i class="ti ti-table me-1"></i>' . self::h(__('Sample records', 'bridge')) . '</div>';
+            echo '<div class="table-responsive"><table class="table table-sm table-hover mb-0" style="font-size:.82rem">';
+            echo '<thead class="table-light"><tr>';
+            echo '<th class="text-muted fw-normal">#</th>';
+            echo '<th class="fw-normal">' . self::h(__('Name', 'bridge')) . '</th>';
+            echo '<th class="fw-normal">' . self::h(__('State', 'bridge')) . '</th>';
+            echo '<th class="fw-normal">' . self::h(__('Priority', 'bridge')) . '</th>';
+            echo '<th class="fw-normal">' . self::h(__('Site', 'bridge')) . '</th>';
+            echo '<th class="fw-normal">' . self::h(__('Assignee', 'bridge')) . '</th>';
+            echo '<th class="text-muted fw-normal">' . self::h(__('Created', 'bridge')) . '</th>';
+            echo '</tr></thead><tbody>';
+            foreach ($records as $r) {
+                $state    = (string) ($r['state']    ?? '');
+                $priority = (string) ($r['priority'] ?? '');
+                $stateBadge = match (true) {
+                    in_array($state, ['Closed', 'Cerrado', 'Finalizado']) => 'bg-success',
+                    in_array($state, ['En Proceso', 'Iniciado'])          => 'bg-primary',
+                    str_contains(strtolower($state), 'pendiente') || str_contains(strtolower($state), 'pending') => 'bg-warning text-dark',
+                    default => 'bg-secondary',
+                };
+                $prioBadge = match ($priority) {
+                    'Critical' => 'bg-danger',
+                    'High'     => 'bg-warning text-dark',
+                    'Medium'   => 'bg-info text-dark',
+                    default    => 'bg-secondary',
+                };
+                echo '<tr>';
+                echo '<td class="text-muted">' . self::h((string) ($r['number'] ?? '')) . '</td>';
+                echo '<td>' . self::h(mb_substr((string) ($r['name'] ?? ''), 0, 70)) . '</td>';
+                echo '<td><span class="badge ' . $stateBadge . '">' . self::h($state) . '</span></td>';
+                echo '<td><span class="badge ' . $prioBadge . '">' . self::h($priority) . '</span></td>';
+                echo '<td class="text-muted small">' . self::h((string) ($r['site']['name'] ?? '—')) . '</td>';
+                echo '<td class="text-muted small">' . self::h((string) ($r['assignee']['email'] ?? $r['assignee']['name'] ?? '—')) . '</td>';
+                echo '<td class="text-muted">' . self::h(substr((string) ($r['created_at'] ?? ''), 0, 10)) . '</td>';
+                echo '</tr>';
+            }
+            echo '</tbody></table></div></div>';
+        }
+
+        // Raw JSON (collapsible, for developers)
+        echo '<details class="mb-3">';
+        echo '<summary class="text-muted small" style="cursor:pointer">';
+        echo '<i class="ti ti-code me-1"></i>' . self::h(__('Raw JSON', 'bridge'));
+        echo '</summary>';
+        echo '<div class="mt-2">';
+        echo '<div class="d-flex justify-content-end mb-1">';
         echo '<button type="button" class="btn btn-sm btn-outline-secondary bridge-copy-btn"';
         echo ' data-copy-target="bridge-raw-json"';
         echo ' data-copy="' . self::h(__('Copy', 'bridge')) . '"';
@@ -85,16 +132,10 @@ class ConfigPage
         echo '<i class="ti ti-copy me-1"></i>' . self::h(__('Copy', 'bridge'));
         echo '</button>';
         echo '</div>';
-        echo '<div class="card-body p-0">';
-        echo '<p class="text-muted small px-3 pt-3 mb-2">';
-        echo '<i class="ti ti-lock me-1"></i>';
-        echo self::h(__('Read-only discovery data. No data was written to GLPI.', 'bridge'));
-        echo '</p>';
-        echo '<pre id="bridge-raw-json" class="border-top p-3 mb-0 bg-light bridge-raw-json">';
+        echo '<pre id="bridge-raw-json" class="p-3 mb-0 bg-light border rounded" style="max-height:400px;overflow-y:auto;font-size:.75rem">';
         echo self::h($jsonText);
         echo '</pre>';
-        echo '</div>';
-        echo '</div>';
+        echo '</div></details>';
 
         echo '</div>';
     }
