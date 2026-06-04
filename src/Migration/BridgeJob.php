@@ -1,0 +1,340 @@
+<?php
+
+namespace GlpiPlugin\Bridge\Migration;
+
+use CommonDBTM;
+use CronTask;
+use DBConnection;
+use GlpiPlugin\Bridge\Connector\ConnectorFactory;
+use GlpiPlugin\Bridge\Resolver\GlpiResolver;
+use Migration;
+
+/**
+ * Background migration job.
+ *
+ * Lifecycle: pending → running → completed | failed | cancelled
+ *
+ * Each cron tick processes MigrationCursor::CHUNK_PAGES API pages and
+ * updates the job stats.  A stale heartbeat (> ZOMBIE_MINUTES minutes)
+ * marks the job as failed so it can be retried.
+ */
+class BridgeJob extends CommonDBTM
+{
+    public static $rightname = 'config';
+
+    public const STATUS_PENDING   = 'pending';
+    public const STATUS_RUNNING   = 'running';
+    public const STATUS_COMPLETED = 'completed';
+    public const STATUS_FAILED    = 'failed';
+    public const STATUS_CANCELLED = 'cancelled';
+
+    private const ZOMBIE_MINUTES = 15;
+
+    public static function getTable($classname = null): string
+    {
+        return 'glpi_plugin_bridge_jobs';
+    }
+
+    // ------------------------------------------------------------------ //
+    // Factory
+    // ------------------------------------------------------------------ //
+
+    public static function create(
+        int    $connectionId,
+        string $resourceType,
+        array  $options,
+        int    $createdBy
+    ): self {
+        global $DB;
+
+        $DB->insert(self::getTable(), [
+            'connections_id' => $connectionId,
+            'resource_type'  => $resourceType,
+            'status'         => self::STATUS_PENDING,
+            'options_json'   => json_encode($options),
+            'created_by'     => $createdBy,
+            'created_at'     => date('Y-m-d H:i:s'),
+            'stats_json'     => json_encode([
+                'created' => 0, 'failed' => 0, 'skipped' => 0,
+                'scanned' => 0, 'api_pages' => 0,
+            ]),
+        ]);
+
+        $job = new self();
+        $job->getFromDB((int) $DB->insertId());
+        return $job;
+    }
+
+    // ------------------------------------------------------------------ //
+    // Accessors
+    // ------------------------------------------------------------------ //
+
+    public function id(): int              { return (int) ($this->fields['id'] ?? 0); }
+    public function connectionId(): int    { return (int) ($this->fields['connections_id'] ?? 0); }
+    public function resourceType(): string { return (string) ($this->fields['resource_type'] ?? 'incidents'); }
+    public function status(): string       { return (string) ($this->fields['status'] ?? self::STATUS_PENDING); }
+    public function isPending(): bool      { return $this->status() === self::STATUS_PENDING; }
+    public function isRunning(): bool      { return $this->status() === self::STATUS_RUNNING; }
+    public function isFinished(): bool     { return in_array($this->status(), [self::STATUS_COMPLETED, self::STATUS_FAILED, self::STATUS_CANCELLED], true); }
+
+    public function options(): array
+    {
+        $v = $this->fields['options_json'] ?? '{}';
+        return is_string($v) ? (json_decode($v, true) ?? []) : [];
+    }
+
+    public function stats(): array
+    {
+        $v = $this->fields['stats_json'] ?? '{}';
+        return is_string($v) ? (json_decode($v, true) ?? []) : [];
+    }
+
+    // ------------------------------------------------------------------ //
+    // State transitions
+    // ------------------------------------------------------------------ //
+
+    public function markRunning(): void
+    {
+        global $DB;
+        $DB->update(self::getTable(), [
+            'status'          => self::STATUS_RUNNING,
+            'started_at'      => date('Y-m-d H:i:s'),
+            'last_heartbeat'  => date('Y-m-d H:i:s'),
+        ], ['id' => $this->id()]);
+        $this->fields['status'] = self::STATUS_RUNNING;
+    }
+
+    public function heartbeat(array $accumulatedStats): void
+    {
+        global $DB;
+        $DB->update(self::getTable(), [
+            'last_heartbeat' => date('Y-m-d H:i:s'),
+            'stats_json'     => json_encode($accumulatedStats),
+        ], ['id' => $this->id()]);
+        $this->fields['stats_json'] = json_encode($accumulatedStats);
+    }
+
+    public function complete(array $finalStats): void
+    {
+        global $DB;
+        $DB->update(self::getTable(), [
+            'status'      => self::STATUS_COMPLETED,
+            'finished_at' => date('Y-m-d H:i:s'),
+            'stats_json'  => json_encode($finalStats),
+        ], ['id' => $this->id()]);
+        $this->fields['status'] = self::STATUS_COMPLETED;
+    }
+
+    public function fail(string $error, array $stats = []): void
+    {
+        global $DB;
+        $DB->update(self::getTable(), [
+            'status'        => self::STATUS_FAILED,
+            'finished_at'   => date('Y-m-d H:i:s'),
+            'error_message' => mb_substr($error, 0, 1000),
+            'stats_json'    => json_encode($stats),
+        ], ['id' => $this->id()]);
+        $this->fields['status'] = self::STATUS_FAILED;
+    }
+
+    public function cancel(): void
+    {
+        global $DB;
+        $DB->update(self::getTable(), [
+            'status'      => self::STATUS_CANCELLED,
+            'finished_at' => date('Y-m-d H:i:s'),
+        ], ['id' => $this->id()]);
+        $this->fields['status'] = self::STATUS_CANCELLED;
+        // Also cancel associated cursor
+        MigrationCursor::cancelForConnection($this->connectionId(), $this->resourceType());
+    }
+
+    // ------------------------------------------------------------------ //
+    // Cron
+    // ------------------------------------------------------------------ //
+
+    /**
+     * Registered as plugin_bridge_ProcessJobs cron action.
+     * Picks the oldest pending job, runs one chunk, and returns.
+     */
+    public static function cronProcessJobs(CronTask $task): int
+    {
+        global $DB;
+
+        // Recover zombie jobs first
+        self::recoverZombies($DB);
+
+        // Pick the oldest pending job
+        $job = null;
+        foreach ($DB->request([
+            'FROM'  => self::getTable(),
+            'WHERE' => ['status' => self::STATUS_PENDING],
+            'ORDER' => ['created_at ASC'],
+            'LIMIT' => 1,
+        ]) as $row) {
+            $job = new self();
+            $job->fields = $row;
+        }
+
+        if ($job === null) {
+            return 0; // nothing to do
+        }
+
+        $task->addVolume(1);
+        $task->log('Processing job #' . $job->id() . ' (' . $job->resourceType() . ')');
+
+        $job->markRunning();
+
+        try {
+            $connection = new \GlpiPlugin\Bridge\Connection();
+            if (!$connection->getFromDB($job->connectionId())) {
+                throw new \RuntimeException('Connection #' . $job->connectionId() . ' not found.');
+            }
+
+            $options      = $job->options();
+            $optionsHash  = MigrationCursor::hashOptions($options);
+            $cursor       = MigrationCursor::findActive($job->connectionId(), $job->resourceType(), $optionsHash);
+
+            $connector  = ConnectorFactory::make($connection);
+            $normalizer = ConnectorFactory::makeNormalizer((string) $connection->fields['system_type']);
+            $resolver   = GlpiResolver::create();
+
+            $engine = new MigrationEngine(
+                $connector,
+                $normalizer,
+                $resolver,
+                $job->connectionId(),
+                (int) ($connection->fields['entities_id'] ?? 0),
+                (int) ($connection->fields['default_groups_id'] ?? 0),
+                (int) ($options['default_requesters_id'] ?? 0),
+                $job->resourceType(),
+            );
+
+            [$result, $cursor] = $engine->run($options, $cursor);
+
+            // Merge stats with accumulated totals
+            $prev  = $job->stats();
+            $stats = [
+                'created'   => ($prev['created']   ?? 0) + count($result->created),
+                'failed'    => ($prev['failed']     ?? 0) + count($result->failed),
+                'skipped'   => ($prev['skipped']    ?? 0) + count($result->skipped),
+                'scanned'   => ($prev['scanned']    ?? 0) + (int) ($result->stats['scanned']   ?? 0),
+                'api_pages' => ($prev['api_pages']  ?? 0) + (int) ($result->stats['api_pages'] ?? 0),
+            ];
+
+            $task->log(sprintf(
+                'Job #%d chunk done: +%d created, %d scanned, cursor at page %d',
+                $job->id(),
+                count($result->created),
+                (int) ($result->stats['scanned'] ?? 0),
+                $cursor?->currentPage() ?? 0
+            ));
+
+            // Done when cursor is completed or no cursor was used (by-IDs / recent mode)
+            $done = ($cursor === null || !$cursor->isActive());
+
+            if ($done) {
+                $job->complete($stats);
+                $task->log('Job #' . $job->id() . ' completed.');
+            } else {
+                $job->heartbeat($stats);
+                // Re-queue for next cron tick
+                $DB->update(self::getTable(), ['status' => self::STATUS_PENDING], ['id' => $job->id()]);
+            }
+
+        } catch (\Throwable $e) {
+            $job->fail($e->getMessage(), $job->stats());
+            $task->log('Job #' . $job->id() . ' FAILED: ' . $e->getMessage());
+        }
+
+        return 1;
+    }
+
+    private static function recoverZombies(object $DB): void
+    {
+        $cutoff = date('Y-m-d H:i:s', strtotime('-' . self::ZOMBIE_MINUTES . ' minutes'));
+        $DB->update(self::getTable(), [
+            'status'        => self::STATUS_FAILED,
+            'finished_at'   => date('Y-m-d H:i:s'),
+            'error_message' => 'Job timed out (no heartbeat for ' . self::ZOMBIE_MINUTES . ' minutes).',
+        ], [
+            'status'          => self::STATUS_RUNNING,
+            ['last_heartbeat' => ['<', $cutoff]],
+        ]);
+    }
+
+    // ------------------------------------------------------------------ //
+    // Queries
+    // ------------------------------------------------------------------ //
+
+    public static function getById(int $id): ?self
+    {
+        $job = new self();
+        if (!$job->getFromDB($id)) {
+            return null;
+        }
+        return $job;
+    }
+
+    public static function getStatusPayload(int $id): array
+    {
+        $job = self::getById($id);
+        if ($job === null) {
+            return ['error' => 'Job not found'];
+        }
+        return [
+            'id'             => $job->id(),
+            'status'         => $job->status(),
+            'resource_type'  => $job->resourceType(),
+            'stats'          => $job->stats(),
+            'error_message'  => (string) ($job->fields['error_message'] ?? ''),
+            'created_at'     => (string) ($job->fields['created_at']    ?? ''),
+            'started_at'     => (string) ($job->fields['started_at']    ?? ''),
+            'finished_at'    => (string) ($job->fields['finished_at']   ?? ''),
+            'last_heartbeat' => (string) ($job->fields['last_heartbeat'] ?? ''),
+        ];
+    }
+
+    // ------------------------------------------------------------------ //
+    // Schema
+    // ------------------------------------------------------------------ //
+
+    public static function install(Migration $migration): void
+    {
+        global $DB;
+
+        $ks   = DBConnection::getDefaultPrimaryKeySignOption();
+        $cs   = DBConnection::getDefaultCharset();
+        $coll = DBConnection::getDefaultCollation();
+        $table = self::getTable();
+
+        if (!$DB->tableExists($table)) {
+            $migration->displayMessage("Installing $table");
+            $DB->doQueryOrDie(<<<SQL
+            CREATE TABLE IF NOT EXISTS `$table` (
+                `id`             int {$ks} NOT NULL AUTO_INCREMENT,
+                `connections_id` int {$ks} NOT NULL DEFAULT 0,
+                `resource_type`  varchar(64)  NOT NULL DEFAULT 'incidents',
+                `status`         varchar(16)  NOT NULL DEFAULT 'pending',
+                `options_json`   text,
+                `stats_json`     text,
+                `error_message`  text,
+                `created_by`     int {$ks} NOT NULL DEFAULT 0,
+                `created_at`     datetime     NOT NULL,
+                `started_at`     datetime     DEFAULT NULL,
+                `finished_at`    datetime     DEFAULT NULL,
+                `last_heartbeat` datetime     DEFAULT NULL,
+                PRIMARY KEY (`id`),
+                KEY `status`    (`status`),
+                KEY `connection`(`connections_id`, `resource_type`, `status`)
+            ) ENGINE=InnoDB DEFAULT CHARSET={$cs} COLLATE={$coll} ROW_FORMAT=DYNAMIC;
+            SQL, $DB->error());
+        }
+    }
+
+    public static function uninstall(Migration $migration): void
+    {
+        $migration->displayMessage('Uninstalling ' . self::getTable());
+        $migration->dropTable(self::getTable());
+    }
+}

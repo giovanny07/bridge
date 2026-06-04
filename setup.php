@@ -3,6 +3,7 @@
 use Glpi\Plugin\Hooks;
 use GlpiPlugin\Bridge\Config;
 use GlpiPlugin\Bridge\Connection;
+use GlpiPlugin\Bridge\Migration\BridgeJob;
 
 define('PLUGIN_BRIDGE_VERSION', '0.9.3');
 define('PLUGIN_BRIDGE_MIN_GLPI', '11.0.0');
@@ -14,6 +15,15 @@ function plugin_init_bridge(): void
 
     Plugin::registerClass(Connection::class);
     Plugin::registerClass(Config::class, ['addtabon' => \Config::class]);
+    Plugin::registerClass(BridgeJob::class);
+
+    // Register background job processor (runs every 60 seconds)
+    CronTask::register('bridge', 'ProcessJobs', 60, [
+        'state'          => CronTask::STATE_WAITING,
+        'mode'           => CronTask::MODE_INTERNAL,
+        'logs_lifetime'  => 7,
+        'comment'        => 'Process pending Bridge migration jobs',
+    ]);
 
     $PLUGIN_HOOKS['config_page']['bridge'] = 'front/config.form.php';
     $PLUGIN_HOOKS['add_css']['bridge'] = ['css/bridge.css'];
@@ -39,6 +49,12 @@ function plugin_version_bridge(): array
             ],
         ],
     ];
+}
+
+/** GLPI cron callback — called once per minute when jobs are pending. */
+function plugin_bridge_ProcessJobs(CronTask $task): int
+{
+    return BridgeJob::cronProcessJobs($task);
 }
 
 function plugin_bridge_check_prerequisites(): bool

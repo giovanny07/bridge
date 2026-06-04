@@ -1,6 +1,7 @@
 <?php
 
 use GlpiPlugin\Bridge\Connection;
+use GlpiPlugin\Bridge\Migration\BridgeJob;
 use GlpiPlugin\Bridge\Migration\MigrationCursor;
 use GlpiPlugin\Bridge\Migration\MigrationRecord;
 
@@ -12,6 +13,7 @@ function plugin_bridge_install(): bool
     Connection::install($migration);
     MigrationRecord::install($migration);
     MigrationCursor::install($migration);
+    BridgeJob::install($migration);
 
     return true;
 }
@@ -24,6 +26,7 @@ function plugin_bridge_uninstall(): bool
     Connection::uninstall($migration);
     MigrationRecord::uninstall($migration);
     MigrationCursor::uninstall($migration);
+    BridgeJob::uninstall($migration);
 
     return true;
 }
