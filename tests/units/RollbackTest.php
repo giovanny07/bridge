@@ -90,6 +90,56 @@ class RollbackTest extends TestCase
     }
 
     // ------------------------------------------------------------------ //
+    // BridgeJob — migration option validation
+    // ------------------------------------------------------------------ //
+
+    public function testValidateOptionsRequiresSourceIdsForIdsMode(): void
+    {
+        $errors = BridgeJob::validateOptions([
+            'migration_mode' => 'ids',
+            'source_ids'     => '',
+            'limit'          => 10,
+        ]);
+
+        $this->assertContains('Source IDs are required when using By source IDs.', $errors);
+    }
+
+    public function testValidateOptionsRequiresCreatedAfterForFromDate(): void
+    {
+        $errors = BridgeJob::validateOptions([
+            'migration_mode' => 'filters',
+            'time_period'    => 'from_date',
+            'created_after'  => '',
+            'limit'          => 10,
+        ]);
+
+        $this->assertContains('Created after is required when using From date.', $errors);
+    }
+
+    public function testValidateOptionsRequiresUpdatedAfterForIncremental(): void
+    {
+        $errors = BridgeJob::validateOptions([
+            'migration_mode' => 'filters',
+            'time_period'    => 'incremental',
+            'updated_after'  => '',
+            'limit'          => 10,
+        ]);
+
+        $this->assertContains('Updated after is required when using Incremental.', $errors);
+    }
+
+    public function testValidateOptionsAcceptsValidIdsMode(): void
+    {
+        $errors = BridgeJob::validateOptions([
+            'migration_mode' => 'ids',
+            'source_ids'     => '#176, 177, 181695325',
+            'limit'          => 10,
+        ]);
+
+        $this->assertSame([], $errors);
+    }
+
+    // ------------------------------------------------------------------ //
     // MigrationRecord — getByJobId() queries correct WHERE clause
     // ------------------------------------------------------------------ //
 

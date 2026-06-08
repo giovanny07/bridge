@@ -212,6 +212,39 @@
         if (mode !== 'ids' && sourceIds) sourceIds.value = '';
     }
 
+    function validateMigrateForm(form) {
+        var mode = getFieldValue(form, 'migration_mode_val') || 'filters';
+        var periodRadio = form.querySelector('input[name=time_period]:checked');
+        var period = periodRadio ? periodRadio.value : 'recent';
+        var sourceIds = form.querySelector('#f_source_ids');
+        var createdAfter = form.querySelector('#f_created_after');
+        var updatedAfter = form.querySelector('#f_updated_after');
+
+        [sourceIds, createdAfter, updatedAfter].forEach(function (el) {
+            if (el) el.setCustomValidity('');
+        });
+
+        if (mode === 'ids' && sourceIds && sourceIds.value.trim() === '') {
+            sourceIds.setCustomValidity('Enter at least one ticket number or source ID.');
+            sourceIds.reportValidity();
+            return false;
+        }
+
+        if (mode === 'filters' && period === 'from_date' && createdAfter && createdAfter.value.trim() === '') {
+            createdAfter.setCustomValidity('Select a From date before continuing.');
+            createdAfter.reportValidity();
+            return false;
+        }
+
+        if (mode === 'filters' && period === 'incremental' && updatedAfter && updatedAfter.value.trim() === '') {
+            updatedAfter.setCustomValidity('Select an Incremental date before continuing.');
+            updatedAfter.reportValidity();
+            return false;
+        }
+
+        return true;
+    }
+
     function restoreMigrateForm(form) {
         if (!form || form.dataset.bridgeInitialized === '1') return;
         form.dataset.bridgeInitialized = '1';
@@ -295,6 +328,10 @@
             refreshFormCsrfToken(activeForm);
             clearInactiveModeFields(activeForm);
             clearInactivePeriodFields(activeForm);
+            if (!validateMigrateForm(activeForm)) {
+                event.preventDefault();
+                return;
+            }
             var storageKey = getStorageKey(activeForm);
             try {
                 sessionStorage.setItem(storageKey + '_mode', getFieldValue(activeForm, 'migration_mode_val'));

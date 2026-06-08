@@ -93,6 +93,8 @@ try {
     }
 
     $options = [
+        'migration_mode'       => $migrationMode,
+        'time_period'          => $timePeriod,
         'limit'               => max(1, min(500, (int) ($_POST['limit'] ?? 50))),
         'start_page'          => $timePeriod === 'manual' ? max(1, (int) ($_POST['start_page'] ?? 1)) : 1,
         'source_ids'          => (string) $sourceIds,
@@ -111,18 +113,18 @@ try {
 
     $isDryRun = $action === 'dryrun';
 
-    // ── P4: validate options ──────────────────────────────────────────────
-    if (!$isDryRun) {
-        $validationErrors = BridgeJob::validateOptions($options);
-        if (!empty($validationErrors)) {
-            foreach ($validationErrors as $err) {
-                Session::addMessageAfterRedirect(htmlspecialchars($err, ENT_QUOTES, 'UTF-8'), false, ERROR);
-            }
-            MigratePage::showForm($connection, $resourceTypes, $migrateUrl, $historyUrl, $resourceType);
-            Html::footer();
-            exit;
+    // ── F2: validate options before dry-run or real job creation ──────────
+    $validationErrors = BridgeJob::validateOptions($options);
+    if (!empty($validationErrors)) {
+        foreach ($validationErrors as $err) {
+            Session::addMessageAfterRedirect(htmlspecialchars($err, ENT_QUOTES, 'UTF-8'), false, ERROR);
         }
+        MigratePage::showForm($connection, $resourceTypes, $migrateUrl, $historyUrl, $resourceType);
+        Html::footer();
+        exit;
+    }
 
+    if (!$isDryRun) {
         // ── P4: block concurrent jobs ─────────────────────────────────────
         $activeJob = BridgeJob::findActive($id, $resourceType);
         if ($activeJob !== null) {

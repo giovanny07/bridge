@@ -99,6 +99,16 @@ class BridgeJob extends CommonDBTM
     {
         $errors = [];
 
+        $migrationMode = (string) ($options['migration_mode'] ?? 'filters');
+        if (!in_array($migrationMode, ['filters', 'ids'], true)) {
+            $errors[] = 'Migration mode is invalid.';
+        }
+
+        $timePeriod = (string) ($options['time_period'] ?? 'recent');
+        if ($migrationMode === 'filters' && !in_array($timePeriod, ['recent', 'from_date', 'incremental', 'manual'], true)) {
+            $errors[] = 'Time period is invalid.';
+        }
+
         // Validate created_after / updated_after dates
         foreach (['created_after' => 'Created after', 'updated_after' => 'Updated after'] as $key => $label) {
             $val = trim((string) ($options[$key] ?? ''));
@@ -116,6 +126,18 @@ class BridgeJob extends CommonDBTM
             }
         }
 
+        if ($migrationMode === 'filters' && $timePeriod === 'from_date' && trim((string) ($options['created_after'] ?? '')) === '') {
+            $errors[] = 'Created after is required when using From date.';
+        }
+
+        if ($migrationMode === 'filters' && $timePeriod === 'incremental' && trim((string) ($options['updated_after'] ?? '')) === '') {
+            $errors[] = 'Updated after is required when using Incremental.';
+        }
+
+        if ($migrationMode === 'filters' && $timePeriod === 'manual' && (int) ($options['start_page'] ?? 1) < 1) {
+            $errors[] = 'Start page must be greater than or equal to 1.';
+        }
+
         // Validate limit
         $limit = (int) ($options['limit'] ?? 50);
         if ($limit < 1 || $limit > 500) {
@@ -124,13 +146,23 @@ class BridgeJob extends CommonDBTM
 
         // Validate source_ids format when provided
         $sourceIds = trim((string) ($options['source_ids'] ?? ''));
+        if ($migrationMode === 'ids' && $sourceIds === '') {
+            $errors[] = 'Source IDs are required when using By source IDs.';
+        }
         if ($sourceIds !== '') {
+            $validIds = 0;
             foreach (array_map('trim', explode(',', $sourceIds)) as $rawId) {
                 $id = ltrim($rawId, '#');
                 if ($id !== '' && !ctype_digit($id)) {
                     $errors[] = "Source IDs: \"$rawId\" is not a valid ticket number or ID.";
                     break;
                 }
+                if ($id !== '') {
+                    $validIds++;
+                }
+            }
+            if ($migrationMode === 'ids' && $validIds === 0) {
+                $errors[] = 'Source IDs must include at least one valid ticket number or ID.';
             }
         }
 
