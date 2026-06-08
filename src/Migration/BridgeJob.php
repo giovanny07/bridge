@@ -23,11 +23,12 @@ class BridgeJob extends CommonDBTM
 {
     public static $rightname = 'config';
 
-    public const STATUS_PENDING   = 'pending';
-    public const STATUS_RUNNING   = 'running';
-    public const STATUS_COMPLETED = 'completed';
-    public const STATUS_FAILED    = 'failed';
-    public const STATUS_CANCELLED = 'cancelled';
+    public const STATUS_PENDING      = 'pending';
+    public const STATUS_RUNNING      = 'running';
+    public const STATUS_COMPLETED    = 'completed';
+    public const STATUS_FAILED       = 'failed';
+    public const STATUS_CANCELLED    = 'cancelled';
+    public const STATUS_ROLLED_BACK  = 'rolled_back';
 
     private const ZOMBIE_MINUTES = 15;
 
@@ -146,7 +147,7 @@ class BridgeJob extends CommonDBTM
     public function status(): string       { return (string) ($this->fields['status'] ?? self::STATUS_PENDING); }
     public function isPending(): bool      { return $this->status() === self::STATUS_PENDING; }
     public function isRunning(): bool      { return $this->status() === self::STATUS_RUNNING; }
-    public function isFinished(): bool     { return in_array($this->status(), [self::STATUS_COMPLETED, self::STATUS_FAILED, self::STATUS_CANCELLED], true); }
+    public function isFinished(): bool     { return in_array($this->status(), [self::STATUS_COMPLETED, self::STATUS_FAILED, self::STATUS_CANCELLED, self::STATUS_ROLLED_BACK], true); }
 
     public function options(): array
     {
@@ -298,6 +299,7 @@ class BridgeJob extends CommonDBTM
                 $job->resourceType(),
             );
 
+            $engine->setJobId($job->id());
             [$result, $cursor] = $engine->run($options, $cursor);
 
             $durationMs = (int) round((microtime(true) - $chunkStart) * 1000);
@@ -410,6 +412,76 @@ class BridgeJob extends CommonDBTM
     public function retryFailedRecords(): int
     {
         return MigrationRecord::purgeFailed($this->connectionId(), $this->resourceType());
+    }
+
+    /**
+     * Rollback: purges from GLPI every item created by this job (using migration records),
+     * then removes those records (allowing re-migration) and marks the job rolled_back.
+     *
+     * @return array{purged:int, failed:int, not_found:int, total:int}
+     */
+    public function rollback(): array
+    {
+        global $DB;
+
+        if (!$this->isFinished() || $this->status() === self::STATUS_ROLLED_BACK) {
+            throw new \RuntimeException('Only finished jobs that have not been rolled back can be rolled back.');
+        }
+
+        $records  = MigrationRecord::getByJobId($this->id(), MigrationRecord::STATUS_SUCCESS);
+        if ($records === []) {
+            throw new \RuntimeException('This job has no successful migration records to roll back.');
+        }
+
+        $purged   = 0;
+        $failed   = 0;
+        $notFound = 0;
+
+        $itemtype = match ($this->resourceType()) {
+            'problems' => 'Problem',
+            'changes'  => 'Change',
+            default    => 'Ticket',
+        };
+
+        foreach ($records as $record) {
+            $glpiId = (int) ($record['tickets_id'] ?? 0);
+            if ($glpiId <= 0) {
+                $notFound++;
+                continue;
+            }
+            $item = new $itemtype();
+            if (!$item->getFromDB($glpiId)) {
+                $notFound++;
+                continue;
+            }
+            try {
+                // Force-purge (hard delete, not soft trash)
+                if ($item->delete(['id' => $glpiId], 1)) {
+                    $purged++;
+                } else {
+                    $failed++;
+                }
+            } catch (\Throwable) {
+                $failed++;
+            }
+        }
+
+        // Remove migration records so these items can be re-migrated
+        MigrationRecord::purgeByJobId($this->id());
+
+        // Mark job rolled_back
+        $DB->update(self::getTable(), [
+            'status'      => self::STATUS_ROLLED_BACK,
+            'finished_at' => date('Y-m-d H:i:s'),
+        ], ['id' => $this->id()]);
+        $this->fields['status'] = self::STATUS_ROLLED_BACK;
+
+        return [
+            'purged'    => $purged,
+            'failed'    => $failed,
+            'not_found' => $notFound,
+            'total'     => count($records),
+        ];
     }
 
     // ------------------------------------------------------------------ //

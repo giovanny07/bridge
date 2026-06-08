@@ -61,18 +61,30 @@ class JobStatusPage
         $stats   = $job->stats();
         $hasFailed = ($stats['failed'] ?? 0) > 0;
         echo '<div class="d-flex flex-wrap gap-2" id="bridge-job-actions">';
+        $isRolledBack = $job->status() === BridgeJob::STATUS_ROLLED_BACK;
         if (!$isFinished) {
             echo '<button class="btn btn-sm btn-outline-danger" onclick="bridgeJobAction(\'cancel\', \'' . self::h(__('Cancel this migration job?', 'bridge')) . '\')">';
             echo '<i class="ti ti-player-stop me-1"></i>' . self::h(__('Cancel', 'bridge'));
             echo '</button>';
-        } else {
+        } elseif (!$isRolledBack) {
             echo '<button class="btn btn-sm btn-outline-primary" onclick="bridgeJobAction(\'retry\', \'' . self::h(__('Retry this job from the beginning?', 'bridge')) . '\')">';
             echo '<i class="ti ti-refresh me-1"></i>' . self::h(__('Retry job', 'bridge'));
             echo '</button>';
         }
-        if ($hasFailed) {
+        if ($hasFailed && !$isRolledBack) {
             echo '<button class="btn btn-sm btn-outline-warning" onclick="bridgeJobAction(\'retry_failed_records\', \'' . self::h(__('Retry failed records? This will allow them to be re-migrated.', 'bridge')) . '\')">';
             echo '<i class="ti ti-player-skip-forward me-1"></i>' . self::h(__('Retry failed records', 'bridge'));
+            echo '</button>';
+        }
+        // Rollback: only for finished jobs that have not already been rolled back
+        $createdCount = (int) ($stats['created'] ?? 0);
+        if ($isFinished && !$isRolledBack) {
+            $rollbackMsg = self::h(sprintf(
+                __('This will permanently delete the %d item(s) created by this job from GLPI and allow re-migration. Continue?', 'bridge'),
+                $createdCount
+            ));
+            echo '<button class="btn btn-sm btn-outline-danger ms-auto" onclick="bridgeJobAction(\'rollback\', \'' . $rollbackMsg . '\')">';
+            echo '<i class="ti ti-rotate-clockwise me-1"></i>' . self::h(__('Rollback', 'bridge'));
             echo '</button>';
         }
         echo '</div>';
@@ -146,18 +158,20 @@ class JobStatusPage
 
         // ── JS polling ────────────────────────────────────────────────────
         $statusClasses = json_encode([
-            BridgeJob::STATUS_PENDING   => 'bg-secondary',
-            BridgeJob::STATUS_RUNNING   => 'bg-primary',
-            BridgeJob::STATUS_COMPLETED => 'bg-success',
-            BridgeJob::STATUS_FAILED    => 'bg-danger',
-            BridgeJob::STATUS_CANCELLED => 'bg-warning text-dark',
+            BridgeJob::STATUS_PENDING      => 'bg-secondary',
+            BridgeJob::STATUS_RUNNING      => 'bg-primary',
+            BridgeJob::STATUS_COMPLETED    => 'bg-success',
+            BridgeJob::STATUS_FAILED       => 'bg-danger',
+            BridgeJob::STATUS_CANCELLED    => 'bg-warning text-dark',
+            BridgeJob::STATUS_ROLLED_BACK  => 'bg-dark',
         ]);
         $statusLabels = json_encode([
-            BridgeJob::STATUS_PENDING   => __('Pending', 'bridge'),
-            BridgeJob::STATUS_RUNNING   => __('Running…', 'bridge'),
-            BridgeJob::STATUS_COMPLETED => __('Completed', 'bridge'),
-            BridgeJob::STATUS_FAILED    => __('Failed', 'bridge'),
-            BridgeJob::STATUS_CANCELLED => __('Cancelled', 'bridge'),
+            BridgeJob::STATUS_PENDING      => __('Pending', 'bridge'),
+            BridgeJob::STATUS_RUNNING      => __('Running…', 'bridge'),
+            BridgeJob::STATUS_COMPLETED    => __('Completed', 'bridge'),
+            BridgeJob::STATUS_FAILED       => __('Failed', 'bridge'),
+            BridgeJob::STATUS_CANCELLED    => __('Cancelled', 'bridge'),
+            BridgeJob::STATUS_ROLLED_BACK  => __('Rolled back', 'bridge'),
         ]);
 
         $initiallyFinished = $isFinished ? 'true' : 'false';
@@ -207,7 +221,7 @@ class JobStatusPage
         spinner.className = running ? 'ti ti-loader-2 me-2 text-primary bridge-spin' : 'ti ti-database-import me-2 text-muted';
 
         // Stop polling when done
-        if (['completed','failed','cancelled'].includes(data.status)) {
+        if (['completed','failed','cancelled','rolled_back'].includes(data.status)) {
             if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
             document.getElementById('bridge-job-actions').innerHTML = '';
             finished = true;
@@ -304,6 +318,15 @@ class JobStatusPage
                     alert(msg);
                     return;
                 }
+                if (data.rollback_result !== undefined) {
+                    var r = data.rollback_result;
+                    alert('Rollback complete.\nDeleted: ' + r.purged + ' of ' + r.total + ' items.' +
+                        (r.failed > 0 ? '\nFailed to delete: ' + r.failed : '') +
+                        (r.not_found > 0 ? '\nNot found (already removed): ' + r.not_found : '') +
+                        '\nMigration records cleared — items can be re-migrated.');
+                    window.location.reload();
+                    return;
+                }
                 update(data);
             });
     };
@@ -355,24 +378,26 @@ JS;
     private static function statusClass(string $status): string
     {
         return match ($status) {
-            BridgeJob::STATUS_PENDING   => 'bg-secondary',
-            BridgeJob::STATUS_RUNNING   => 'bg-primary',
-            BridgeJob::STATUS_COMPLETED => 'bg-success',
-            BridgeJob::STATUS_FAILED    => 'bg-danger',
-            BridgeJob::STATUS_CANCELLED => 'bg-warning text-dark',
-            default                     => 'bg-secondary',
+            BridgeJob::STATUS_PENDING      => 'bg-secondary',
+            BridgeJob::STATUS_RUNNING      => 'bg-primary',
+            BridgeJob::STATUS_COMPLETED    => 'bg-success',
+            BridgeJob::STATUS_FAILED       => 'bg-danger',
+            BridgeJob::STATUS_CANCELLED    => 'bg-warning text-dark',
+            BridgeJob::STATUS_ROLLED_BACK  => 'bg-dark',
+            default                        => 'bg-secondary',
         };
     }
 
     private static function statusLabel(string $status): string
     {
         return match ($status) {
-            BridgeJob::STATUS_PENDING   => __('Pending', 'bridge'),
-            BridgeJob::STATUS_RUNNING   => __('Running…', 'bridge'),
-            BridgeJob::STATUS_COMPLETED => __('Completed', 'bridge'),
-            BridgeJob::STATUS_FAILED    => __('Failed', 'bridge'),
-            BridgeJob::STATUS_CANCELLED => __('Cancelled', 'bridge'),
-            default                     => $status,
+            BridgeJob::STATUS_PENDING      => __('Pending', 'bridge'),
+            BridgeJob::STATUS_RUNNING      => __('Running…', 'bridge'),
+            BridgeJob::STATUS_COMPLETED    => __('Completed', 'bridge'),
+            BridgeJob::STATUS_FAILED       => __('Failed', 'bridge'),
+            BridgeJob::STATUS_CANCELLED    => __('Cancelled', 'bridge'),
+            BridgeJob::STATUS_ROLLED_BACK  => __('Rolled back', 'bridge'),
+            default                        => $status,
         };
     }
 

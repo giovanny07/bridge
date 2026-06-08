@@ -21,18 +21,20 @@ $jobUrl     = $_frontDir . '/job_status.php';
 $migrateUrl = $_frontDir . '/migrate.php';
 
 $statusClass = [
-    BridgeJob::STATUS_PENDING   => 'bg-secondary',
-    BridgeJob::STATUS_RUNNING   => 'bg-primary',
-    BridgeJob::STATUS_COMPLETED => 'bg-success',
-    BridgeJob::STATUS_FAILED    => 'bg-danger',
-    BridgeJob::STATUS_CANCELLED => 'bg-warning text-dark',
+    BridgeJob::STATUS_PENDING      => 'bg-secondary',
+    BridgeJob::STATUS_RUNNING      => 'bg-primary',
+    BridgeJob::STATUS_COMPLETED    => 'bg-success',
+    BridgeJob::STATUS_FAILED       => 'bg-danger',
+    BridgeJob::STATUS_CANCELLED    => 'bg-warning text-dark',
+    BridgeJob::STATUS_ROLLED_BACK  => 'bg-dark',
 ];
 $statusLabel = [
-    BridgeJob::STATUS_PENDING   => __('Pending',   'bridge'),
-    BridgeJob::STATUS_RUNNING   => __('Running',   'bridge'),
-    BridgeJob::STATUS_COMPLETED => __('Completed', 'bridge'),
-    BridgeJob::STATUS_FAILED    => __('Failed',    'bridge'),
-    BridgeJob::STATUS_CANCELLED => __('Cancelled', 'bridge'),
+    BridgeJob::STATUS_PENDING      => __('Pending',     'bridge'),
+    BridgeJob::STATUS_RUNNING      => __('Running',     'bridge'),
+    BridgeJob::STATUS_COMPLETED    => __('Completed',   'bridge'),
+    BridgeJob::STATUS_FAILED       => __('Failed',      'bridge'),
+    BridgeJob::STATUS_CANCELLED    => __('Cancelled',   'bridge'),
+    BridgeJob::STATUS_ROLLED_BACK  => __('Rolled back', 'bridge'),
 ];
 
 $h = static fn($v) => htmlspecialchars((string) $v, ENT_QUOTES, 'UTF-8');

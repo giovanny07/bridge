@@ -31,6 +31,8 @@ class MigrationEngine
     private const STATUS_SOLVED = 5;
     private const STATUS_CLOSED = 6;
 
+    private int $jobId = 0;
+
     public function __construct(
         private readonly ConnectorInterface  $connector,
         private readonly NormalizerInterface $normalizer,
@@ -41,6 +43,11 @@ class MigrationEngine
         private readonly int                 $fallbackRequesterId = 0,
         private readonly string              $resourceType = 'incidents',
     ) {}
+
+    public function setJobId(int $id): void
+    {
+        $this->jobId = $id;
+    }
 
     /** Returns the GLPI itemtype for the current resource type. */
     private function glpiItemtype(): string
@@ -412,7 +419,7 @@ class MigrationEngine
         if (!$mapped->isCreatable()) {
             $error = 'Unresolved entity — configure a fallback entity in the connection settings.';
             $result->addFailed($incident, $error);
-            MigrationRecord::log($this->connectionId, $this->resourceType, $sourceId, (string) ($incident['number'] ?? ''), MigrationRecord::STATUS_FAILED, 0, $error);
+            MigrationRecord::log($this->connectionId, $this->resourceType, $sourceId, (string) ($incident['number'] ?? ''), MigrationRecord::STATUS_FAILED, 0, $error, $this->jobId);
             return;
         }
 
@@ -436,10 +443,10 @@ class MigrationEngine
             $ticketId = $this->createTicket($mapped, $includeAtt, $keepPrivate);
             $result->addCreated($incident, $ticketId);
             $warningsNote = implode(' | ', $mapped->warnings);
-            MigrationRecord::log($this->connectionId, $this->resourceType, $sourceId, (string) ($incident['number'] ?? ''), MigrationRecord::STATUS_SUCCESS, $ticketId, $warningsNote);
+            MigrationRecord::log($this->connectionId, $this->resourceType, $sourceId, (string) ($incident['number'] ?? ''), MigrationRecord::STATUS_SUCCESS, $ticketId, $warningsNote, $this->jobId);
         } catch (\Throwable $e) {
             $result->addFailed($incident, $e->getMessage());
-            MigrationRecord::log($this->connectionId, $this->resourceType, $sourceId, (string) ($incident['number'] ?? ''), MigrationRecord::STATUS_FAILED, 0, $e->getMessage());
+            MigrationRecord::log($this->connectionId, $this->resourceType, $sourceId, (string) ($incident['number'] ?? ''), MigrationRecord::STATUS_FAILED, 0, $e->getMessage(), $this->jobId);
         }
     }
 

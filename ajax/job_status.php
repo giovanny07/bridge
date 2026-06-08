@@ -27,6 +27,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $purged = $job->retryFailedRecords();
             echo json_encode(['purged_records' => $purged]);
             exit;
+        } elseif (isset($_POST['rollback']) && $job->isFinished() && $job->status() !== BridgeJob::STATUS_ROLLED_BACK) {
+            try {
+                $result = $job->rollback();
+                echo json_encode(['rollback_result' => $result]);
+            } catch (Throwable $e) {
+                http_response_code(400);
+                echo json_encode(['error' => $e->getMessage()]);
+            }
+            exit;
         }
     }
 }

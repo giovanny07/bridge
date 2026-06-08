@@ -127,12 +127,14 @@ class MigrationRecord extends CommonDBTM
         string $sourceNumber,
         string $status,
         int    $ticketId = 0,
-        string $errorMessage = ''
+        string $errorMessage = '',
+        int    $jobId = 0
     ): void {
         global $DB;
         self::pingDB($DB);
         $DB->insert(self::getTable(), [
             'connections_id' => $connectionId,
+            'jobs_id'        => $jobId,
             'source_type'    => $sourceType,
             'source_id'      => $sourceId,
             'source_number'  => $sourceNumber,
@@ -322,6 +324,32 @@ class MigrationRecord extends CommonDBTM
     // Schema
     // ------------------------------------------------------------------ //
 
+    /** Returns all records for a job, optionally filtered by status. */
+    public static function getByJobId(int $jobId, string $status = ''): array
+    {
+        global $DB;
+        $where = ['jobs_id' => $jobId];
+        if ($status !== '') {
+            $where['status'] = $status;
+        }
+        $rows = [];
+        foreach ($DB->request(['FROM' => self::getTable(), 'WHERE' => $where]) as $row) {
+            $rows[] = $row;
+        }
+        return $rows;
+    }
+
+    /** Purge all migration records for a job (used by rollback). */
+    public static function purgeByJobId(int $jobId): int
+    {
+        global $DB;
+        $count = count(self::getByJobId($jobId));
+        if ($count > 0) {
+            $DB->delete(self::getTable(), ['jobs_id' => $jobId]);
+        }
+        return $count;
+    }
+
     public static function install(Migration $migration): void
     {
         global $DB;
@@ -337,6 +365,7 @@ class MigrationRecord extends CommonDBTM
             CREATE TABLE IF NOT EXISTS `$table` (
                 `id`             int {$ks} NOT NULL AUTO_INCREMENT,
                 `connections_id` int {$ks} NOT NULL DEFAULT 0,
+                `jobs_id`        int {$ks} NOT NULL DEFAULT 0,
                 `source_type`    varchar(64) NOT NULL DEFAULT 'incidents',
                 `source_id`      varchar(64) NOT NULL DEFAULT '',
                 `source_number`  varchar(64) NOT NULL DEFAULT '',
@@ -347,11 +376,18 @@ class MigrationRecord extends CommonDBTM
                 `migrated_by`    int {$ks} NOT NULL DEFAULT 0,
                 PRIMARY KEY (`id`),
                 KEY `connections_id` (`connections_id`),
+                KEY `jobs_id`        (`jobs_id`),
                 KEY `source_lookup`  (`connections_id`, `source_type`, `source_id`),
                 KEY `status`         (`status`),
                 KEY `migrated_at`    (`migrated_at`)
             ) ENGINE=InnoDB DEFAULT CHARSET={$cs} COLLATE={$coll} ROW_FORMAT=DYNAMIC;
             SQL, $DB->error());
+        } elseif (!$DB->fieldExists($table, 'jobs_id')) {
+            // Upgrade: add jobs_id for existing installs (rollback support)
+            $migration->displayMessage("Upgrading $table: adding jobs_id");
+            $migration->addField($table, 'jobs_id', "int {$ks} NOT NULL DEFAULT 0", ['after' => 'connections_id']);
+            $migration->addKey($table, 'jobs_id');
+            $migration->executeMigration();
         }
     }
 
