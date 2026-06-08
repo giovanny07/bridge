@@ -37,52 +37,21 @@ if (!(int) ($connection->fields['is_active'] ?? 1)) {
 $_frontDir  = Connection::getPluginBaseURL() . '/front';
 $migrateUrl = $_frontDir . '/migrate.php';
 $historyUrl = $_frontDir . '/migration_history.php';
+$htmlStarted = false;
+$action = '';
 
-Html::header(__('Migration', 'bridge'), '', 'config', 'plugins');
+$startHtml = static function () use (&$htmlStarted): void {
+    if (!$htmlStarted) {
+        Html::header(__('Migration', 'bridge'), '', 'config', 'plugins');
+        $htmlStarted = true;
+    }
+};
 
 try {
     $client        = ConnectorFactory::make($connection);
     $resourceTypes = $client->getResourceTypes();
     $action        = (string) ($_POST['action'] ?? '');
     $resourceType  = (string) ($_REQUEST['resource_type'] ?? '');
-
-    // GET or no action → first choose resource, then show the focused form.
-    if ($action === '' || $_SERVER['REQUEST_METHOD'] !== 'POST') {
-        if ($resourceType === '' || !isset($resourceTypes[$resourceType])) {
-            MigratePage::showSelector($connection, $resourceTypes, $migrateUrl, $historyUrl);
-        } elseif (!($resourceTypes[$resourceType]['implemented'] ?? false)) {
-            Session::addMessageAfterRedirect(__('That resource type is not implemented yet.', 'bridge'), false, WARNING);
-            MigratePage::showSelector($connection, $resourceTypes, $migrateUrl, $historyUrl);
-        } else {
-            MigratePage::showForm($connection, $resourceTypes, $migrateUrl, $historyUrl, $resourceType);
-        }
-        Html::footer();
-        exit;
-    }
-
-    $resourceType = $resourceType !== '' ? $resourceType : 'incidents';
-
-    // Validate resource type is implemented
-    if (!($resourceTypes[$resourceType]['implemented'] ?? false)) {
-        Session::addMessageAfterRedirect(__('That resource type is not implemented yet.', 'bridge'), false, WARNING);
-        MigratePage::showSelector($connection, $resourceTypes, $migrateUrl, $historyUrl);
-        Html::footer();
-        exit;
-    }
-
-    $normalizer = ConnectorFactory::makeNormalizer((string) $connection->fields['system_type']);
-    $resolver   = GlpiResolver::create();
-
-    $engine = new MigrationEngine(
-        $client,
-        $normalizer,
-        $resolver,
-        $id,
-        (int) $connection->fields['entities_id'],
-        (int) ($connection->fields['default_groups_id'] ?? 0),
-        (int) ($_POST['default_requesters_id'] ?? 0),
-        $resourceType,
-    );
 
     $migrationMode = (string) ($_POST['migration_mode'] ?? 'filters');
     $timePeriod    = (string) ($_POST['time_period'] ?? 'recent');
@@ -112,11 +81,52 @@ try {
         'dry_run'             => $action === 'dryrun',
     ];
 
+    // GET or no action → first choose resource, then show the focused form.
+    if ($action === '' || $_SERVER['REQUEST_METHOD'] !== 'POST') {
+        $startHtml();
+        if ($resourceType === '' || !isset($resourceTypes[$resourceType])) {
+            MigratePage::showSelector($connection, $resourceTypes, $migrateUrl, $historyUrl);
+        } elseif (!($resourceTypes[$resourceType]['implemented'] ?? false)) {
+            Session::addMessageAfterRedirect(__('That resource type is not implemented yet.', 'bridge'), false, WARNING);
+            MigratePage::showSelector($connection, $resourceTypes, $migrateUrl, $historyUrl);
+        } else {
+            MigratePage::showForm($connection, $resourceTypes, $migrateUrl, $historyUrl, $resourceType);
+        }
+        Html::footer();
+        exit;
+    }
+
+    $resourceType = $resourceType !== '' ? $resourceType : 'incidents';
+
+    // Validate resource type is implemented
+    if (!($resourceTypes[$resourceType]['implemented'] ?? false)) {
+        $startHtml();
+        Session::addMessageAfterRedirect(__('That resource type is not implemented yet.', 'bridge'), false, WARNING);
+        MigratePage::showSelector($connection, $resourceTypes, $migrateUrl, $historyUrl);
+        Html::footer();
+        exit;
+    }
+
+    $normalizer = ConnectorFactory::makeNormalizer((string) $connection->fields['system_type']);
+    $resolver   = GlpiResolver::create();
+
+    $engine = new MigrationEngine(
+        $client,
+        $normalizer,
+        $resolver,
+        $id,
+        (int) $connection->fields['entities_id'],
+        (int) ($connection->fields['default_groups_id'] ?? 0),
+        (int) ($_POST['default_requesters_id'] ?? 0),
+        $resourceType,
+    );
+
     $isDryRun = $action === 'dryrun';
 
     // ── F2: validate options before dry-run or real job creation ──────────
     $validationErrors = BridgeJob::validateOptions($options);
     if (!empty($validationErrors)) {
+        $startHtml();
         foreach ($validationErrors as $err) {
             Session::addMessageAfterRedirect(htmlspecialchars($err, ENT_QUOTES, 'UTF-8'), false, ERROR);
         }
@@ -124,6 +134,14 @@ try {
         Html::footer();
         exit;
     }
+
+    if ($action === 'export_preflight') {
+        $preflight = $engine->preflight($options);
+        MigratePage::downloadPreflightCsv($connection, $preflight, $resourceType);
+        exit;
+    }
+
+    $startHtml();
 
     if (!$isDryRun) {
         // ── P4: block concurrent jobs ─────────────────────────────────────
@@ -199,6 +217,17 @@ try {
 } catch (Throwable $e) {
     // Log to PHP error log (Toolbox::logError removed in GLPI 11)
     error_log('Bridge plugin error in migrate.php: ' . $e->getMessage() . ' in ' . $e->getFile() . ':' . $e->getLine());
+
+    if ($action === 'export_preflight') {
+        http_response_code(500);
+        header('Content-Type: text/plain; charset=UTF-8');
+        echo 'Bridge preflight export error: ' . $e->getMessage();
+        exit;
+    }
+
+    if (!$htmlStarted && $action !== 'export_preflight') {
+        $startHtml();
+    }
 
     $msg  = $e->getMessage();
     $hint = '';

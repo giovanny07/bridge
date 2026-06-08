@@ -30,6 +30,7 @@ Bridge is a **GLPI 11** plugin for migrating ITSM data from external platforms i
 | Migration history with search, pagination, per-row purge, and partial status | Done |
 | **Migration preflight** — read-only sample, dedupe, candidate blocking before job creation | Done |
 | **Mapping quality report** — clean / fallback / unresolved summary with warning details | Done |
+| **Preflight CSV export** — portable remediation report for mapping cleanup | Done |
 | **Background job system** — BridgeJob + GLPI CronTask (60s polling) | Done |
 | **Resumable migrations** — cursor-based chunked processing (40 pages/chunk) | Done |
 | **Live progress UI** — real-time feed, stats, logs per chunk | Done |

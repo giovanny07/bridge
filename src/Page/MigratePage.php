@@ -505,29 +505,88 @@ class MigratePage
         echo '<a class="btn btn-outline-secondary" href="' . self::h($migrateUrl . '?id=' . $id . '&resource_type=' . rawurlencode($resourceType)) . '">';
         echo '<i class="ti ti-adjustments me-1"></i>' . self::h(__('Edit filters', 'bridge'));
         echo '</a>';
+        if ($result->preflightRows !== []) {
+            self::showPreflightActionForm(
+                $id,
+                $resourceType,
+                $options,
+                $migrateUrl,
+                'export_preflight',
+                '1',
+                'btn btn-outline-secondary',
+                'ti-download',
+                __('Export CSV', 'bridge')
+            );
+        }
         if ($candidates > 0) {
-            echo '<form method="post" action="' . self::h($migrateUrl) . '" class="d-inline">';
-            echo \Html::hidden('_glpi_csrf_token', ['value' => \Session::getNewCSRFToken()]);
-            echo \Html::hidden('id', ['value' => $id]);
-            echo \Html::hidden('action', ['value' => 'migrate']);
-            echo \Html::hidden('confirm_preflight', ['value' => '1']);
-            echo \Html::hidden('resource_type', ['value' => $resourceType]);
-            foreach ($options as $key => $value) {
-                if (is_bool($value)) {
-                    if ($value) {
-                        echo \Html::hidden($key, ['value' => '1']);
-                    }
-                } elseif (is_scalar($value)) {
-                    echo \Html::hidden($key, ['value' => (string) $value]);
-                }
-            }
-            echo '<button type="submit" class="btn btn-primary">';
-            echo '<i class="ti ti-player-play me-1"></i>' . self::h(__('Create migration job', 'bridge'));
-            echo '</button></form>';
+            self::showPreflightActionForm(
+                $id,
+                $resourceType,
+                $options,
+                $migrateUrl,
+                'migrate',
+                '1',
+                'btn btn-primary',
+                'ti-player-play',
+                __('Create migration job', 'bridge'),
+                'confirm_preflight'
+            );
         }
         echo '</div></div>';
 
         echo '</div>';
+    }
+
+    public static function downloadPreflightCsv(
+        Connection $connection,
+        MigrationResult $result,
+        string $resourceType
+    ): void {
+        $safeName = preg_replace('/[^a-zA-Z0-9._-]+/', '_', (string) ($connection->fields['name'] ?? 'bridge'));
+        $filename = sprintf(
+            'bridge-preflight-%s-%s-%s.csv',
+            $safeName ?: 'connection',
+            preg_replace('/[^a-zA-Z0-9._-]+/', '_', $resourceType),
+            date('Ymd-His')
+        );
+
+        header('Content-Type: text/csv; charset=UTF-8');
+        header('Content-Disposition: attachment; filename="' . $filename . '"');
+        header('Cache-Control: no-store, no-cache, must-revalidate');
+
+        $out = fopen('php://output', 'w');
+        if ($out === false) {
+            return;
+        }
+
+        fwrite($out, "\xEF\xBB\xBF");
+        fputcsv($out, [
+            'connection_id',
+            'connection_name',
+            'resource_type',
+            'source_id',
+            'source_number',
+            'source_name',
+            'status',
+            'warnings',
+            'reason',
+        ]);
+
+        foreach ($result->preflightRows as $row) {
+            fputcsv($out, [
+                (int) ($connection->fields['id'] ?? 0),
+                (string) ($connection->fields['name'] ?? ''),
+                $resourceType,
+                (string) ($row['source_id'] ?? ''),
+                (string) ($row['number'] ?? ''),
+                (string) ($row['name'] ?? ''),
+                (string) ($row['status'] ?? ''),
+                implode(' | ', array_map('strval', $row['warnings'] ?? [])),
+                (string) ($row['reason'] ?? ''),
+            ]);
+        }
+
+        fclose($out);
     }
 
     // ── Helpers ──────────────────────────────────────────────────────────
@@ -569,6 +628,40 @@ class MigratePage
         echo '<span class="badge bg-secondary-subtle text-secondary border">';
         echo self::h($label) . ': <strong>' . $value . '</strong>';
         echo '</span>';
+    }
+
+    private static function showPreflightActionForm(
+        int $connectionId,
+        string $resourceType,
+        array $options,
+        string $migrateUrl,
+        string $action,
+        string $actionValue,
+        string $buttonClass,
+        string $icon,
+        string $label,
+        string $extraFlag = ''
+    ): void {
+        echo '<form method="post" action="' . self::h($migrateUrl) . '" class="d-inline">';
+        echo \Html::hidden('_glpi_csrf_token', ['value' => \Session::getNewCSRFToken()]);
+        echo \Html::hidden('id', ['value' => $connectionId]);
+        echo \Html::hidden('action', ['value' => $action]);
+        if ($extraFlag !== '') {
+            echo \Html::hidden($extraFlag, ['value' => $actionValue]);
+        }
+        echo \Html::hidden('resource_type', ['value' => $resourceType]);
+        foreach ($options as $key => $value) {
+            if (is_bool($value)) {
+                if ($value) {
+                    echo \Html::hidden($key, ['value' => '1']);
+                }
+            } elseif (is_scalar($value)) {
+                echo \Html::hidden($key, ['value' => (string) $value]);
+            }
+        }
+        echo '<button type="submit" class="' . self::h($buttonClass) . '">';
+        echo '<i class="ti ' . self::h($icon) . ' me-1"></i>' . self::h($label);
+        echo '</button></form>';
     }
 
     private static function showPreflightTable(MigrationResult $result, string $resourceType): void
