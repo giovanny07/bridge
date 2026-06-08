@@ -83,7 +83,9 @@ class MigrationEngine
                     $result->incStat('api_pages');
                     $result->incStat('scanned');
                 } catch (\Throwable $e) {
-                    $result->addFailed(['id' => $rawId, 'number' => $rawId, 'name' => "#$rawId"], $e->getMessage());
+                    $failedRecord = ['id' => $rawId, 'number' => $rawId, 'name' => "#$rawId"];
+                    $result->addFailed($failedRecord, $e->getMessage());
+                    $result->addPreflightRow($failedRecord, 'failed', [], $e->getMessage());
                 }
             }
             $this->preflightRecords($records, $options, $mapper, $result, $limit);
@@ -342,6 +344,7 @@ class MigrationEngine
             if ($sourceId !== '' && isset($alreadyMigrated[$sourceId])) {
                 $result->addSkipped($record);
                 $result->incStat('duplicates');
+                $result->addPreflightRow($record, 'duplicate', [], 'Already migrated successfully');
                 continue;
             }
 
@@ -354,11 +357,11 @@ class MigrationEngine
 
             if ($mapped->isCreatable()) {
                 $result->addCreated($record, 0);
+                $result->addPreflightRow($record, $mapped->status, $mapped->warnings);
             } else {
-                $result->addFailed(
-                    $record,
-                    'Unresolved entity — configure a fallback entity in the connection settings.'
-                );
+                $reason = 'Unresolved entity — configure a fallback entity in the connection settings.';
+                $result->addFailed($record, $reason);
+                $result->addPreflightRow($record, 'unresolved', $mapped->warnings, $reason);
             }
         }
     }

@@ -250,5 +250,26 @@ class MigrationEngineTest extends TestCase
         $this->assertCount(1, $result->created);
         $this->assertSame(1, $result->stats['duplicates']);
         $this->assertSame(1, $result->stats['queued']);
+        $this->assertSame(1, $result->mappingQuality['duplicate']);
+        $this->assertSame(1, $result->mappingQuality['ok']);
+        $this->assertCount(2, $result->preflightRows);
+    }
+
+    public function testPreflightCapturesPartialMappingWarnings(): void
+    {
+        $engine = $this->makeEngine([
+            $this->makeIncident([
+                'id' => 10,
+                'number' => 110,
+                'site' => ['name' => 'Unknown customer'],
+            ]),
+        ], fallbackEntity: 30);
+
+        $result = $engine->preflight(['limit' => 10]);
+
+        $this->assertCount(1, $result->created);
+        $this->assertSame(1, $result->mappingQuality['partial']);
+        $this->assertSame('partial', $result->preflightRows[0]['status']);
+        $this->assertNotEmpty($result->preflightRows[0]['warnings']);
     }
 }

@@ -10,6 +10,16 @@ class MigrationResult
     public array $failed  = [];
     /** @var array<string> source numbers skipped (already migrated) */
     public array $skipped = [];
+    /** @var array<int,array<string,mixed>> read-only preflight rows with mapping quality details */
+    public array $preflightRows = [];
+    /** @var array<string,int> aggregate mapping quality counters */
+    public array $mappingQuality = [
+        'ok'         => 0,
+        'partial'    => 0,
+        'unresolved' => 0,
+        'duplicate'  => 0,
+        'failed'     => 0,
+    ];
     /** @var array<string,int> lightweight pipeline counters for observability */
     public array $stats = [
         'api_pages'              => 0,
@@ -73,6 +83,24 @@ class MigrationResult
     public function addSkipped(array $incident): void
     {
         $this->skipped[] = (string) ($incident['number'] ?? $incident['id'] ?? '');
+    }
+
+    public function addPreflightRow(
+        array $incident,
+        string $status,
+        array $warnings = [],
+        string $reason = ''
+    ): void {
+        $this->preflightRows[] = [
+            'source_id' => (string) ($incident['id'] ?? ''),
+            'number'    => (string) ($incident['number'] ?? $incident['id'] ?? ''),
+            'name'      => mb_substr((string) ($incident['name'] ?? ''), 0, 80),
+            'status'    => $status,
+            'warnings'  => array_values($warnings),
+            'reason'    => $reason,
+        ];
+
+        $this->mappingQuality[$status] = ($this->mappingQuality[$status] ?? 0) + 1;
     }
 
     public function total(): int

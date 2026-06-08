@@ -467,6 +467,22 @@ class MigratePage
         self::metricPill(__('API pages', 'bridge'), (int) ($result->stats['api_pages'] ?? 0));
         echo '</div></div></div>';
 
+        if ($result->mappingQuality !== []) {
+            echo '<div class="card mb-3 border-0 shadow-sm">';
+            echo '<div class="card-header bg-light border-0 fw-semibold py-2">';
+            echo '<i class="ti ti-target-arrow me-1"></i>' . self::h(__('Mapping quality', 'bridge'));
+            echo '</div><div class="card-body py-2">';
+            echo '<div class="d-flex flex-wrap gap-2 small">';
+            self::metricPill(__('Clean matches', 'bridge'), (int) ($result->mappingQuality['ok'] ?? 0));
+            self::metricPill(__('Fallbacks used', 'bridge'), (int) ($result->mappingQuality['partial'] ?? 0));
+            self::metricPill(__('Unresolved', 'bridge'), (int) ($result->mappingQuality['unresolved'] ?? 0));
+            self::metricPill(__('Duplicates', 'bridge'), (int) ($result->mappingQuality['duplicate'] ?? 0));
+            self::metricPill(__('API failures', 'bridge'), (int) ($result->mappingQuality['failed'] ?? 0));
+            echo '</div>';
+            self::showWarningSummary($result);
+            echo '</div></div>';
+        }
+
         if ($candidates === 0) {
             echo '<div class="alert alert-warning d-flex align-items-center gap-2">';
             echo '<i class="ti ti-alert-triangle"></i>';
@@ -557,16 +573,7 @@ class MigratePage
 
     private static function showPreflightTable(MigrationResult $result, string $resourceType): void
     {
-        $rows = [];
-        foreach ($result->created as $row) {
-            $rows[] = ['status' => 'candidate'] + $row;
-        }
-        foreach ($result->skipped as $number) {
-            $rows[] = ['status' => 'duplicate', 'number' => $number, 'name' => '', 'reason' => ''];
-        }
-        foreach ($result->failed as $row) {
-            $rows[] = ['status' => 'blocked'] + $row;
-        }
+        $rows = $result->preflightRows;
 
         if ($rows === []) {
             return;
@@ -587,12 +594,15 @@ class MigratePage
         foreach (array_slice($rows, 0, 50) as $row) {
             $status = (string) ($row['status'] ?? '');
             $badge = match ($status) {
-                'candidate' => '<span class="badge bg-success">' . self::h(__('Candidate', 'bridge')) . '</span>',
+                'ok' => '<span class="badge bg-success">' . self::h(__('Clean', 'bridge')) . '</span>',
+                'partial' => '<span class="badge bg-warning text-dark">' . self::h(__('Fallback', 'bridge')) . '</span>',
                 'duplicate' => '<span class="badge bg-secondary">' . self::h(__('Duplicate', 'bridge')) . '</span>',
+                'failed' => '<span class="badge bg-danger">' . self::h(__('API failed', 'bridge')) . '</span>',
                 default => '<span class="badge bg-danger">' . self::h(__('Blocked', 'bridge')) . '</span>',
             };
             $note = match ($status) {
-                'candidate' => __('Ready for job creation', 'bridge'),
+                'ok' => __('Ready for job creation', 'bridge'),
+                'partial' => implode(' | ', array_slice($row['warnings'] ?? [], 0, 3)),
                 'duplicate' => __('Already migrated successfully', 'bridge'),
                 default => (string) ($row['reason'] ?? ''),
             };
@@ -607,6 +617,35 @@ class MigratePage
 
         echo '</tbody></table></div>';
         echo '</div>';
+    }
+
+    private static function showWarningSummary(MigrationResult $result): void
+    {
+        $warnings = [];
+        foreach ($result->preflightRows as $row) {
+            foreach (($row['warnings'] ?? []) as $warning) {
+                $warning = (string) $warning;
+                if ($warning !== '') {
+                    $warnings[$warning] = ($warnings[$warning] ?? 0) + 1;
+                }
+            }
+        }
+
+        if ($warnings === []) {
+            return;
+        }
+
+        arsort($warnings);
+        echo '<details class="mt-2">';
+        echo '<summary class="text-muted small" style="cursor:pointer">';
+        echo '<i class="ti ti-alert-triangle me-1"></i>' . self::h(__('Mapping warnings', 'bridge'));
+        echo '</summary>';
+        echo '<ul class="small mt-2 mb-0">';
+        foreach (array_slice($warnings, 0, 12, true) as $warning => $count) {
+            echo '<li><span class="badge bg-warning text-dark me-1">' . (int) $count . '</span>' . self::h($warning) . '</li>';
+        }
+        echo '</ul>';
+        echo '</details>';
     }
 
     private static function h(mixed $v): string
