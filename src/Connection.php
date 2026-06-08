@@ -62,23 +62,32 @@ class Connection extends CommonDBTM
     }
 
     /**
-     * Returns the plugin's absolute web base URL, derived from the physical path.
+     * Returns the plugin's absolute web base URL.
      *
-     * Plugin::getWebDir() is unreliable in the marketplace context — it can
-     * include /front in the path and cause doubled segments.  This method
-     * computes the URL from GLPI_ROOT + $CFG_GLPI['url_base'] instead.
+     * Plugin::getWebDir() is deprecated in GLPI 11 and uses root_doc (a relative
+     * path) instead of url_base (the full URL).  This method replicates the same
+     * marketplace-vs-plugins detection but always produces a full absolute URL
+     * using $CFG_GLPI['url_base'], which is safe for use as an href in any context.
      */
     public static function getPluginBaseURL(): string
     {
         global $CFG_GLPI;
-        $pluginRoot = dirname(__DIR__);
-        $relative   = str_replace(
-            rtrim(GLPI_ROOT, DIRECTORY_SEPARATOR),
-            '',
-            rtrim($pluginRoot, DIRECTORY_SEPARATOR)
-        );
-        $relative = str_replace(DIRECTORY_SEPARATOR, '/', $relative);
-        return rtrim($CFG_GLPI['url_base'] ?? '', '/') . $relative;
+
+        $isMarketplace = false;
+        try {
+            $marketplaceDir = realpath(GLPI_MARKETPLACE_DIR);
+            foreach (\Plugin::getPluginDirectories() as $dir) {
+                if (is_dir("$dir/bridge")) {
+                    $isMarketplace = ($marketplaceDir !== false && realpath($dir) === $marketplaceDir);
+                    break;
+                }
+            }
+        } catch (\Throwable) {
+            // keep default: plugins
+        }
+
+        $segment = $isMarketplace ? 'marketplace' : 'plugins';
+        return rtrim($CFG_GLPI['url_base'] ?? '', '/') . '/' . $segment . '/bridge';
     }
 
     public static function getConfigFormURL(): string
