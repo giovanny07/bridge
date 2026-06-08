@@ -26,7 +26,7 @@ Html::header(__('Dry-run', 'bridge'), '', 'config', 'plugins');
 try {
     $client       = ConnectorFactory::make($connection);
     $resourceTypes = $client->getResourceTypes();
-    $_frontDir    = rtrim(dirname($_SERVER['SCRIPT_NAME'] ?? ''), '/');
+    $_frontDir    = Connection::getPluginBaseURL() . '/front';
     $dryRunUrl    = $_frontDir . '/dryrun.php';
     $resourceType = (string) ($_POST['resource_type'] ?? '');
 

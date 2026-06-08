@@ -14,7 +14,7 @@ if (!$id || !$connection->getFromDB($id)) {
     Html::redirect(Connection::getConfigURL());
 }
 
-$_frontDir  = rtrim(dirname($_SERVER['SCRIPT_NAME'] ?? ''), '/');
+$_frontDir  = Connection::getPluginBaseURL() . '/front';
 $migrateUrl = $_frontDir . '/migrate.php';
 $purgeUrl   = $_frontDir . '/migration_history.php';
 

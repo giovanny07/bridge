@@ -32,11 +32,11 @@ if (!(int) ($connection->fields['is_active'] ?? 1)) {
     Html::redirect(Connection::getConfigURL($id));
 }
 
-// Build URLs relative to the current script so they work in both
-// /plugins/bridge/front/ and /marketplace/bridge/front/ contexts.
-$_frontDir   = rtrim(dirname($_SERVER['SCRIPT_NAME'] ?? ''), '/');
-$migrateUrl  = $_frontDir . '/migrate.php';
-$historyUrl  = $_frontDir . '/migration_history.php';
+// All requests are routed through GLPI's index.php (SCRIPT_NAME is always
+// /index.php), so we derive the correct front/ URL from the plugin registry.
+$_frontDir  = Connection::getPluginBaseURL() . '/front';
+$migrateUrl = $_frontDir . '/migrate.php';
+$historyUrl = $_frontDir . '/migration_history.php';
 
 Html::header(__('Migration', 'bridge'), '', 'config', 'plugins');
 
@@ -160,7 +160,7 @@ try {
         $job    = BridgeJob::create($id, $resourceType, $options, (int) ($_SESSION['glpiID'] ?? 0));
         // Build URL relative to the current script path so it works in both
         // /plugins/bridge/front/ and /marketplace/bridge/front/ contexts.
-        $jobUrl = rtrim(dirname($_SERVER['SCRIPT_NAME'] ?? ''), '/') . '/job_status.php?job_id=' . $job->id();
+        $jobUrl = Connection::getPluginBaseURL() . '/front/job_status.php?job_id=' . $job->id();
 
         $h = static fn($v) => htmlspecialchars((string) $v, ENT_QUOTES, 'UTF-8');
         echo '<div class="container-fluid py-4 px-4" style="max-width:560px">';

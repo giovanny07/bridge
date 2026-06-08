@@ -16,7 +16,7 @@ if (!$id || !$connection->getFromDB($id)) {
 Html::header(__('Migration jobs', 'bridge'), '', 'config', 'plugins');
 
 $jobs       = BridgeJob::getForConnection($id, 100);
-$_frontDir  = rtrim(dirname($_SERVER['SCRIPT_NAME'] ?? ''), '/');
+$_frontDir  = Connection::getPluginBaseURL() . '/front';
 $jobUrl     = $_frontDir . '/job_status.php';
 $migrateUrl = $_frontDir . '/migrate.php';
 
