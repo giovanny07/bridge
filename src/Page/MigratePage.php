@@ -283,7 +283,7 @@ class MigratePage
 
         // ── Cursor progress banner ────────────────────────────────────────
         if ($cursor !== null && !$isDry) {
-            $migrateUrl = \Plugin::getWebDir('bridge', true) . '/front/migrate.php';
+            $migrateUrl = Connection::getPluginBaseURL() . '/front/migrate.php';
             if ($cursor->isActive()) {
                 echo '<div class="alert alert-primary d-flex align-items-center justify-content-between gap-3 mb-3">';
                 echo '<div>';

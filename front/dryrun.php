@@ -26,7 +26,8 @@ Html::header(__('Dry-run', 'bridge'), '', 'config', 'plugins');
 try {
     $client       = ConnectorFactory::make($connection);
     $resourceTypes = $client->getResourceTypes();
-    $dryRunUrl    = Plugin::getWebDir('bridge', true) . '/front/dryrun.php';
+    $_frontDir    = rtrim(dirname($_SERVER['SCRIPT_NAME'] ?? ''), '/');
+    $dryRunUrl    = $_frontDir . '/dryrun.php';
     $resourceType = (string) ($_POST['resource_type'] ?? '');
 
     // ── Step 1: no resource type selected → show selector ────────────────
@@ -71,7 +72,7 @@ try {
         $results,
         $scan['total'],
         $resourceType,
-        Plugin::getWebDir('bridge', true) . '/front/migrate.php'
+        $_frontDir . '/migrate.php'
     );
 } catch (Throwable $e) {
     echo '<div class="alert alert-danger m-3">';

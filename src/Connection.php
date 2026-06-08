@@ -8,7 +8,6 @@ use DBConnection;
 use GLPIKey;
 use Html;
 use Migration;
-use Plugin;
 use Session;
 
 class Connection extends CommonDBTM
@@ -62,14 +61,34 @@ class Connection extends CommonDBTM
         return $url;
     }
 
-    public static function getConfigFormURL(bool $full = true): string
+    /**
+     * Returns the plugin's absolute web base URL, derived from the physical path.
+     *
+     * Plugin::getWebDir() is unreliable in the marketplace context — it can
+     * include /front in the path and cause doubled segments.  This method
+     * computes the URL from GLPI_ROOT + $CFG_GLPI['url_base'] instead.
+     */
+    public static function getPluginBaseURL(): string
     {
-        return Plugin::getWebDir('bridge', $full) . '/front/config.form.php';
+        global $CFG_GLPI;
+        $pluginRoot = dirname(__DIR__);
+        $relative   = str_replace(
+            rtrim(GLPI_ROOT, DIRECTORY_SEPARATOR),
+            '',
+            rtrim($pluginRoot, DIRECTORY_SEPARATOR)
+        );
+        $relative = str_replace(DIRECTORY_SEPARATOR, '/', $relative);
+        return rtrim($CFG_GLPI['url_base'] ?? '', '/') . $relative;
     }
 
-    public static function getScanURL(bool $full = true): string
+    public static function getConfigFormURL(): string
     {
-        return Plugin::getWebDir('bridge', $full) . '/front/scan.php';
+        return self::getPluginBaseURL() . '/front/config.form.php';
+    }
+
+    public static function getScanURL(): string
+    {
+        return self::getPluginBaseURL() . '/front/scan.php';
     }
 
     public static function getSupportedSystems(): array

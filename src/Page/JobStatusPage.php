@@ -10,8 +10,9 @@ class JobStatusPage
     public static function show(BridgeJob $job, Connection $connection): void
     {
         $jobId      = $job->id();
-        $ajaxUrl    = self::h(\Plugin::getWebDir('bridge', true) . '/ajax/job_status.php');
-        $historyUrl = \Plugin::getWebDir('bridge', true) . '/front/migration_history.php';
+        $base       = Connection::getPluginBaseURL();
+        $ajaxUrl    = self::h($base . '/ajax/job_status.php');
+        $historyUrl = $base . '/front/migration_history.php';
         $connId     = $job->connectionId();
         $isFinished = $job->isFinished();
 

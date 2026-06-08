@@ -35,7 +35,7 @@ class HistoryPage
         echo '<div class="text-muted small mt-1"><i class="ti ti-plug me-1"></i><strong>' . self::h($connection->fields['name']) . '</strong></div>';
         echo '</div>';
         echo '<div class="d-flex gap-2">';
-        $jobsUrl = \Plugin::getWebDir('bridge', true) . '/front/jobs.php';
+        $jobsUrl = Connection::getPluginBaseURL() . '/front/jobs.php';
         echo '<a class="btn btn-sm btn-outline-secondary" href="' . self::h($jobsUrl . '?id=' . $id) . '"><i class="ti ti-list-details me-1"></i>' . self::h(__('Jobs', 'bridge')) . '</a>';
         echo '<a class="btn btn-sm btn-outline-primary" href="' . self::h($migrateUrl . '?id=' . $id) . '"><i class="ti ti-database-import me-1"></i>' . self::h(__('Migrate', 'bridge')) . '</a>';
         echo '<a class="btn btn-sm btn-outline-secondary" href="' . self::h(Connection::getConfigURL($id)) . '"><i class="ti ti-arrow-left me-1"></i>' . self::h(__('Back', 'bridge')) . '</a>';
@@ -45,7 +45,7 @@ class HistoryPage
         // ── Active job banner ────────────────────────────────────────────
         $jobSummary = BridgeJob::getConnectionSummary($id);
         if ($jobSummary['active_job_id'] !== null) {
-            $jobUrl     = \Plugin::getWebDir('bridge', true) . '/front/job_status.php?job_id=' . $jobSummary['active_job_id'];
+            $jobUrl     = Connection::getPluginBaseURL() . '/front/job_status.php?job_id=' . $jobSummary['active_job_id'];
             $isRunning  = ($jobSummary['last_status'] === BridgeJob::STATUS_RUNNING);
             $label      = $isRunning ? __('A migration is currently running', 'bridge') : __('A migration job is pending', 'bridge');
             echo '<div class="alert alert-primary d-flex align-items-center justify-content-between gap-3 mb-4">';

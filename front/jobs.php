@@ -16,8 +16,9 @@ if (!$id || !$connection->getFromDB($id)) {
 Html::header(__('Migration jobs', 'bridge'), '', 'config', 'plugins');
 
 $jobs       = BridgeJob::getForConnection($id, 100);
-$jobUrl     = Plugin::getWebDir('bridge', true) . '/front/job_status.php';
-$migrateUrl = Plugin::getWebDir('bridge', true) . '/front/migrate.php';
+$_frontDir  = rtrim(dirname($_SERVER['SCRIPT_NAME'] ?? ''), '/');
+$jobUrl     = $_frontDir . '/job_status.php';
+$migrateUrl = $_frontDir . '/migrate.php';
 
 $statusClass = [
     BridgeJob::STATUS_PENDING   => 'bg-secondary',

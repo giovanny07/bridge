@@ -6,7 +6,6 @@ use Dropdown;
 use Entity;
 use GlpiPlugin\Bridge\Connection;
 use Html;
-use Plugin;
 use Session;
 
 class ConfigPage
@@ -266,13 +265,14 @@ class ConfigPage
         global $DB;
 
         $rows    = iterator_to_array($DB->request(['FROM' => Connection::getTable(), 'ORDER' => ['name ASC']]));
-        $ajaxUrl    = self::h(Plugin::getWebDir('bridge', true) . '/ajax/test_connection.php');
+        $base        = Connection::getPluginBaseURL();
+        $ajaxUrl    = self::h($base . '/ajax/test_connection.php');
         $scanUrl     = self::h(Connection::getScanURL());
-        $dryRunUrl   = self::h(Plugin::getWebDir('bridge', true) . '/front/dryrun.php');
-        $migrateUrl  = self::h(Plugin::getWebDir('bridge', true) . '/front/migrate.php');
-        $historyUrl  = self::h(Plugin::getWebDir('bridge', true) . '/front/migration_history.php');
-        $syncUsrUrl  = self::h(Plugin::getWebDir('bridge', true) . '/front/sync_users.php');
-        $jobsUrl     = self::h(Plugin::getWebDir('bridge', true) . '/front/jobs.php');
+        $dryRunUrl   = self::h($base . '/front/dryrun.php');
+        $migrateUrl  = self::h($base . '/front/migrate.php');
+        $historyUrl  = self::h($base . '/front/migration_history.php');
+        $syncUsrUrl  = self::h($base . '/front/sync_users.php');
+        $jobsUrl     = self::h($base . '/front/jobs.php');
 
         echo '<div class="card h-100">';
         echo '<div class="card-header fw-semibold">';
@@ -322,7 +322,7 @@ class ConfigPage
                 // Migration status column
                 echo '<td>';
                 if ($activeJobId !== null) {
-                    $jobUrl = Plugin::getWebDir('bridge', true) . '/front/job_status.php?job_id=' . $activeJobId;
+                    $jobUrl = Connection::getPluginBaseURL() . '/front/job_status.php?job_id=' . $activeJobId;
                     $isRunning = ($lastStatus === \GlpiPlugin\Bridge\Migration\BridgeJob::STATUS_RUNNING);
                     $badge = $isRunning ? 'bg-primary' : 'bg-secondary';
                     $label = $isRunning ? __('Running', 'bridge') : __('Pending', 'bridge');

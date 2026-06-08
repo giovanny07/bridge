@@ -14,8 +14,9 @@ if (!$id || !$connection->getFromDB($id)) {
     Html::redirect(Connection::getConfigURL());
 }
 
-$migrateUrl = Plugin::getWebDir('bridge', true) . '/front/migrate.php';
-$purgeUrl   = Plugin::getWebDir('bridge', true) . '/front/migration_history.php';
+$_frontDir  = rtrim(dirname($_SERVER['SCRIPT_NAME'] ?? ''), '/');
+$migrateUrl = $_frontDir . '/migrate.php';
+$purgeUrl   = $_frontDir . '/migration_history.php';
 
 // Handle purge actions (POST only)
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {

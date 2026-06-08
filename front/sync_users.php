@@ -21,7 +21,7 @@ if (!(int) ($connection->fields['is_active'] ?? 1)) {
     Html::redirect(Connection::getConfigURL($id));
 }
 
-$syncUrl = Plugin::getWebDir('bridge', true) . '/front/sync_users.php';
+$syncUrl = rtrim(dirname($_SERVER['SCRIPT_NAME'] ?? ''), '/') . '/sync_users.php';
 
 Html::header(__('User sync', 'bridge'), '', 'config', 'plugins');
 
