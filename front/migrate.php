@@ -108,6 +108,7 @@ try {
         'include_comments'      => isset($_POST['include_comments']),
         'include_attachments'   => isset($_POST['include_attachments']),
         'keep_private_comments' => isset($_POST['keep_private_comments']),
+        'default_requesters_id' => (int) ($_POST['default_requesters_id'] ?? 0),
         'dry_run'             => $action === 'dryrun',
     ];
 
@@ -155,6 +156,17 @@ try {
         }
         [$result, $cursor] = $engine->run($options, $cursor);
         MigratePage::showResult($connection, $result, $resourceType, $historyUrl, $cursor);
+    } elseif (!isset($_POST['confirm_preflight'])) {
+        $preflight = $engine->preflight($options);
+        MigratePage::showPreflight(
+            $connection,
+            $preflight,
+            $resourceType,
+            $resourceTypes,
+            $options,
+            $migrateUrl,
+            $historyUrl
+        );
     } else {
         // Real migration: create a background job, then show a success page
         // with a direct link. Using Html::redirect() after Html::header() can

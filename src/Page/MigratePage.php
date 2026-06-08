@@ -412,6 +412,108 @@ class MigratePage
         echo '</div>';
     }
 
+    public static function showPreflight(
+        Connection $connection,
+        MigrationResult $result,
+        string $resourceType,
+        array $resourceTypes,
+        array $options,
+        string $migrateUrl,
+        string $historyUrl
+    ): void {
+        $id = (int) $connection->fields['id'];
+        $resourceLabel = (string) ($resourceTypes[$resourceType]['label'] ?? ucfirst($resourceType));
+        $candidates = count($result->created);
+        $duplicates = count($result->skipped);
+        $blocked = count($result->failed);
+        $scanned = (int) ($result->stats['scanned'] ?? 0);
+        $queued = (int) ($result->stats['queued'] ?? 0);
+
+        echo '<div class="container-fluid py-3 px-4" style="max-width:900px">';
+        echo '<div class="d-flex align-items-center justify-content-between mb-4">';
+        echo '<div>';
+        echo '<h4 class="mb-0"><i class="ti ti-shield-check me-2 text-primary"></i>' . self::h(__('Migration preflight', 'bridge')) . '</h4>';
+        echo '<div class="text-muted small mt-1"><i class="ti ti-plug me-1"></i><strong>' . self::h($connection->fields['name']) . '</strong>';
+        echo ' &mdash; <span class="badge bg-primary me-1">' . self::h($resourceLabel) . '</span>';
+        echo self::h($connection->fields['base_url'] ?? '') . '</div>';
+        echo '</div>';
+        echo '<div class="d-flex gap-2">';
+        echo '<a class="btn btn-sm btn-outline-secondary" href="' . self::h($historyUrl . '?id=' . $id) . '"><i class="ti ti-history me-1"></i>' . self::h(__('History', 'bridge')) . '</a>';
+        echo '<a class="btn btn-sm btn-outline-secondary" href="' . self::h($migrateUrl . '?id=' . $id . '&resource_type=' . rawurlencode($resourceType)) . '"><i class="ti ti-arrow-left me-1"></i>' . self::h(__('Edit filters', 'bridge')) . '</a>';
+        echo '</div>';
+        echo '</div>';
+
+        echo '<div class="alert alert-info d-flex align-items-center gap-2">';
+        echo '<i class="ti ti-lock"></i>';
+        echo '<span>' . self::h(__('Read-only preflight. No data was written to GLPI.', 'bridge')) . '</span>';
+        echo '</div>';
+
+        echo '<div class="row g-3 mb-3">';
+        self::statCard('circle-check', 'success', $candidates, __('Candidates', 'bridge'));
+        self::statCard('minus-circle', 'secondary', $duplicates, __('Already migrated', 'bridge'));
+        self::statCard('circle-x', 'danger', $blocked, __('Blocked', 'bridge'));
+        echo '</div>';
+
+        echo '<div class="card mb-3 border-0 shadow-sm">';
+        echo '<div class="card-header bg-light border-0 fw-semibold py-2">';
+        echo '<i class="ti ti-route me-1"></i>' . self::h(__('Preflight summary', 'bridge'));
+        echo '</div><div class="card-body py-2">';
+        echo '<div class="d-flex flex-wrap gap-2 small">';
+        self::metricPill(__('Scanned', 'bridge'), $scanned);
+        self::metricPill(__('Queued', 'bridge'), $queued);
+        self::metricPill(__('Date matched', 'bridge'), (int) ($result->stats['date_matched'] ?? 0));
+        self::metricPill(__('Duplicates', 'bridge'), (int) ($result->stats['duplicates'] ?? 0));
+        self::metricPill(__('Mapped', 'bridge'), (int) ($result->stats['mapped'] ?? 0));
+        self::metricPill(__('API pages', 'bridge'), (int) ($result->stats['api_pages'] ?? 0));
+        echo '</div></div></div>';
+
+        if ($candidates === 0) {
+            echo '<div class="alert alert-warning d-flex align-items-center gap-2">';
+            echo '<i class="ti ti-alert-triangle"></i>';
+            echo '<span>' . self::h(__('No migratable candidates were found for these filters. Adjust the filters or purge duplicates from history before creating a job.', 'bridge')) . '</span>';
+            echo '</div>';
+        } elseif ($duplicates > 0 && $duplicates >= $candidates) {
+            echo '<div class="alert alert-warning d-flex align-items-center gap-2">';
+            echo '<i class="ti ti-alert-triangle"></i>';
+            echo '<span>' . self::h(__('Most sampled records were already migrated. The job will skip duplicates and only process new candidates.', 'bridge')) . '</span>';
+            echo '</div>';
+        }
+
+        self::showPreflightTable($result, $resourceType);
+
+        echo '<div class="d-flex align-items-center justify-content-between mt-3">';
+        echo '<div class="text-muted small">';
+        echo '<i class="ti ti-info-circle me-1"></i>' . self::h(__('A job will be created only after confirmation.', 'bridge'));
+        echo '</div>';
+        echo '<div class="d-flex gap-2">';
+        echo '<a class="btn btn-outline-secondary" href="' . self::h($migrateUrl . '?id=' . $id . '&resource_type=' . rawurlencode($resourceType)) . '">';
+        echo '<i class="ti ti-adjustments me-1"></i>' . self::h(__('Edit filters', 'bridge'));
+        echo '</a>';
+        if ($candidates > 0) {
+            echo '<form method="post" action="' . self::h($migrateUrl) . '" class="d-inline">';
+            echo \Html::hidden('_glpi_csrf_token', ['value' => \Session::getNewCSRFToken()]);
+            echo \Html::hidden('id', ['value' => $id]);
+            echo \Html::hidden('action', ['value' => 'migrate']);
+            echo \Html::hidden('confirm_preflight', ['value' => '1']);
+            echo \Html::hidden('resource_type', ['value' => $resourceType]);
+            foreach ($options as $key => $value) {
+                if (is_bool($value)) {
+                    if ($value) {
+                        echo \Html::hidden($key, ['value' => '1']);
+                    }
+                } elseif (is_scalar($value)) {
+                    echo \Html::hidden($key, ['value' => (string) $value]);
+                }
+            }
+            echo '<button type="submit" class="btn btn-primary">';
+            echo '<i class="ti ti-player-play me-1"></i>' . self::h(__('Create migration job', 'bridge'));
+            echo '</button></form>';
+        }
+        echo '</div></div>';
+
+        echo '</div>';
+    }
+
     // ── Helpers ──────────────────────────────────────────────────────────
 
     private static function sectionCard(string $icon, string $title): string
@@ -451,6 +553,60 @@ class MigratePage
         echo '<span class="badge bg-secondary-subtle text-secondary border">';
         echo self::h($label) . ': <strong>' . $value . '</strong>';
         echo '</span>';
+    }
+
+    private static function showPreflightTable(MigrationResult $result, string $resourceType): void
+    {
+        $rows = [];
+        foreach ($result->created as $row) {
+            $rows[] = ['status' => 'candidate'] + $row;
+        }
+        foreach ($result->skipped as $number) {
+            $rows[] = ['status' => 'duplicate', 'number' => $number, 'name' => '', 'reason' => ''];
+        }
+        foreach ($result->failed as $row) {
+            $rows[] = ['status' => 'blocked'] + $row;
+        }
+
+        if ($rows === []) {
+            return;
+        }
+
+        echo '<div class="card mb-3 border-0 shadow-sm">';
+        echo '<div class="card-header bg-light border-0 fw-semibold py-2">';
+        echo '<i class="ti ti-list-check me-1"></i>' . self::h(__('Sample review', 'bridge'));
+        echo '</div>';
+        echo '<div class="table-responsive"><table class="table table-sm table-hover mb-0">';
+        echo '<thead class="table-light"><tr>';
+        echo '<th class="text-muted fw-normal small">#SW</th>';
+        echo '<th class="fw-normal">' . self::h(__('Name', 'bridge')) . '</th>';
+        echo '<th class="fw-normal">' . self::h(__('Status', 'bridge')) . '</th>';
+        echo '<th class="fw-normal">' . self::h(__('Notes', 'bridge')) . '</th>';
+        echo '</tr></thead><tbody>';
+
+        foreach (array_slice($rows, 0, 50) as $row) {
+            $status = (string) ($row['status'] ?? '');
+            $badge = match ($status) {
+                'candidate' => '<span class="badge bg-success">' . self::h(__('Candidate', 'bridge')) . '</span>',
+                'duplicate' => '<span class="badge bg-secondary">' . self::h(__('Duplicate', 'bridge')) . '</span>',
+                default => '<span class="badge bg-danger">' . self::h(__('Blocked', 'bridge')) . '</span>',
+            };
+            $note = match ($status) {
+                'candidate' => __('Ready for job creation', 'bridge'),
+                'duplicate' => __('Already migrated successfully', 'bridge'),
+                default => (string) ($row['reason'] ?? ''),
+            };
+
+            echo '<tr>';
+            echo '<td class="text-muted small">' . self::h($row['number'] ?? '') . '</td>';
+            echo '<td>' . self::h($row['name'] ?? '') . '</td>';
+            echo '<td>' . $badge . '</td>';
+            echo '<td class="text-muted small">' . self::h($note) . '</td>';
+            echo '</tr>';
+        }
+
+        echo '</tbody></table></div>';
+        echo '</div>';
     }
 
     private static function h(mixed $v): string

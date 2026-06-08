@@ -222,4 +222,33 @@ class MigrationEngineTest extends TestCase
         // Stub always returns incidents[0]; 3 IDs → 3 results
         $this->assertSame(3, $result->total());
     }
+
+    // ------------------------------------------------------------------ //
+    // Preflight
+    // ------------------------------------------------------------------ //
+
+    public function testPreflightSkipsAlreadyMigratedRecords(): void
+    {
+        $GLOBALS['DB'] = new class {
+            public function request(array $criteria): array {
+                if (($criteria['FROM'] ?? '') === MigrationRecord::getTable()) {
+                    return [['source_id' => '1']];
+                }
+                return [];
+            }
+        };
+
+        $engine = $this->makeEngine([
+            $this->makeIncident(['id' => 1, 'number' => 101]),
+            $this->makeIncident(['id' => 2, 'number' => 102]),
+        ]);
+
+        $result = $engine->preflight(['limit' => 10]);
+
+        $this->assertTrue($result->isDryRun);
+        $this->assertSame(['101'], $result->skipped);
+        $this->assertCount(1, $result->created);
+        $this->assertSame(1, $result->stats['duplicates']);
+        $this->assertSame(1, $result->stats['queued']);
+    }
 }

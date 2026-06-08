@@ -49,6 +49,69 @@ class MigrationEngine
         $this->jobId = $id;
     }
 
+    /**
+     * Performs a read-only preflight for a real migration request.
+     *
+     * It fetches a small sample using the selected filters, applies local date
+     * filters, checks dedupe against successful migration records, and maps the
+     * remaining records. Nothing is written to GLPI.
+     */
+    public function preflight(array $options, int $sampleLimit = 50): MigrationResult
+    {
+        $limit     = max(1, min($sampleLimit, (int) ($options['limit'] ?? 50)));
+        $startPage = max(1, (int) ($options['start_page'] ?? 1));
+        $rawIds    = trim((string) ($options['source_ids'] ?? ''));
+        $sourceIds = $rawIds !== '' ? array_values(array_filter(array_map('trim', explode(',', $rawIds)))) : [];
+
+        $mapper = new IncidentMapper(
+            $this->resolver,
+            $this->normalizer,
+            $this->fallbackEntityId,
+            $this->fallbackGroupId,
+            $this->fallbackRequesterId,
+        );
+
+        $result           = new MigrationResult();
+        $result->isDryRun = true;
+
+        if ($sourceIds !== []) {
+            $records = [];
+            foreach ($sourceIds as $rawId) {
+                $rawId = ltrim(trim($rawId), '#');
+                try {
+                    $records[] = $result->measureStat('time_api_ms', fn() => $this->getRecordBySourceId($rawId));
+                    $result->incStat('api_pages');
+                    $result->incStat('scanned');
+                } catch (\Throwable $e) {
+                    $result->addFailed(['id' => $rawId, 'number' => $rawId, 'name' => "#$rawId"], $e->getMessage());
+                }
+            }
+            $this->preflightRecords($records, $options, $mapper, $result, $limit);
+            return $result;
+        }
+
+        $filters = $this->buildFilters($options);
+        $perPage = min(self::PER_PAGE, max(1, $limit));
+        $chronologicalFromDate = !empty($options['created_after']) && $startPage === 1;
+        $page = $chronologicalFromDate
+            ? $this->findCreatedAfterBoundaryPage($filters, (string) $options['created_after'], $perPage, $result)
+            : $startPage;
+
+        $batch = $result->measureStat(
+            'time_api_ms',
+            fn() => $this->listBatch($filters, $page, $perPage)
+        );
+        $result->incStat('api_pages');
+        $result->incStat('scanned', count($batch['records'] ?? []));
+
+        $records = $chronologicalFromDate
+            ? array_reverse($batch['records'] ?? [])
+            : ($batch['records'] ?? []);
+        $this->preflightRecords($records, $options, $mapper, $result, $limit);
+
+        return $result;
+    }
+
     /** Returns the GLPI itemtype for the current resource type. */
     private function glpiItemtype(): string
     {
@@ -127,15 +190,7 @@ class MigrationEngine
             foreach ($sourceIds as $rawId) {
                 $rawId = ltrim(trim($rawId), '#');
                 try {
-                    if ($this->resourceType === 'problems') {
-                        $record = $this->connector->getProblem((int) $rawId);
-                    } elseif ($this->resourceType === 'changes') {
-                        $record = $this->connector->getChange((int) $rawId);
-                    } elseif ((int) $rawId < 100_000_000) {
-                        $record = $this->connector->getIncidentByNumber((int) $rawId);
-                    } else {
-                        $record = $this->connector->getIncident((int) $rawId);
-                    }
+                    $record = $this->getRecordBySourceId($rawId);
                 } catch (\Throwable $e) {
                     $result->addFailed(['id' => $rawId, 'number' => $rawId, 'name' => "#$rawId"], $e->getMessage());
                     continue;
@@ -239,6 +294,73 @@ class MigrationEngine
         }
 
         return [$result, $cursor];
+    }
+
+    private function getRecordBySourceId(string $rawId): array
+    {
+        if ($this->resourceType === 'problems') {
+            return $this->connector->getProblem((int) $rawId);
+        }
+        if ($this->resourceType === 'changes') {
+            return $this->connector->getChange((int) $rawId);
+        }
+        if ((int) $rawId < 100_000_000) {
+            return $this->connector->getIncidentByNumber((int) $rawId);
+        }
+        return $this->connector->getIncident((int) $rawId);
+    }
+
+    /**
+     * @param array<int,array<string,mixed>> $records
+     */
+    private function preflightRecords(
+        array $records,
+        array $options,
+        IncidentMapper $mapper,
+        MigrationResult $result,
+        int $limit
+    ): void {
+        $dateMatched = [];
+        foreach ($records as $record) {
+            if ($this->matchesLocalDateFilters($record, $options)) {
+                $dateMatched[] = $record;
+            }
+        }
+        $result->incStat('date_matched', count($dateMatched));
+
+        $alreadyMigrated = $result->measureStat(
+            'time_dedupe_ms',
+            fn() => $this->alreadyMigratedForRecords($dateMatched)
+        );
+
+        foreach ($dateMatched as $record) {
+            if ($result->total() >= $limit) {
+                break;
+            }
+
+            $sourceId = (string) ($record['id'] ?? '');
+            if ($sourceId !== '' && isset($alreadyMigrated[$sourceId])) {
+                $result->addSkipped($record);
+                $result->incStat('duplicates');
+                continue;
+            }
+
+            $result->incStat('queued');
+            $mapped = $result->measureStat(
+                'time_map_ms',
+                fn() => $mapper->map($record, [], $this->resourceType)
+            );
+            $result->incStat('mapped');
+
+            if ($mapped->isCreatable()) {
+                $result->addCreated($record, 0);
+            } else {
+                $result->addFailed(
+                    $record,
+                    'Unresolved entity — configure a fallback entity in the connection settings.'
+                );
+            }
+        }
     }
 
     private function listBatch(array $filters, int $page, int $perPage): array
