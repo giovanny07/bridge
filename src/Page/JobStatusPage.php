@@ -54,6 +54,32 @@ class JobStatusPage
         self::statBox('radar',        'primary',    0, __('Scanned', 'bridge'),  'bridge-stat-scanned');
         echo '</div>';
 
+        echo '<div class="border rounded p-2 mb-3 bg-light">';
+        echo '<div class="text-muted small fw-semibold mb-2"><i class="ti ti-route me-1"></i>' . self::h(__('Pipeline counters', 'bridge')) . '</div>';
+        echo '<div class="row g-2 small" id="bridge-pipeline-grid">';
+        self::metricPill(__('API pages', 'bridge'), 'bridge-metric-api_pages');
+        self::metricPill(__('Queued', 'bridge'), 'bridge-metric-queued');
+        self::metricPill(__('Duplicates', 'bridge'), 'bridge-metric-duplicates');
+        self::metricPill(__('Comments', 'bridge'), 'bridge-metric-comments_read');
+        self::metricPill(__('Followups', 'bridge'), 'bridge-metric-followups_created');
+        self::metricPill(__('Attachments', 'bridge'), 'bridge-metric-attachments_downloaded');
+        self::metricPill(__('Attachment fails', 'bridge'), 'bridge-metric-attachments_failed');
+        self::metricPill(__('Documents', 'bridge'), 'bridge-metric-documents_linked');
+        echo '</div></div>';
+
+        echo '<div class="border rounded p-2 mb-3">';
+        echo '<div class="text-muted small fw-semibold mb-2"><i class="ti ti-clock-bolt me-1"></i>' . self::h(__('Stage duration', 'bridge')) . '</div>';
+        echo '<div class="row g-2 small" id="bridge-timing-grid">';
+        self::metricPill(__('API', 'bridge'), 'bridge-time-api');
+        self::metricPill(__('Dedupe', 'bridge'), 'bridge-time-dedupe');
+        self::metricPill(__('Mapping', 'bridge'), 'bridge-time-map');
+        self::metricPill(__('Comments', 'bridge'), 'bridge-time-comments');
+        self::metricPill(__('Create', 'bridge'), 'bridge-time-ticket_create');
+        self::metricPill(__('Followups', 'bridge'), 'bridge-time-followups');
+        self::metricPill(__('Attachments', 'bridge'), 'bridge-time-attachments');
+        self::metricPill(__('Total', 'bridge'), 'bridge-time-total');
+        echo '</div></div>';
+
         // Error message
         echo '<div id="bridge-error-msg" class="alert alert-danger py-2 small" style="display:none"></div>';
 
@@ -175,6 +201,10 @@ class JobStatusPage
         ]);
 
         $initiallyFinished = $isFinished ? 'true' : 'false';
+        $initialPayload = json_encode(
+            BridgeJob::getStatusPayload($jobId, true, true),
+            JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT
+        );
 
         echo <<<JS
 <script>
@@ -185,9 +215,11 @@ class JobStatusPage
     var classes    = {$statusClasses};
     var labels     = {$statusLabels};
     var pollTimer  = null;
+    var initialData = {$initialPayload};
 
-    function update(data) {
+    function update(data, clearActionsOnFinish) {
         if (data.error) return;
+        if (clearActionsOnFinish === undefined) clearActionsOnFinish = true;
 
         // Badge
         var badge = document.getElementById('bridge-status-badge');
@@ -199,6 +231,31 @@ class JobStatusPage
         ['created','failed','skipped','scanned'].forEach(function(k) {
             var el = document.getElementById('bridge-stat-' + k);
             if (el) el.textContent = s[k] || 0;
+        });
+
+        var counters = [
+            'api_pages','queued','duplicates','comments_read',
+            'followups_created','attachments_downloaded',
+            'attachments_failed','documents_linked'
+        ];
+        counters.forEach(function(k) {
+            var el = document.getElementById('bridge-metric-' + k);
+            if (el) el.textContent = s[k] || 0;
+        });
+
+        var timings = {
+            api: 'time_api_ms',
+            dedupe: 'time_dedupe_ms',
+            map: 'time_map_ms',
+            comments: 'time_comments_ms',
+            ticket_create: 'time_ticket_create_ms',
+            followups: 'time_followups_ms',
+            attachments: 'time_attachments_ms',
+            total: 'duration_ms_total'
+        };
+        Object.keys(timings).forEach(function(label) {
+            var el = document.getElementById('bridge-time-' + label);
+            if (el) el.textContent = formatMs(s[timings[label]] || 0);
         });
 
         // Error
@@ -223,7 +280,9 @@ class JobStatusPage
         // Stop polling when done
         if (['completed','failed','cancelled','rolled_back'].includes(data.status)) {
             if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
-            document.getElementById('bridge-job-actions').innerHTML = '';
+            if (clearActionsOnFinish) {
+                document.getElementById('bridge-job-actions').innerHTML = '';
+            }
             finished = true;
         }
     }
@@ -276,6 +335,18 @@ class JobStatusPage
                     if (errs.length) err = '<div class="text-danger mt-1 small">' + errs.slice(0,3).map(function(e){ return '• ' + e; }).join('<br>') + '</div>';
                 } catch(e) {}
             }
+            var metrics = '';
+            if (l.metrics_json) {
+                try {
+                    var m = JSON.parse(l.metrics_json);
+                    metrics = '<div class="text-muted mt-1 small">API ' + formatMs(m.time_api_ms || 0)
+                        + ' · map ' + formatMs(m.time_map_ms || 0)
+                        + ' · create ' + formatMs(m.time_ticket_create_ms || 0)
+                        + ' · comments ' + (m.comments_read || 0)
+                        + ' · attachments ' + (m.attachments_downloaded || 0) + '/' + (m.attachments_detected || 0)
+                        + '</div>';
+                } catch(e) {}
+            }
             return '<tr>' +
                 '<td class="text-muted">' + l.chunk + '</td>' +
                 '<td class="text-muted">' + (l.logged_at || '').substring(11,19) + '</td>' +
@@ -285,8 +356,14 @@ class JobStatusPage
                 '<td class="text-danger">' + l.failed + '</td>' +
                 '<td>' + (l.duration_ms > 999 ? (l.duration_ms/1000).toFixed(1) + 's' : l.duration_ms + 'ms') + '</td>' +
                 '<td>' + (l.cursor_page || '—') + '</td>' +
-                '</tr>' + (err ? '<tr><td colspan="8">' + err + '</td></tr>' : '');
+                '</tr>' + (err || metrics ? '<tr><td colspan="8">' + metrics + err + '</td></tr>' : '');
         }).join('');
+    }
+
+    function formatMs(ms) {
+        ms = Number(ms || 0);
+        if (ms >= 1000) return (ms / 1000).toFixed(ms >= 10000 ? 0 : 1) + 's';
+        return ms + 'ms';
     }
 
     function poll() {
@@ -331,6 +408,10 @@ class JobStatusPage
             });
     };
 
+    update(initialData, false);
+    renderRecent(initialData.recent);
+    renderLogs(initialData.logs);
+
     if (!finished) {
         poll();
         pollTimer = setInterval(poll, 4000);
@@ -372,6 +453,15 @@ JS;
         echo '<div class="border rounded p-2 text-center">';
         echo '<div class="fw-bold fs-4 text-' . $color . '" id="' . $id . '">' . $value . '</div>';
         echo '<div class="text-muted small"><i class="ti ti-' . $icon . ' me-1"></i>' . self::h($label) . '</div>';
+        echo '</div></div>';
+    }
+
+    private static function metricPill(string $label, string $id): void
+    {
+        echo '<div class="col-6 col-md-3">';
+        echo '<div class="d-flex align-items-center justify-content-between gap-2 border rounded px-2 py-1 bg-white">';
+        echo '<span class="text-muted text-truncate">' . self::h($label) . '</span>';
+        echo '<strong class="font-monospace" id="' . self::h($id) . '">0</strong>';
         echo '</div></div>';
     }
 

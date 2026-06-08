@@ -117,6 +117,19 @@ class MigrationEngineTest extends TestCase
         $this->assertCount(0, $result->failed);
     }
 
+    public function testDryRunExposesPipelineMetrics(): void
+    {
+        $engine = $this->makeEngine([$this->makeIncident(['id' => 1])]);
+        [$result] = $engine->run(['dry_run' => true, 'limit' => 10]);
+
+        $this->assertArrayHasKey('time_api_ms', $result->stats);
+        $this->assertArrayHasKey('time_map_ms', $result->stats);
+        $this->assertArrayHasKey('comments_read', $result->stats);
+        $this->assertSame(1, $result->stats['api_pages']);
+        $this->assertSame(1, $result->stats['queued']);
+        $this->assertSame(1, $result->stats['mapped']);
+    }
+
     // ------------------------------------------------------------------ //
     // Limit enforcement
     // ------------------------------------------------------------------ //

@@ -32,6 +32,7 @@ class JobLog
      * @param int    $durationMs  Wall-clock duration of the chunk in ms
      * @param int    $cursorPage  Cursor page after the chunk (0 = exhausted)
      * @param array  $errors      Sample of error messages from this chunk
+     * @param array  $metrics     Detailed pipeline metrics collected by MigrationResult
      */
     public static function append(
         int   $jobId,
@@ -43,7 +44,8 @@ class JobLog
         int   $skipped,
         int   $durationMs,
         int   $cursorPage,
-        array $errors = []
+        array $errors = [],
+        array $metrics = []
     ): void {
         global $DB;
 
@@ -59,6 +61,7 @@ class JobLog
             'duration_ms'  => $durationMs,
             'cursor_page'  => $cursorPage,
             'errors_json'  => $errors ? json_encode(array_slice($errors, 0, 20)) : null,
+            'metrics_json' => $metrics ? json_encode($metrics) : null,
         ]);
     }
 
@@ -124,10 +127,14 @@ class JobLog
                 `duration_ms`  int          NOT NULL DEFAULT 0,
                 `cursor_page`  int          NOT NULL DEFAULT 0,
                 `errors_json`  text,
+                `metrics_json` text,
                 PRIMARY KEY (`id`),
                 KEY `jobs_id` (`jobs_id`)
             ) ENGINE=InnoDB DEFAULT CHARSET={$cs} COLLATE={$coll} ROW_FORMAT=DYNAMIC;
             SQL, $DB->error());
+        } elseif (!$DB->fieldExists($table, 'metrics_json')) {
+            $migration->addField($table, 'metrics_json', 'text');
+            $migration->executeMigration();
         }
     }
 

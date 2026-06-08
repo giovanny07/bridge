@@ -156,7 +156,7 @@ class MigrationEngine
             $page                  = $cursor->currentPage();
             $chronologicalFromDate = $cursor->direction() === 'backward';
         } elseif ($chronologicalFromDate) {
-            $page = $this->findCreatedAfterBoundaryPage($filters, (string) $options['created_after'], $perPage);
+            $page = $this->findCreatedAfterBoundaryPage($filters, (string) $options['created_after'], $perPage, $result);
         } else {
             $page = $startPage;
         }
@@ -179,7 +179,10 @@ class MigrationEngine
         $maxPagesPerRun = $chronologicalFromDate ? MigrationCursor::CHUNK_PAGES : PHP_INT_MAX;
 
         while ($this->attemptedTotal($result) < $limit && $pagesThisRun < $maxPagesPerRun) {
-            $batch = $this->listBatch($filters, $page, $perPage);
+            $batch = $result->measureStat(
+                'time_api_ms',
+                fn() => $this->listBatch($filters, $page, $perPage)
+            );
             $result->incStat('api_pages');
             $result->incStat('scanned', count($batch['records'] ?? []));
             $pagesThisRun++;
@@ -247,9 +250,12 @@ class MigrationEngine
         };
     }
 
-    private function findCreatedAfterBoundaryPage(array $filters, string $cutoff, int $perPage): int
+    private function findCreatedAfterBoundaryPage(array $filters, string $cutoff, int $perPage, MigrationResult $result): int
     {
-        $firstBatch = $this->listBatch($filters, 1, $perPage);
+        $firstBatch = $result->measureStat(
+            'time_api_ms',
+            fn() => $this->listBatch($filters, 1, $perPage)
+        );
         $totalPages = (int) ceil(max(0, (int) ($firstBatch['total'] ?? 0)) / $perPage);
 
         if ($totalPages <= 1) {
@@ -262,7 +268,9 @@ class MigrationEngine
 
         while ($low <= $high) {
             $mid = intdiv($low + $high, 2);
-            $batch = $mid === 1 ? $firstBatch : $this->listBatch($filters, $mid, $perPage);
+            $batch = $mid === 1
+                ? $firstBatch
+                : $result->measureStat('time_api_ms', fn() => $this->listBatch($filters, $mid, $perPage));
 
             if ($this->batchHasRecordOnOrAfter($batch['records'] ?? [], $cutoff)) {
                 $boundary = $mid;
@@ -308,7 +316,10 @@ class MigrationEngine
             return [$dateMatched, []];
         }
 
-        $alreadyMigrated = $this->alreadyMigratedForRecords($dateMatched);
+        $alreadyMigrated = $result->measureStat(
+            'time_dedupe_ms',
+            fn() => $this->alreadyMigratedForRecords($dateMatched)
+        );
         if ($alreadyMigrated === []) {
             $result->incStat('queued', count($dateMatched));
             return [$dateMatched, []];
@@ -408,7 +419,10 @@ class MigrationEngine
             }
         }
 
-        $mapped = $mapper->map($incident, [], $this->resourceType);
+        $mapped = $result->measureStat(
+            'time_map_ms',
+            fn() => $mapper->map($incident, [], $this->resourceType)
+        );
         $result->incStat('mapped');
 
         if ($isDryRun) {
@@ -425,14 +439,18 @@ class MigrationEngine
 
         if ($includeComm) {
             try {
-                $comments = match ($this->resourceType) {
+                $comments = $result->measureStat('time_comments_ms', fn() => match ($this->resourceType) {
                     'problems' => $this->connector->getProblemComments((int) $sourceId),
                     'changes'  => $this->connector->getChangeComments((int) $sourceId),
                     default    => $this->connector->getIncidentComments((int) $sourceId),
-                };
+                });
                 $result->incStat('comments_requests');
+                $result->incStat('comments_read', count($comments));
                 if ($comments !== []) {
-                    $mapped = $mapper->map($incident, $comments, $this->resourceType);
+                    $mapped = $result->measureStat(
+                        'time_map_ms',
+                        fn() => $mapper->map($incident, $comments, $this->resourceType)
+                    );
                     $result->incStat('mapped');
                 }
             } catch (\Throwable) {
@@ -440,7 +458,10 @@ class MigrationEngine
         }
 
         try {
-            $ticketId = $this->createTicket($mapped, $includeAtt, $keepPrivate);
+            $ticketId = $result->measureStat(
+                'time_ticket_create_ms',
+                fn() => $this->createTicket($mapped, $includeAtt, $keepPrivate, $result)
+            );
             $result->addCreated($incident, $ticketId);
             $warningsNote = implode(' | ', $mapped->warnings);
             MigrationRecord::log($this->connectionId, $this->resourceType, $sourceId, (string) ($incident['number'] ?? ''), MigrationRecord::STATUS_SUCCESS, $ticketId, $warningsNote, $this->jobId);
@@ -454,7 +475,7 @@ class MigrationEngine
     // GLPI record creation
     // ------------------------------------------------------------------ //
 
-    private function createTicket(MappedIncident $mapped, bool $includeAttachments, bool $keepPrivate = false): int
+    private function createTicket(MappedIncident $mapped, bool $includeAttachments, bool $keepPrivate, MigrationResult $result): int
     {
         $t        = $mapped->ticket;
         $itemtype = $this->glpiItemtype();
@@ -481,11 +502,12 @@ class MigrationEngine
         if ($itemId <= 0) {
             throw new \RuntimeException($itemtype . '::add() returned ' . $itemId . '. Check GLPI logs.');
         }
+        $result->incStat('tickets_created');
 
         $entityId = (int) ($t['entities_id'] ?? 0);
 
         foreach ($mapped->followups as $f) {
-            $this->createFollowup($f, $itemId, $entityId, $includeAttachments, $keepPrivate, $itemtype);
+            $this->createFollowup($f, $itemId, $entityId, $includeAttachments, $keepPrivate, $itemtype, $result);
         }
 
         // Workaround (Problems only) — stored as a private internal followup
@@ -616,13 +638,21 @@ class MigrationEngine
         );
     }
 
-    private function createFollowup(array $f, int $ticketId, int $entityId, bool $includeAttachments, bool $keepPrivate = false, string $itemtype = 'Ticket'): void
+    private function createFollowup(
+        array $f,
+        int $ticketId,
+        int $entityId,
+        bool $includeAttachments,
+        bool $keepPrivate,
+        string $itemtype,
+        MigrationResult $result
+    ): void
     {
         global $DB;
 
         $followup       = new \ITILFollowup();
         $historicalDate = $f['date'] ?? date('Y-m-d H:i:s');
-        $fId = (int) $followup->add([
+        $fId = (int) $result->measureStat('time_followups_ms', fn() => $followup->add([
             'itemtype'        => $itemtype,
             'items_id'        => $ticketId,
             'content'         => $f['content'],
@@ -632,11 +662,18 @@ class MigrationEngine
             'users_id'        => $f['_users_id'] ?? 0,
             'requesttypes_id' => 6,
             '_disablenotif'   => true,
-        ]);
+        ]));
+        if ($fId > 0) {
+            $result->incStat('followups_created');
+        }
 
         if ($includeAttachments && $fId > 0) {
+            $inlineAttachments = $f['_inline_attachments'] ?? [];
+            $fileAttachments   = array_merge($f['_attachments'] ?? [], $f['_shared_attachments'] ?? []);
+            $result->incStat('attachments_detected', count($inlineAttachments) + count($fileAttachments));
+
             // Inline images: download → create Document → build src replacement map
-            $inlineUrlMap = $this->attachInlineImages($f['_inline_attachments'] ?? [], $fId, $entityId);
+            $inlineUrlMap = $this->attachInlineImages($inlineAttachments, $fId, $entityId, $result);
 
             // Replace broken SolarWinds src URLs in the followup HTML
             if (!empty($inlineUrlMap)) {
@@ -647,10 +684,10 @@ class MigrationEngine
             }
 
             // Regular + shared attachments (no HTML replacement needed)
-            foreach (array_merge($f['_attachments'] ?? [], $f['_shared_attachments'] ?? []) as $att) {
+            foreach ($fileAttachments as $att) {
                 $url = (string) ($att['url'] ?? $att['download_url'] ?? '');
                 if ($url !== '') {
-                    $this->downloadAndLink($url, $ticketId, $fId, $entityId);
+                    $this->downloadAndLink($url, $ticketId, $fId, $entityId, $result);
                 }
             }
         }
@@ -660,7 +697,7 @@ class MigrationEngine
      * Downloads inline images, creates GLPI Documents, and returns a map of
      * original SolarWinds URL → GLPI document URL for HTML src replacement.
      */
-    private function attachInlineImages(array $inlineAtts, int $followupId, int $entityId): array
+    private function attachInlineImages(array $inlineAtts, int $followupId, int $entityId, MigrationResult $result): array
     {
         global $CFG_GLPI;
 
@@ -672,14 +709,16 @@ class MigrationEngine
                 continue;
             }
 
-            $file = $this->connector->downloadAttachment($originalUrl);
+            $file = $result->measureStat('time_attachments_ms', fn() => $this->connector->downloadAttachment($originalUrl));
             if ($file === null) {
+                $result->incStat('attachments_failed');
                 continue;
             }
 
             $tmpName = uniqid('bridge_') . '_' . preg_replace('/[^a-zA-Z0-9._-]/', '_', $file['filename']);
             $tmpPath = GLPI_TMP_DIR . '/' . $tmpName;
             if (file_put_contents($tmpPath, $file['content']) === false) {
+                $result->incStat('attachments_failed');
                 continue;
             }
 
@@ -693,11 +732,14 @@ class MigrationEngine
             @unlink($tmpPath);
 
             if ($docId <= 0) {
+                $result->incStat('attachments_failed');
                 continue;
             }
+            $result->incStat('attachments_downloaded');
 
             $di = new \Document_Item();
             $di->add(['documents_id' => $docId, 'itemtype' => 'ITILFollowup', 'items_id' => $followupId, 'entities_id' => $entityId]);
+            $result->incStat('documents_linked');
 
             // Map the original URL to the GLPI document endpoint
             $glpiUrl = ($CFG_GLPI['url_base'] ?? '') . '/front/document.send.php?docid=' . $docId;
@@ -731,10 +773,11 @@ class MigrationEngine
     // inline images go through attachInlineImages() (with src replacement),
     // regular/shared attachments are handled inline in createFollowup().
 
-    private function downloadAndLink(string $url, int $ticketId, int $followupId, int $entityId): void
+    private function downloadAndLink(string $url, int $ticketId, int $followupId, int $entityId, MigrationResult $result): void
     {
-        $file = $this->connector->downloadAttachment($url);
+        $file = $result->measureStat('time_attachments_ms', fn() => $this->connector->downloadAttachment($url));
         if ($file === null) {
+            $result->incStat('attachments_failed');
             return;
         }
 
@@ -742,6 +785,7 @@ class MigrationEngine
         $tmpPath = GLPI_TMP_DIR . '/' . $tmpName;
 
         if (file_put_contents($tmpPath, $file['content']) === false) {
+            $result->incStat('attachments_failed');
             return;
         }
 
@@ -756,14 +800,17 @@ class MigrationEngine
         @unlink($tmpPath);
 
         if ($docId <= 0) {
+            $result->incStat('attachments_failed');
             return;
         }
+        $result->incStat('attachments_downloaded');
 
         // Link only to the followup — GLPI shows followup attachments in the
         // timeline inline. Linking to the Ticket as well creates a duplicate
         // in the Documents tab since the same file appears twice.
         $di = new \Document_Item();
         $di->add(['documents_id' => $docId, 'itemtype' => 'ITILFollowup', 'items_id' => $followupId, 'entities_id' => $entityId]);
+        $result->incStat('documents_linked');
     }
 
     // ------------------------------------------------------------------ //

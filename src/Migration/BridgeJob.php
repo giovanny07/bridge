@@ -322,20 +322,23 @@ class BridgeJob extends CommonDBTM
                 skipped:     count($result->skipped),
                 durationMs:  $durationMs,
                 cursorPage:  $cursor?->currentPage() ?? 0,
-                errors:      $chunkErrors
+                errors:      $chunkErrors,
+                metrics:     $result->stats
             );
 
             // Merge stats with accumulated totals
             $prev  = $job->stats();
-            $stats = [
-                'created'   => ($prev['created']   ?? 0) + count($result->created),
-                'failed'    => ($prev['failed']     ?? 0) + count($result->failed),
-                'skipped'   => ($prev['skipped']    ?? 0) + count($result->skipped),
-                'scanned'   => ($prev['scanned']    ?? 0) + (int) ($result->stats['scanned']   ?? 0),
-                'api_pages' => ($prev['api_pages']  ?? 0) + (int) ($result->stats['api_pages'] ?? 0),
-                'chunks'    => $chunkNumber,
-                'duration_ms_total' => ($prev['duration_ms_total'] ?? 0) + $durationMs,
-            ];
+            $stats = $prev;
+            foreach ($result->stats as $key => $value) {
+                if (is_numeric($value)) {
+                    $stats[$key] = (int) ($stats[$key] ?? 0) + (int) $value;
+                }
+            }
+            $stats['created']           = (int) ($prev['created'] ?? 0) + count($result->created);
+            $stats['failed']            = (int) ($prev['failed']  ?? 0) + count($result->failed);
+            $stats['skipped']           = (int) ($prev['skipped'] ?? 0) + count($result->skipped);
+            $stats['chunks']            = $chunkNumber;
+            $stats['duration_ms_total'] = (int) ($prev['duration_ms_total'] ?? 0) + $durationMs;
 
             $task->log(sprintf(
                 'Job #%d chunk #%d done in %dms: +%d created, %d scanned, %d failed, cursor page %d',

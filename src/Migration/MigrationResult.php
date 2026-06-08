@@ -12,13 +12,27 @@ class MigrationResult
     public array $skipped = [];
     /** @var array<string,int> lightweight pipeline counters for observability */
     public array $stats = [
-        'api_pages'          => 0,
-        'scanned'            => 0,
-        'date_matched'       => 0,
-        'duplicates'         => 0,
-        'queued'             => 0,
-        'comments_requests'  => 0,
-        'mapped'             => 0,
+        'api_pages'              => 0,
+        'scanned'                => 0,
+        'date_matched'           => 0,
+        'duplicates'             => 0,
+        'queued'                 => 0,
+        'comments_requests'      => 0,
+        'comments_read'          => 0,
+        'mapped'                 => 0,
+        'tickets_created'        => 0,
+        'followups_created'      => 0,
+        'attachments_detected'   => 0,
+        'attachments_downloaded' => 0,
+        'attachments_failed'     => 0,
+        'documents_linked'       => 0,
+        'time_api_ms'            => 0,
+        'time_dedupe_ms'         => 0,
+        'time_map_ms'            => 0,
+        'time_ticket_create_ms'  => 0,
+        'time_comments_ms'       => 0,
+        'time_followups_ms'      => 0,
+        'time_attachments_ms'    => 0,
     ];
 
     public bool $isDryRun = false;
@@ -26,6 +40,16 @@ class MigrationResult
     public function incStat(string $key, int $by = 1): void
     {
         $this->stats[$key] = ($this->stats[$key] ?? 0) + $by;
+    }
+
+    public function measureStat(string $key, callable $callback): mixed
+    {
+        $start = microtime(true);
+        try {
+            return $callback();
+        } finally {
+            $this->incStat($key, (int) round((microtime(true) - $start) * 1000));
+        }
     }
 
     public function addCreated(array $incident, int $ticketsId): void
