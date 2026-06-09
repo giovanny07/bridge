@@ -13,6 +13,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+## [1.1.1] - 2026-06-09
+
+### Fixed
+- Migration history page: search, status filters, pagination, and "clear search"
+  links were built as relative `?id=...` URLs, which resolved against GLPI's root
+  `<base href>` and dropped the plugin path (e.g. `/?id=1`). They now use the
+  absolute, plugin-dir-aware self URL.
+
 ## [1.1.0] - 2026-06-09
 
 First stable release. Core migration features, the background job system, and UX
@@ -42,6 +50,7 @@ hardening are complete.
   `/index.php`, so the old logic collapsed plugin links to the domain root
   (e.g. `/migrate.php`) and produced 404s.
 
-[Unreleased]: https://github.com/Imagunet-S-A-S/bridge/compare/v1.1.0...HEAD
+[Unreleased]: https://github.com/Imagunet-S-A-S/bridge/compare/v1.1.1...HEAD
+[1.1.1]: https://github.com/Imagunet-S-A-S/bridge/compare/v1.1.0...v1.1.1
 [1.1.0]: https://github.com/Imagunet-S-A-S/bridge/compare/v1.0.3...v1.1.0
 [1.0.3]: https://github.com/Imagunet-S-A-S/bridge/releases/tag/v1.0.3

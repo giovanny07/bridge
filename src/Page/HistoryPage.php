@@ -13,6 +13,10 @@ class HistoryPage
     public static function show(Connection $connection, string $migrateUrl, string $purgeUrl): void
     {
         $id           = (int) $connection->fields['id'];
+        // Absolute, plugin-dir-aware URL to this page. All query-string links
+        // below must be built on top of it: a bare "?id=..." href resolves
+        // against GLPI's root <base href> and would drop the plugin path.
+        $selfUrl      = $purgeUrl;
         $filterStatus = (string) ($_GET['status'] ?? '');
         $search       = trim((string) ($_GET['q'] ?? ''));
         $page         = max(1, (int) ($_GET['page'] ?? 1));
@@ -63,8 +67,8 @@ class HistoryPage
         echo '</div>';
 
         // ── Search bar ───────────────────────────────────────────────────
-        $baseUrl = '?id=' . $id;
-        echo '<form method="get" action="" class="mb-3">';
+        $baseUrl = $selfUrl . '?id=' . $id;
+        echo '<form method="get" action="' . self::h($selfUrl) . '" class="mb-3">';
         echo \Html::hidden('id', ['value' => $id]);
         if ($filterStatus !== '') {
             echo \Html::hidden('status', ['value' => $filterStatus]);
@@ -103,7 +107,7 @@ class HistoryPage
         ];
         foreach ($filterDefs as $val => [$lbl, $color]) {
             $active = ($filterStatus === $val);
-            $url    = '?id=' . $id . ($val !== '' ? '&status=' . urlencode($val) : '') . $qParam;
+            $url    = $selfUrl . '?id=' . $id . ($val !== '' ? '&status=' . urlencode($val) : '') . $qParam;
             $cls    = $active ? "btn-$color" : "btn-outline-$color";
             echo '<a class="btn btn-sm ' . $cls . '" href="' . self::h($url) . '">' . self::h($lbl) . '</a>';
         }
@@ -205,7 +209,7 @@ class HistoryPage
 
             // Prev
             if ($page > 1) {
-                $url = '?id=' . $id . $statusParam . $qParam . '&page=' . ($page - 1);
+                $url = $selfUrl . '?id=' . $id . $statusParam . $qParam . '&page=' . ($page - 1);
                 echo '<a class="btn btn-sm btn-outline-secondary" href="' . self::h($url) . '"><i class="ti ti-chevron-left"></i></a>';
             } else {
                 echo '<button class="btn btn-sm btn-outline-secondary" disabled><i class="ti ti-chevron-left"></i></button>';
@@ -215,22 +219,22 @@ class HistoryPage
             $windowStart = max(1, $page - 2);
             $windowEnd   = min($pages, $page + 2);
             if ($windowStart > 1) {
-                echo '<a class="btn btn-sm btn-outline-secondary" href="' . self::h('?id=' . $id . $statusParam . $qParam . '&page=1') . '">1</a>';
+                echo '<a class="btn btn-sm btn-outline-secondary" href="' . self::h($selfUrl . '?id=' . $id . $statusParam . $qParam . '&page=1') . '">1</a>';
                 if ($windowStart > 2) echo '<span class="text-muted px-1">…</span>';
             }
             for ($p = $windowStart; $p <= $windowEnd; $p++) {
-                $url = '?id=' . $id . $statusParam . $qParam . '&page=' . $p;
+                $url = $selfUrl . '?id=' . $id . $statusParam . $qParam . '&page=' . $p;
                 $cls = $p === $page ? 'btn-primary' : 'btn-outline-secondary';
                 echo '<a class="btn btn-sm ' . $cls . '" href="' . self::h($url) . '">' . $p . '</a>';
             }
             if ($windowEnd < $pages) {
                 if ($windowEnd < $pages - 1) echo '<span class="text-muted px-1">…</span>';
-                echo '<a class="btn btn-sm btn-outline-secondary" href="' . self::h('?id=' . $id . $statusParam . $qParam . '&page=' . $pages) . '">' . $pages . '</a>';
+                echo '<a class="btn btn-sm btn-outline-secondary" href="' . self::h($selfUrl . '?id=' . $id . $statusParam . $qParam . '&page=' . $pages) . '">' . $pages . '</a>';
             }
 
             // Next
             if ($page < $pages) {
-                $url = '?id=' . $id . $statusParam . $qParam . '&page=' . ($page + 1);
+                $url = $selfUrl . '?id=' . $id . $statusParam . $qParam . '&page=' . ($page + 1);
                 echo '<a class="btn btn-sm btn-outline-secondary" href="' . self::h($url) . '"><i class="ti ti-chevron-right"></i></a>';
             } else {
                 echo '<button class="btn btn-sm btn-outline-secondary" disabled><i class="ti ti-chevron-right"></i></button>';
