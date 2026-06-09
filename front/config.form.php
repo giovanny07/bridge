@@ -25,6 +25,4 @@ if (isset($_POST['purge'])) {
     Html::redirect(Connection::getConfigURL());
 }
 
-Html::redirect(
-    \Config::getFormURL() . '?forcetab=' . urlencode(Config::class . '$1')
-);
+Html::redirect(Connection::getConfigURL());

@@ -52,10 +52,14 @@ class Connection extends CommonDBTM
 
     public static function getConfigURL(int $selectedId = 0, bool $full = true): string
     {
-        $url = \Config::getFormURL($full) . '?forcetab=' . urlencode(Config::class . '$1');
+        // Standalone connections page (not the core Config tab): a normal page
+        // request, so ?bridge_connection_id=N reaches ConfigPage::show() and the
+        // edit form loads. $full is kept for signature compatibility — the base
+        // URL is always absolute.
+        $url = self::getPluginBaseURL() . '/front/config.php';
 
         if ($selectedId > 0) {
-            $url .= '&bridge_connection_id=' . $selectedId;
+            $url .= '?bridge_connection_id=' . $selectedId;
         }
 
         return $url;

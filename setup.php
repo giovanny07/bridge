@@ -30,7 +30,7 @@ function plugin_init_bridge(): void
         'comment'        => 'Process pending Bridge migration jobs (external mode — run via OS cron)',
     ]);
 
-    $PLUGIN_HOOKS['config_page']['bridge'] = 'front/config.form.php';
+    $PLUGIN_HOOKS['config_page']['bridge'] = 'front/config.php';
     $PLUGIN_HOOKS[Hooks::ADD_CSS]['bridge']        = ['css/bridge.css'];
     $PLUGIN_HOOKS[Hooks::ADD_JAVASCRIPT]['bridge'] = ['js/bridge.js'];
     $PLUGIN_HOOKS[Hooks::CSRF_COMPLIANT]['bridge'] = true;

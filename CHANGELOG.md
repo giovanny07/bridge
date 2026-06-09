@@ -13,6 +13,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+## [1.1.2] - 2026-06-09
+
+### Fixed
+- Editing a specific connection now works. The connection management UI is served
+  as a standalone page (`front/config.php`) instead of a GLPI Config tab. GLPI
+  loads tab content through an AJAX endpoint that strips custom query params, so
+  `?bridge_connection_id=N` never reached `ConfigPage::show()` and the edit form
+  always rendered empty. As a normal page, the parameter is honoured.
+
+### Changed
+- The "Configure" link and all in-app config links open the standalone Bridge
+  connections page rather than the General Setup → Bridge tab.
+
 ## [1.1.1] - 2026-06-09
 
 ### Fixed
@@ -50,7 +63,8 @@ hardening are complete.
   `/index.php`, so the old logic collapsed plugin links to the domain root
   (e.g. `/migrate.php`) and produced 404s.
 
-[Unreleased]: https://github.com/Imagunet-S-A-S/bridge/compare/v1.1.1...HEAD
+[Unreleased]: https://github.com/Imagunet-S-A-S/bridge/compare/v1.1.2...HEAD
+[1.1.2]: https://github.com/Imagunet-S-A-S/bridge/compare/v1.1.1...v1.1.2
 [1.1.1]: https://github.com/Imagunet-S-A-S/bridge/compare/v1.1.0...v1.1.1
 [1.1.0]: https://github.com/Imagunet-S-A-S/bridge/compare/v1.0.3...v1.1.0
 [1.0.3]: https://github.com/Imagunet-S-A-S/bridge/releases/tag/v1.0.3
