@@ -1,0 +1,39 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to release (e.g. v1.1.0)'
+        required: true
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write   # required for OIDC token exchange
+      contents: read
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_ROLE_ARN }}
+          aws-region: us-east-1
+
+      - name: Resolve version
+        id: version
+        run: |
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            echo "value=${{ github.event.inputs.version }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "value=${{ github.ref_name }}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Package and publish
+        run: bash scripts/release.sh "${{ steps.version.outputs.value }}"

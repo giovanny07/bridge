@@ -1,0 +1,75 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  php-lint:
+    name: PHP syntax check
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up PHP 8.3
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          tools: none
+          coverage: none
+
+      - name: Lint all PHP files
+        run: |
+          echo "Checking PHP syntax..."
+          failed=0
+          while IFS= read -r f; do
+            if ! php -l "$f" 2>&1; then
+              failed=1
+            fi
+          done < <(find . \
+            -name "*.php" \
+            -not -path "./.git/*" \
+            -not -path "./vendor/*" \
+            | sort)
+          if [[ $failed -ne 0 ]]; then
+            echo "One or more PHP files have syntax errors."
+            exit 1
+          fi
+          echo "All PHP files OK."
+
+  zip-build:
+    name: Verify plugin zip builds cleanly
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build zip
+        run: |
+          mkdir -p dist
+          git archive \
+            --format=zip \
+            --prefix=bridge/ \
+            HEAD \
+            setup.php hook.php composer.json index.html LICENSE \
+            ajax/ front/ src/ css/ js/ public/ locales/ templates/ \
+            -o dist/bridge-ci.zip
+
+          echo "Zip contents:"
+          unzip -l dist/bridge-ci.zip
+
+          # Verify the expected entry points are present.
+          if ! unzip -l dist/bridge-ci.zip | grep -q "bridge/setup.php"; then
+            echo "ERROR: setup.php missing from zip."
+            exit 1
+          fi
+          # migrate.php is the front controller whose URLs regressed once before —
+          # keep it as an explicit packaging guard.
+          if ! unzip -l dist/bridge-ci.zip | grep -q "bridge/front/migrate.php"; then
+            echo "ERROR: front/migrate.php missing from zip."
+            exit 1
+          fi
+          echo "Zip verification passed."

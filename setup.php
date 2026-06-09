@@ -43,7 +43,7 @@ function plugin_version_bridge(): array
         'version'      => PLUGIN_BRIDGE_VERSION,
         'author'       => 'Imagunet',
         'license'      => 'GPLv3+',
-        'homepage'     => 'https://github.com/giovanny07/bridge',
+        'homepage'     => 'https://github.com/Imagunet-S-A-S/bridge',
         'requirements' => [
             'glpi' => [
                 'min' => PLUGIN_BRIDGE_MIN_GLPI,

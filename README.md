@@ -52,9 +52,24 @@ Bridge is a **GLPI 11** plugin for migrating ITSM data from external platforms i
 
 ## Installation
 
+### From release (recommended)
+
+Download and unpack the latest published build into your GLPI plugins directory:
+
+```bash
+curl -fsSL https://imagu-binaries.s3.us-east-1.amazonaws.com/bridge/install.sh | bash
+# pin a version:   curl -fsSL .../bridge/install.sh | VERSION=v1.1.0 bash
+# custom dir:      curl -fsSL .../bridge/install.sh | PLUGINS_DIR=/var/lib/glpi/plugins bash
+# uninstall:       curl -fsSL .../bridge/install.sh | UNINSTALL=true bash
+```
+
+The installer auto-detects the GLPI plugins directory (or use `PLUGINS_DIR`).
+
+### From source (development)
+
 ```bash
 cd /var/lib/glpi/plugins
-git clone git@github.com:giovanny07/bridge.git bridge
+git clone git@github.com:Imagunet-S-A-S/bridge.git bridge
 cd bridge
 composer install --no-dev
 ```
@@ -355,6 +370,14 @@ Supported locales: `en_GB`, `es_ES`, `pt_BR`. To recompile `.mo` files:
 ```bash
 php tools/compile-mo.php
 ```
+
+---
+
+## Contributing & releases
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for the development setup, translation
+workflow, and how releases are cut (`tools/bump-version.sh` + tag → S3). Release
+history is in [CHANGELOG.md](CHANGELOG.md).
 
 ---
 
