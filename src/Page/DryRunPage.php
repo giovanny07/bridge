@@ -151,13 +151,16 @@ class DryRunPage
         echo '<th>' . self::h(__('Group / Assignee', 'bridge')) . '</th>';
         echo '<th>' . self::h(__('Requester', 'bridge')) . '</th>';
         echo '<th class="text-center">' . self::h(__('Comments', 'bridge')) . '</th>';
+        if ($resourceType === 'changes') {
+            echo '<th class="text-center">' . self::h(__('Tasks', 'bridge')) . '</th>';
+        }
         echo '<th>' . self::h(__('Status', 'bridge')) . '</th>';
         echo '</tr></thead><tbody>';
 
         foreach ($results as $mapped) {
             $t   = $mapped->ticket;
             $inc = $mapped->original;
-            self::showRow($mapped, $t, $inc, $migrateUrl !== '');
+            self::showRow($mapped, $t, $inc, $migrateUrl !== '', $resourceType);
         }
 
         echo '</tbody></table>';
@@ -198,7 +201,13 @@ class DryRunPage
         echo '</div>';
     }
 
-    private static function showRow(MappedIncident $mapped, array $t, array $inc, bool $withSelection = false): void
+    private static function showRow(
+        MappedIncident $mapped,
+        array $t,
+        array $inc,
+        bool $withSelection = false,
+        string $resourceType = 'incidents'
+    ): void
     {
         $rowClass = match ($mapped->status) {
             'ok'         => '',
@@ -271,6 +280,14 @@ class DryRunPage
             ? '<span class="badge bg-info text-dark">' . $commentCount . '</span>'
             : '<span class="text-muted">—</span>';
         echo '</td>';
+        if ($resourceType === 'changes') {
+            $tasksCount = is_array($inc['tasks'] ?? null) ? count($inc['tasks']) : null;
+            echo '<td class="text-center">';
+            echo $tasksCount === null
+                ? '<span class="text-muted">?</span>'
+                : '<span class="badge bg-info text-dark">' . (int) $tasksCount . '</span>';
+            echo '</td>';
+        }
         echo '<td>' . $statusBadge . '</td>';
         echo '</tr>';
 
@@ -278,7 +295,7 @@ class DryRunPage
         if ($mapped->warnings !== []) {
             echo '<tr' . $rowClass . '>';
             echo '<td></td>';
-            echo '<td colspan="9" class="text-muted small pb-2">';
+            echo '<td colspan="' . ($resourceType === 'changes' ? 10 : 9) . '" class="text-muted small pb-2">';
             echo '<i class="ti ti-alert-triangle me-1 text-warning"></i>';
             echo self::h(implode(' | ', $mapped->warnings));
             echo '</td>';

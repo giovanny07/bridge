@@ -344,7 +344,13 @@ class MigrationEngine
             if ($sourceId !== '' && isset($alreadyMigrated[$sourceId])) {
                 $result->addSkipped($record);
                 $result->incStat('duplicates');
-                $result->addPreflightRow($record, 'duplicate', [], 'Already migrated successfully');
+                $result->addPreflightRow(
+                    $record,
+                    'duplicate',
+                    [],
+                    'Already migrated successfully',
+                    $this->preflightTaskMeta($record, $result)
+                );
                 continue;
             }
 
@@ -357,12 +363,50 @@ class MigrationEngine
 
             if ($mapped->isCreatable()) {
                 $result->addCreated($record, 0);
-                $result->addPreflightRow($record, $mapped->status, $mapped->warnings);
+                $result->addPreflightRow(
+                    $record,
+                    $mapped->status,
+                    $mapped->warnings,
+                    '',
+                    $this->preflightTaskMeta($record, $result)
+                );
             } else {
                 $reason = 'Unresolved entity — configure a fallback entity in the connection settings.';
                 $result->addFailed($record, $reason);
-                $result->addPreflightRow($record, 'unresolved', $mapped->warnings, $reason);
+                $result->addPreflightRow(
+                    $record,
+                    'unresolved',
+                    $mapped->warnings,
+                    $reason,
+                    $this->preflightTaskMeta($record, $result)
+                );
             }
+        }
+    }
+
+    private function preflightTaskMeta(array $record, MigrationResult $result): array
+    {
+        if ($this->resourceType !== 'changes') {
+            return [];
+        }
+
+        $sourceId = (int) ($record['id'] ?? 0);
+        if ($sourceId <= 0) {
+            return ['tasks_count' => isset($record['tasks']) && is_array($record['tasks']) ? count($record['tasks']) : 0];
+        }
+
+        try {
+            $tasks = $result->measureStat(
+                'time_tasks_ms',
+                fn() => $this->connector->getChangeTasks($sourceId)
+            );
+            $result->incStat('tasks_requests');
+            $result->incStat('tasks_read', count($tasks));
+
+            return ['tasks_count' => count($tasks)];
+        } catch (\Throwable) {
+            $result->incStat('tasks_failed');
+            return ['tasks_count' => isset($record['tasks']) && is_array($record['tasks']) ? count($record['tasks']) : null];
         }
     }
 
@@ -582,10 +626,24 @@ class MigrationEngine
             }
         }
 
+        $changeTasks = [];
+        if ($this->resourceType === 'changes' && (int) $sourceId > 0) {
+            try {
+                $changeTasks = $result->measureStat(
+                    'time_tasks_ms',
+                    fn() => $this->connector->getChangeTasks((int) $sourceId)
+                );
+                $result->incStat('tasks_requests');
+                $result->incStat('tasks_read', count($changeTasks));
+            } catch (\Throwable) {
+                $result->incStat('tasks_failed');
+            }
+        }
+
         try {
             $ticketId = $result->measureStat(
                 'time_ticket_create_ms',
-                fn() => $this->createTicket($mapped, $includeAtt, $keepPrivate, $result)
+                fn() => $this->createTicket($mapped, $includeAtt, $keepPrivate, $result, $changeTasks)
             );
             $result->addCreated($incident, $ticketId);
             $warningsNote = implode(' | ', $mapped->warnings);
@@ -600,7 +658,13 @@ class MigrationEngine
     // GLPI record creation
     // ------------------------------------------------------------------ //
 
-    private function createTicket(MappedIncident $mapped, bool $includeAttachments, bool $keepPrivate, MigrationResult $result): int
+    private function createTicket(
+        MappedIncident $mapped,
+        bool $includeAttachments,
+        bool $keepPrivate,
+        MigrationResult $result,
+        array $changeTasks = []
+    ): int
     {
         $t        = $mapped->ticket;
         $itemtype = $this->glpiItemtype();
@@ -633,6 +697,10 @@ class MigrationEngine
 
         foreach ($mapped->followups as $f) {
             $this->createFollowup($f, $itemId, $entityId, $includeAttachments, $keepPrivate, $itemtype, $result);
+        }
+
+        if ($itemtype === 'Change' && $changeTasks !== []) {
+            $this->createChangeTasks($changeTasks, $itemId, $result);
         }
 
         // Workaround (Problems only) — stored as a private internal followup
@@ -669,6 +737,65 @@ class MigrationEngine
         $this->forceAssignActors($itemId, $t);
 
         return $itemId;
+    }
+
+    /**
+     * @param array<int,array<string,mixed>> $rawTasks
+     */
+    private function createChangeTasks(array $rawTasks, int $changeId, MigrationResult $result): void
+    {
+        foreach ($rawTasks as $rawTask) {
+            if (!is_array($rawTask)) {
+                $result->incStat('tasks_failed');
+                continue;
+            }
+
+            try {
+                $result->measureStat('time_tasks_ms', function () use ($rawTask, $changeId, $result): void {
+                    $taskInput = $this->normalizer->changeTaskToITILTask($rawTask);
+                    $this->resolveChangeTaskActors($taskInput);
+
+                    $createInput = array_filter(
+                        $taskInput,
+                        static fn($key): bool => !str_starts_with((string) $key, '_'),
+                        ARRAY_FILTER_USE_KEY
+                    );
+                    $createInput['changes_id'] = $changeId;
+                    $createInput['_disablenotif'] = true;
+                    $createInput['_do_not_check_already_planned'] = true;
+
+                    $task = new \ChangeTask();
+                    $taskId = (int) $task->add($createInput);
+                    if ($taskId <= 0) {
+                        throw new \RuntimeException('ChangeTask::add() returned ' . $taskId);
+                    }
+
+                    $result->incStat('tasks_created');
+                });
+            } catch (\Throwable) {
+                $result->incStat('tasks_failed');
+            }
+        }
+    }
+
+    private function resolveChangeTaskActors(array &$taskInput): void
+    {
+        $assigneeEmail = (string) ($taskInput['_assignee_email'] ?? '');
+        if ($assigneeEmail !== '') {
+            $userId = $this->resolver->resolveUserByEmail($assigneeEmail);
+            if ($userId !== null) {
+                $taskInput['users_id_tech'] = $userId;
+                return;
+            }
+        }
+
+        $assigneeName = (string) ($taskInput['_assignee_name'] ?? '');
+        if ($assigneeName !== '') {
+            $groupId = $this->resolver->resolveGroup($assigneeName);
+            if ($groupId !== null) {
+                $taskInput['groups_id_tech'] = $groupId;
+            }
+        }
     }
 
     /**

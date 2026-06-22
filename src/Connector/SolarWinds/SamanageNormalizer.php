@@ -36,6 +36,10 @@ class SamanageNormalizer implements NormalizerInterface
     public const GLPI_ORIGIN_OTHER    = 6;
     public const GLPI_ORIGIN_EMAIL    = 7;
 
+    // GLPI Planning task states
+    public const GLPI_TASK_TODO = 1;
+    public const GLPI_TASK_DONE = 2;
+
     private const STATE_MAP = [
         'Pending Assignment'       => self::GLPI_STATUS_NEW,
         'En Proceso'               => self::GLPI_STATUS_ASSIGNED,
@@ -295,6 +299,85 @@ class SamanageNormalizer implements NormalizerInterface
             '_source_href'        => $change['href']   ?? null,
             '_source_raw'         => $change,
         ];
+    }
+
+    public function changeTaskToITILTask(array $task): array
+    {
+        $sourceId = (string) ($task['id'] ?? '');
+        $name     = trim((string) ($task['name'] ?? ''));
+        $desc     = trim((string) ($task['description'] ?? ''));
+        $type     = trim((string) ($task['task_type'] ?? ''));
+        $response = trim((string) ($task['response'] ?? ''));
+
+        $content = [];
+        $title = $name !== '' ? $name : 'SolarWinds change task';
+        if ($sourceId !== '') {
+            $title = "[SolarWinds task #{$sourceId}] {$title}";
+        }
+        $content[] = '<p><strong>' . htmlspecialchars($title, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . '</strong></p>';
+
+        if ($desc !== '') {
+            $content[] = $this->stripLinks($desc);
+        }
+
+        $meta = [];
+        if ($type !== '') {
+            $meta[] = 'Type: ' . htmlspecialchars($type, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+        }
+        if ($response !== '') {
+            $meta[] = 'Response: ' . htmlspecialchars($response, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+        }
+        if (!empty($task['rejected_at'])) {
+            $meta[] = 'Rejected at: ' . htmlspecialchars((string) $task['rejected_at'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+        }
+        if ($meta !== []) {
+            $content[] = '<p><small>' . implode(' | ', $meta) . '</small></p>';
+        }
+
+        $createdAt   = $this->parseDate($task['created_at'] ?? null);
+        $updatedAt   = $this->parseDate($task['updated_at'] ?? null);
+        $dueAt       = $this->parseDate($task['due_at'] ?? null);
+        $completedAt = $this->parseDate($task['completed_at'] ?? null);
+        $confirmedAt = $this->parseDate($task['confirmed_at'] ?? null);
+        $rejectedAt  = $this->parseDate($task['rejected_at'] ?? null);
+
+        $state = ($completedAt !== null || $confirmedAt !== null || $rejectedAt !== null)
+            ? self::GLPI_TASK_DONE
+            : self::GLPI_TASK_TODO;
+
+        $result = [
+            'content'          => implode("\n", $content),
+            'state'            => $state,
+            'date'             => $createdAt ?? $updatedAt ?? date('Y-m-d H:i:s'),
+            'date_creation'    => $createdAt,
+            'date_mod'         => $updatedAt,
+            'is_private'       => 0,
+            'users_id'         => 0,
+            'users_id_tech'    => 0,
+            'groups_id_tech'   => 0,
+            '_source_id'       => $task['id'] ?? null,
+            '_source_href'     => $task['href'] ?? null,
+            '_source_name'     => $name,
+            '_source_type'     => $type,
+            '_source_raw'      => $task,
+            '_assignee_email'  => (string) ($task['assignee']['email'] ?? ''),
+            '_assignee_name'   => (string) ($task['assignee']['name'] ?? ''),
+            '_requester_email' => (string) ($task['requester']['email'] ?? ''),
+            '_completed_by'    => $task['completed_by'] ?? null,
+            '_completed_at'    => $completedAt,
+            '_confirmed_at'    => $confirmedAt,
+            '_rejected_at'     => $rejectedAt,
+            '_due_at'          => $dueAt,
+        ];
+
+        if ($createdAt !== null && $dueAt !== null && strtotime($createdAt) < strtotime($dueAt)) {
+            $result['plan'] = [
+                'begin' => $createdAt,
+                'end'   => $dueAt,
+            ];
+        }
+
+        return $result;
     }
 
     /**

@@ -64,4 +64,11 @@ interface NormalizerInterface
      * Includes rolloutplancontent, backoutplancontent, checklistcontent.
      */
     public function changeToITIL(array $change): array;
+
+    /**
+     * Maps a source change task/workflow activity to a GLPI ChangeTask input
+     * fragment. The parent changes_id is assigned by the migration engine
+     * after the GLPI Change is created.
+     */
+    public function changeTaskToITILTask(array $task): array;
 }

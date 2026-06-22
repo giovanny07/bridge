@@ -62,11 +62,11 @@ class ConnectionTest extends TestCase
     // URL helpers
     // ------------------------------------------------------------------ //
 
-    public function testGetConfigURLContainsForceTab(): void
+    public function testGetConfigURLPointsToStandaloneConfigPage(): void
     {
         $url = Connection::getConfigURL(0, false);
 
-        $this->assertStringContainsString('forcetab=', $url);
+        $this->assertStringContainsString('/plugins/bridge/front/config.php', $url);
     }
 
     public function testGetConfigURLWithIdContainsConnectionId(): void

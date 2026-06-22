@@ -89,6 +89,12 @@ interface ConnectorInterface
     public function getChange(int $id): array;
 
     /**
+     * Fetches all workflow/tasks associated with a single change.
+     * Returns an array of raw task objects from the source system.
+     */
+    public function getChangeTasks(int $changeId): array;
+
+    /**
      * Paginated problem listing for migration.
      * Returns: ['total', 'page', 'per_page', 'count', 'records']
      */

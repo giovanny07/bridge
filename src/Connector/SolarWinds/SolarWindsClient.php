@@ -274,6 +274,13 @@ class SolarWindsClient implements ConnectorInterface
         return $response['json'];
     }
 
+    public function getChangeTasks(int $changeId): array
+    {
+        $response = $this->request("/changes/{$changeId}/tasks.json");
+        $json     = $response['json'];
+        return array_is_list($json) ? $json : [];
+    }
+
     public function listProblems(array $filters = [], int $page = 1, int $perPage = 50): array
     {
         $perPage  = max(1, min($perPage, 100));

@@ -489,4 +489,81 @@ class SamanageNormalizerTest extends TestCase
             $this->assertSame($expectedStatus, $result['status'], "State '$state' should map to $expectedStatus");
         }
     }
+
+    // ------------------------------------------------------------------ //
+    // changeTaskToITILTask
+    // ------------------------------------------------------------------ //
+
+    public function testChangeTaskToITILTaskMapsContentAndMetadata(): void
+    {
+        $result = $this->normalizer->changeTaskToITILTask([
+            'id'          => 123,
+            'name'        => 'Approve deployment',
+            'description' => '<p>Review <a href="https://example.test">request</a></p>',
+            'task_type'   => 'approval',
+            'response'    => 'Approved',
+            'created_at'  => '2026-06-01T10:00:00.000-04:00',
+            'updated_at'  => '2026-06-01T11:00:00.000-04:00',
+            'href'        => 'https://api.samanage.com/tasks/123',
+        ]);
+
+        $this->assertStringContainsString('[SolarWinds task #123] Approve deployment', $result['content']);
+        $this->assertStringContainsString('Review request', $result['content']);
+        $this->assertStringContainsString('Type: approval', $result['content']);
+        $this->assertStringContainsString('Response: Approved', $result['content']);
+        $this->assertSame(123, $result['_source_id']);
+        $this->assertSame('https://api.samanage.com/tasks/123', $result['_source_href']);
+    }
+
+    public function testChangeTaskToITILTaskMapsTodoStateWhenOpen(): void
+    {
+        $result = $this->normalizer->changeTaskToITILTask([
+            'id'         => 123,
+            'name'       => 'Pending implementation',
+            'created_at' => '2026-06-01T10:00:00.000-04:00',
+        ]);
+
+        $this->assertSame(SamanageNormalizer::GLPI_TASK_TODO, $result['state']);
+    }
+
+    public function testChangeTaskToITILTaskMapsDoneStateWhenCompleted(): void
+    {
+        $result = $this->normalizer->changeTaskToITILTask([
+            'id'           => 123,
+            'name'         => 'Implemented',
+            'created_at'   => '2026-06-01T10:00:00.000-04:00',
+            'completed_at' => '2026-06-01T12:00:00.000-04:00',
+        ]);
+
+        $this->assertSame(SamanageNormalizer::GLPI_TASK_DONE, $result['state']);
+        $this->assertNotNull($result['_completed_at']);
+    }
+
+    public function testChangeTaskToITILTaskAddsPlanWhenDueAtIsAfterCreation(): void
+    {
+        $result = $this->normalizer->changeTaskToITILTask([
+            'id'         => 123,
+            'name'       => 'Planned task',
+            'created_at' => '2026-06-01T10:00:00.000-04:00',
+            'due_at'     => '2026-06-01T12:00:00.000-04:00',
+        ]);
+
+        $this->assertArrayHasKey('plan', $result);
+        $this->assertSame($result['date'], $result['plan']['begin']);
+        $this->assertNotSame($result['plan']['begin'], $result['plan']['end']);
+    }
+
+    public function testChangeTaskToITILTaskPreservesAssigneeEmails(): void
+    {
+        $result = $this->normalizer->changeTaskToITILTask([
+            'id' => 123,
+            'name' => 'Assigned task',
+            'assignee' => ['email' => 'tech@example.com', 'name' => 'Tech User'],
+            'requester' => ['email' => 'requester@example.com'],
+        ]);
+
+        $this->assertSame('tech@example.com', $result['_assignee_email']);
+        $this->assertSame('Tech User', $result['_assignee_name']);
+        $this->assertSame('requester@example.com', $result['_requester_email']);
+    }
 }

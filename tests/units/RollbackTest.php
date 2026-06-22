@@ -272,6 +272,7 @@ class RollbackTest extends TestCase
             public function downloadAttachment(string $url): ?array { return null; }
             public function listChanges(array $f = [], int $p = 1, int $pp = 50): array  { return ['total'=>0,'page'=>1,'per_page'=>50,'count'=>0,'records'=>[]]; }
             public function getChange(int $id): array             { return []; }
+            public function getChangeTasks(int $id): array        { return []; }
             public function listProblems(array $f = [], int $p = 1, int $pp = 50): array { return ['total'=>0,'page'=>1,'per_page'=>50,'count'=>0,'records'=>[]]; }
             public function getProblem(int $id): array            { return []; }
             public function listUsers(array $f = [], int $p = 1, int $pp = 100): array   { return ['total'=>0,'page'=>1,'per_page'=>100,'count'=>0,'records'=>[]]; }

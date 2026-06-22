@@ -104,6 +104,39 @@ if (!class_exists('DBConnection')) {
     }
 }
 
+if (!class_exists('Ticket')) {
+    class Ticket extends CommonDBTM {}
+}
+
+if (!class_exists('Problem')) {
+    class Problem extends CommonDBTM {}
+}
+
+if (!class_exists('Change')) {
+    class Change extends CommonDBTM {}
+}
+
+if (!class_exists('ChangeTask')) {
+    class ChangeTask extends CommonDBTM
+    {
+        public static array $addedInputs = [];
+
+        public function add(array $input): int|false
+        {
+            self::$addedInputs[] = $input;
+            return count(self::$addedInputs);
+        }
+    }
+}
+
+if (!class_exists('ITILFollowup')) {
+    class ITILFollowup extends CommonDBTM {}
+}
+
+if (!class_exists('ITILSolution')) {
+    class ITILSolution extends CommonDBTM {}
+}
+
 if (!function_exists('__')) {
     function __(string $str, string $domain = ''): string { return $str; }
 }

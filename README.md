@@ -305,6 +305,11 @@ The API always returns records newest-first and does not honour `sort_order=asc`
 | `priority` | `priority` | Same mapping as Incidents |
 | Dates | `date`, `solvedate`, `closedate` | Same logic as Incidents |
 | Actors | `glpi_changes_users` / `glpi_changes_groups` | Same logic as Tickets |
+| Change tasks | `ChangeTask` | Created from `/changes/{id}/tasks.json`; failures are counted without aborting the Change |
+
+Preflight and dry-run previews show the detected task count for changes. The
+preflight CSV export includes `tasks_count` so large batches can be reviewed
+before creating GLPI records.
 
 **Change status map**
 

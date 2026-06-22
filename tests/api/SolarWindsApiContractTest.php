@@ -3,20 +3,20 @@
 /**
  * SolarWinds / Samanage API contract tests.
  *
- * These tests document the behavior of the real API as discovered on
- * 2026-05-13 against servicios.daycohost.com. They are integration tests
+ * These tests document the behavior of the real API as discovered against
+ * SolarWinds Service Desk / Samanage. They are integration tests
  * that require live credentials and network access, so they are excluded
  * from the default unit test run.
  *
  * Run with:
- *   BRIDGE_API_URL=https://servicios.daycohost.com \
+ *   BRIDGE_API_URL=https://api.samanage.com \
  *   BRIDGE_API_TOKEN='<plain_token>' \
  *   ./vendor/bin/phpunit --bootstrap tests/bootstrap.php --group api tests/api/
  *
  * The token value is the PLAIN (decrypted) bearer token, not the GLPI-encrypted one.
  *
  * -------------------------------------------------------------------------
- * FINDINGS SUMMARY (servicios.daycohost.com, 2026-05-13)
+ * FINDINGS SUMMARY (api.samanage.com, last verified 2026-06-22)
  * -------------------------------------------------------------------------
  * Auth      : X-Samanage-Authorization: Bearer <token>  ← required
  *             Authorization: Bearer <token>              ← returns 401
@@ -25,7 +25,7 @@
  *
  * Available endpoints (200):
  *   /incidents    187 579 records
- *   /changes        4 518 records
+ *   /changes        4 662 records
  *   /users          1 550 records
  *   /problems          82 records
  *   /groups           377 records
@@ -34,6 +34,8 @@
  *   /catalog_items     12 records
  *
  * Not available (404): /hardware /software /assets /cmdb_items /service_requests
+ * Change tasks: /changes/{id}/tasks.json returns task arrays; sibling
+ *   /change_tasks, /process_tasks and /activities endpoints return 404.
  *
  * Incident states   : En Proceso | Closed | Pendiente Acción Cliente
  *                     Pending Assignment | Solucionado
@@ -326,6 +328,41 @@ class SolarWindsApiContractTest extends TestCase
             $incident['created_at'],
             'created_at must be ISO 8601 with timezone offset.'
         );
+    }
+
+    // ================================================================== //
+    // Change tasks
+    // ================================================================== //
+
+    public function testChangeTasksEndpointReturnsExpectedShape(): void
+    {
+        $this->requireCredentials();
+
+        $changes = $this->curl('/changes.json?per_page=5&page=1')['json'];
+        $this->assertIsArray($changes);
+        $this->assertNotEmpty($changes);
+
+        $changeId = 0;
+        foreach ($changes as $change) {
+            if (!empty($change['id'])) {
+                $changeId = (int) $change['id'];
+                break;
+            }
+        }
+
+        $this->assertGreaterThan(0, $changeId, 'At least one change ID must be available.');
+
+        $tasks = $this->client()->getChangeTasks($changeId);
+
+        $this->assertIsArray($tasks);
+        if ($tasks === []) {
+            $this->markTestSkipped("Change $changeId has no tasks in this environment.");
+        }
+
+        $first = $tasks[0];
+        foreach (['id', 'name', 'href', 'created_at', 'updated_at', 'task_type', 'parent'] as $field) {
+            $this->assertArrayHasKey($field, $first, "Change task must have field '$field'.");
+        }
     }
 
     // ================================================================== //

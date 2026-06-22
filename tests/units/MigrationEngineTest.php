@@ -40,10 +40,10 @@ class MigrationEngineTest extends TestCase
         ], $overrides);
     }
 
-    private function makeConnector(array $incidents = [], bool $alreadyMigrated = false): object
+    private function makeConnector(array $incidents = [], bool $alreadyMigrated = false, array $changeTasks = []): object
     {
-        return new class($incidents, $alreadyMigrated) implements ConnectorInterface {
-            public function __construct(private array $incidents, private bool $alreadyMigrated) {}
+        return new class($incidents, $alreadyMigrated, $changeTasks) implements ConnectorInterface {
+            public function __construct(private array $incidents, private bool $alreadyMigrated, private array $changeTasks = []) {}
             public function getResourceTypes(): array { return ['incidents' => ['label' => 'Incidents', 'implemented' => true]]; }
             public function testConnection(): array { return ['ok' => true, 'status' => 200, 'latency_ms' => 10, 'total' => count($this->incidents), 'message' => 'OK']; }
             public function scanIncidents(int $limit = 10): array { return $this->listIncidents([], 1, $limit); }
@@ -56,13 +56,14 @@ class MigrationEngineTest extends TestCase
             public function getProblemComments(int $id): array { return []; }
             public function getChangeComments(int $id): array { return []; }
             public function downloadAttachment(string $url): ?array { return null; }
-            public function listChanges(array $f = [], int $p = 1, int $pp = 50): array { return ['total'=>0,'page'=>1,'per_page'=>50,'count'=>0,'records'=>[]]; }
+            public function listChanges(array $f = [], int $p = 1, int $pp = 50): array { return ['total'=>count($this->incidents),'page'=>$p,'per_page'=>$pp,'count'=>count($this->incidents),'records'=>$this->incidents]; }
             public function getChange(int $id): array { return $this->incidents[0] ?? []; }
+            public function getChangeTasks(int $id): array { return $this->changeTasks; }
             public function listProblems(array $f = [], int $p = 1, int $pp = 50): array { return ['total'=>0,'page'=>1,'per_page'=>50,'count'=>0,'records'=>[]]; }
             public function getProblem(int $id): array { return $this->incidents[0] ?? []; }
             public function listUsers(array $f = [], int $p = 1, int $pp = 100): array { return ['total'=>0,'page'=>1,'per_page'=>100,'count'=>0,'records'=>[]]; }
             public function getUser(int $id): array { return []; }
-            public static function fromConnection($c): static { return new static([], false); }
+            public static function fromConnection($c): static { return new static([], false, []); }
         };
     }
 
@@ -71,7 +72,12 @@ class MigrationEngineTest extends TestCase
         $db = new class {
             public function request(array $c): array {
                 $from = $c['FROM'] ?? '';
-                if (isset($c['INNER JOIN'])) return [['id' => 5, 'email' => 'req@client.com']];
+                if (isset($c['INNER JOIN'])) {
+                    return [
+                        ['id' => 5, 'email' => 'req@client.com'],
+                        ['id' => 6, 'email' => 'tech@example.com'],
+                    ];
+                }
                 if ($from === 'glpi_entities')     return [['id' => 30, 'name' => 'Acumuladores Duncan, C.A.']];
                 if ($from === 'glpi_itilcategories') return [['id' => 7, 'name' => 'Windows'], ['id' => 8, 'name' => 'Servidor']];
                 if ($from === 'glpi_groups')        return [['id' => 28, 'name' => 'Centro de Servicios']];
@@ -81,15 +87,22 @@ class MigrationEngineTest extends TestCase
         return new GlpiResolver($db);
     }
 
-    private function makeEngine(array $incidents, int $fallbackEntity = 0, int $fallbackGroup = 0): MigrationEngine
+    private function makeEngine(
+        array $incidents,
+        int $fallbackEntity = 0,
+        int $fallbackGroup = 0,
+        string $resourceType = 'incidents',
+        array $changeTasks = []
+    ): MigrationEngine
     {
         return new MigrationEngine(
-            $this->makeConnector($incidents),
+            $this->makeConnector($incidents, changeTasks: $changeTasks),
             new SamanageNormalizer(),
             $this->makeResolver(),
             connectionId: 1,
             fallbackEntityId: $fallbackEntity,
             fallbackGroupId: $fallbackGroup,
+            resourceType: $resourceType,
         );
     }
 
@@ -223,6 +236,57 @@ class MigrationEngineTest extends TestCase
         $this->assertSame(3, $result->total());
     }
 
+    public function testChangeMigrationCreatesChangeTasks(): void
+    {
+        $GLOBALS['DB'] = new class {
+            public array $inserts = [];
+            public array $updates = [];
+            public array $deletes = [];
+
+            public function request(array $criteria): array { return []; }
+            public function delete(string $table, array $criteria): bool { $this->deletes[] = [$table, $criteria]; return true; }
+            public function insert(string $table, array $input): bool { $this->inserts[] = [$table, $input]; return true; }
+            public function update(string $table, array $input, array $criteria): bool { $this->updates[] = [$table, $input, $criteria]; return true; }
+        };
+        \ChangeTask::$addedInputs = [];
+
+        $engine = $this->makeEngine(
+            [$this->makeIncident([
+                'id' => 2977134,
+                'number' => 4781,
+                'name' => 'Deploy change',
+                'state' => 'Finalizado',
+            ])],
+            resourceType: 'changes',
+            changeTasks: [[
+                'id' => 9001,
+                'name' => 'Approve deployment',
+                'description' => '<p>Review deployment window</p>',
+                'created_at' => '2026-06-01T10:00:00.000-04:00',
+                'due_at' => '2026-06-01T11:00:00.000-04:00',
+                'assignee' => ['email' => 'tech@example.com', 'name' => 'Tech User'],
+                'task_type' => 'approval',
+                'href' => 'https://api.samanage.com/tasks/9001',
+            ]]
+        );
+
+        [$result] = $engine->run(['dry_run' => false, 'limit' => 1]);
+
+        $this->assertCount(1, $result->created);
+        $this->assertSame(1, $result->stats['tasks_requests']);
+        $this->assertSame(1, $result->stats['tasks_read']);
+        $this->assertSame(1, $result->stats['tasks_created']);
+        $this->assertSame(0, $result->stats['tasks_failed']);
+        $this->assertCount(1, \ChangeTask::$addedInputs);
+
+        $input = \ChangeTask::$addedInputs[0];
+        $this->assertSame(1, $input['changes_id']);
+        $this->assertSame(6, $input['users_id_tech']);
+        $this->assertStringContainsString('[SolarWinds task #9001] Approve deployment', $input['content']);
+        $this->assertArrayHasKey('plan', $input);
+        $this->assertTrue($input['_disablenotif']);
+    }
+
     // ------------------------------------------------------------------ //
     // Preflight
     // ------------------------------------------------------------------ //
@@ -271,5 +335,57 @@ class MigrationEngineTest extends TestCase
         $this->assertSame(1, $result->mappingQuality['partial']);
         $this->assertSame('partial', $result->preflightRows[0]['status']);
         $this->assertNotEmpty($result->preflightRows[0]['warnings']);
+    }
+
+    public function testPreflightUsesChangeTaskEndpointBeforeEmbeddedCount(): void
+    {
+        $engine = $this->makeEngine(
+            [$this->makeIncident([
+                'id' => 2977134,
+                'number' => 4781,
+                'state' => 'Finalizado',
+                'tasks' => [
+                    ['id' => 1],
+                    ['id' => 2],
+                    ['id' => 3],
+                    ['id' => 4],
+                    ['id' => 5],
+                ],
+            ])],
+            resourceType: 'changes',
+            changeTasks: [
+                ['id' => 1],
+                ['id' => 2],
+            ]
+        );
+
+        $result = $engine->preflight(['limit' => 10]);
+
+        $this->assertSame(2, $result->preflightRows[0]['tasks_count']);
+        $this->assertSame(1, $result->stats['tasks_requests']);
+        $this->assertSame(2, $result->stats['tasks_read']);
+    }
+
+    public function testPreflightFetchesChangeTaskCountWhenNotEmbedded(): void
+    {
+        $engine = $this->makeEngine(
+            [$this->makeIncident([
+                'id' => 2977134,
+                'number' => 4781,
+                'state' => 'Finalizado',
+            ])],
+            resourceType: 'changes',
+            changeTasks: [
+                ['id' => 1],
+                ['id' => 2],
+                ['id' => 3],
+            ]
+        );
+
+        $result = $engine->preflight(['limit' => 10]);
+
+        $this->assertSame(3, $result->preflightRows[0]['tasks_count']);
+        $this->assertSame(1, $result->stats['tasks_requests']);
+        $this->assertSame(3, $result->stats['tasks_read']);
     }
 }

@@ -32,6 +32,10 @@ class MigrationResult
         'mapped'                 => 0,
         'tickets_created'        => 0,
         'followups_created'      => 0,
+        'tasks_requests'         => 0,
+        'tasks_read'             => 0,
+        'tasks_created'          => 0,
+        'tasks_failed'           => 0,
         'attachments_detected'   => 0,
         'attachments_downloaded' => 0,
         'attachments_failed'     => 0,
@@ -41,6 +45,7 @@ class MigrationResult
         'time_map_ms'            => 0,
         'time_ticket_create_ms'  => 0,
         'time_comments_ms'       => 0,
+        'time_tasks_ms'          => 0,
         'time_followups_ms'      => 0,
         'time_attachments_ms'    => 0,
     ];
@@ -89,16 +94,17 @@ class MigrationResult
         array $incident,
         string $status,
         array $warnings = [],
-        string $reason = ''
+        string $reason = '',
+        array $meta = []
     ): void {
-        $this->preflightRows[] = [
+        $this->preflightRows[] = array_merge([
             'source_id' => (string) ($incident['id'] ?? ''),
             'number'    => (string) ($incident['number'] ?? $incident['id'] ?? ''),
             'name'      => mb_substr((string) ($incident['name'] ?? ''), 0, 80),
             'status'    => $status,
             'warnings'  => array_values($warnings),
             'reason'    => $reason,
-        ];
+        ], $meta);
 
         $this->mappingQuality[$status] = ($this->mappingQuality[$status] ?? 0) + 1;
     }

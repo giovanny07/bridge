@@ -568,6 +568,7 @@ class MigratePage
             'source_number',
             'source_name',
             'status',
+            'tasks_count',
             'warnings',
             'reason',
         ]);
@@ -581,6 +582,7 @@ class MigratePage
                 (string) ($row['number'] ?? ''),
                 (string) ($row['name'] ?? ''),
                 (string) ($row['status'] ?? ''),
+                $resourceType === 'changes' ? (string) ($row['tasks_count'] ?? '') : '',
                 implode(' | ', array_map('strval', $row['warnings'] ?? [])),
                 (string) ($row['reason'] ?? ''),
             ]);
@@ -680,6 +682,9 @@ class MigratePage
         echo '<thead class="table-light"><tr>';
         echo '<th class="text-muted fw-normal small">#SW</th>';
         echo '<th class="fw-normal">' . self::h(__('Name', 'bridge')) . '</th>';
+        if ($resourceType === 'changes') {
+            echo '<th class="fw-normal text-center">' . self::h(__('Tasks', 'bridge')) . '</th>';
+        }
         echo '<th class="fw-normal">' . self::h(__('Status', 'bridge')) . '</th>';
         echo '<th class="fw-normal">' . self::h(__('Notes', 'bridge')) . '</th>';
         echo '</tr></thead><tbody>';
@@ -703,6 +708,14 @@ class MigratePage
             echo '<tr>';
             echo '<td class="text-muted small">' . self::h($row['number'] ?? '') . '</td>';
             echo '<td>' . self::h($row['name'] ?? '') . '</td>';
+            if ($resourceType === 'changes') {
+                $tasksCount = $row['tasks_count'] ?? null;
+                echo '<td class="text-center">';
+                echo $tasksCount === null
+                    ? '<span class="text-muted">?</span>'
+                    : '<span class="badge bg-info text-dark">' . (int) $tasksCount . '</span>';
+                echo '</td>';
+            }
             echo '<td>' . $badge . '</td>';
             echo '<td class="text-muted small">' . self::h($note) . '</td>';
             echo '</tr>';
