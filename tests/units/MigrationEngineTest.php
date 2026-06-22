@@ -260,12 +260,12 @@ class MigrationEngineTest extends TestCase
             resourceType: 'changes',
             changeTasks: [[
                 'id' => 9001,
-                'name' => 'Approve deployment',
-                'description' => '<p>Review deployment window</p>',
+                'name' => 'Execute deployment',
+                'description' => '<p>Run deployment script</p>',
                 'created_at' => '2026-06-01T10:00:00.000-04:00',
                 'due_at' => '2026-06-01T11:00:00.000-04:00',
                 'assignee' => ['email' => 'tech@example.com', 'name' => 'Tech User'],
-                'task_type' => 'approval',
+                'task_type' => 'Task',
                 'href' => 'https://api.samanage.com/tasks/9001',
             ]]
         );
@@ -282,9 +282,81 @@ class MigrationEngineTest extends TestCase
         $input = \ChangeTask::$addedInputs[0];
         $this->assertSame(1, $input['changes_id']);
         $this->assertSame(6, $input['users_id_tech']);
-        $this->assertStringContainsString('[SolarWinds task #9001] Approve deployment', $input['content']);
+        $this->assertStringContainsString('[SolarWinds task #9001] Execute deployment', $input['content']);
         $this->assertArrayHasKey('plan', $input);
         $this->assertTrue($input['_disablenotif']);
+    }
+
+    public function testChangeMigrationRoutesApprovalToChangeValidation(): void
+    {
+        $GLOBALS['DB'] = new class {
+            public array $inserts = [];
+            public array $updates = [];
+            public array $deletes = [];
+
+            public function request(array $criteria): array { return []; }
+            public function delete(string $table, array $criteria): bool { $this->deletes[] = [$table, $criteria]; return true; }
+            public function insert(string $table, array $input): bool { $this->inserts[] = [$table, $input]; return true; }
+            public function update(string $table, array $input, array $criteria): bool { $this->updates[] = [$table, $input, $criteria]; return true; }
+        };
+        \ChangeTask::$addedInputs = [];
+        \ChangeValidation::$addedInputs = [];
+
+        $engine = $this->makeEngine(
+            [$this->makeIncident([
+                'id' => 2977134,
+                'number' => 4781,
+                'name' => 'Deploy change',
+                'state' => 'Finalizado',
+            ])],
+            resourceType: 'changes',
+            changeTasks: [
+                [
+                    'id' => 9001,
+                    'name' => 'Pre aprobación',
+                    'description' => '',
+                    'task_type' => 'Approval',
+                    'created_at' => '2026-06-01T10:00:00.000-04:00',
+                    'completed_at' => '2026-06-01T11:00:00.000-04:00',
+                    'rejected_at' => null,
+                    'requester' => ['email' => 'req@client.com', 'name' => 'Requester'],
+                    'assignee' => ['email' => 'approver@example.com', 'name' => 'Approver'],
+                    'approver' => [
+                        'approve_requested_at' => '2026-06-01T10:00:00.000-04:00',
+                        'completed_at' => '2026-06-01T11:00:00.000-04:00',
+                        'vote' => 'approved',
+                        'response' => 'Looks good',
+                        'assignee' => ['email' => 'approver@example.com', 'name' => 'Approver'],
+                    ],
+                    'href' => 'https://api.samanage.com/tasks/9001',
+                ],
+                [
+                    'id' => 9002,
+                    'name' => 'Execute deployment',
+                    'description' => '',
+                    'task_type' => 'Task',
+                    'created_at' => '2026-06-01T12:00:00.000-04:00',
+                    'assignee' => ['email' => 'tech@example.com', 'name' => 'Tech User'],
+                    'requester' => ['email' => 'req@client.com', 'name' => 'Requester'],
+                    'href' => 'https://api.samanage.com/tasks/9002',
+                ],
+            ]
+        );
+
+        [$result] = $engine->run(['dry_run' => false, 'limit' => 1]);
+
+        $this->assertCount(1, $result->created);
+        // Approval routed to ChangeValidation, regular task to ChangeTask
+        $this->assertSame(1, $result->stats['approvals_created']);
+        $this->assertSame(1, $result->stats['tasks_created']);
+        $this->assertCount(1, \ChangeValidation::$addedInputs);
+        $this->assertCount(1, \ChangeTask::$addedInputs);
+
+        $val = \ChangeValidation::$addedInputs[0];
+        $this->assertSame(1, $val['changes_id']);
+        $this->assertSame(3, $val['status']); // ACCEPTED (completed_at set, no rejected_at)
+        $this->assertStringContainsString('Pre aprobación', $val['comment_submission']);
+        $this->assertTrue($val['_disablenotif']);
     }
 
     // ------------------------------------------------------------------ //

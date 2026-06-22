@@ -300,16 +300,54 @@ class MigrationEngine
 
     private function getRecordBySourceId(string $rawId): array
     {
+        $id = (int) $rawId;
+
         if ($this->resourceType === 'problems') {
-            return $this->connector->getProblem((int) $rawId);
+            return $id < 100_000_000
+                ? $this->findByNumber($id, 'Problem')
+                : $this->connector->getProblem($id);
         }
         if ($this->resourceType === 'changes') {
-            return $this->connector->getChange((int) $rawId);
+            return $id < 100_000_000
+                ? $this->findByNumber($id, 'Change')
+                : $this->connector->getChange($id);
         }
-        if ((int) $rawId < 100_000_000) {
-            return $this->connector->getIncidentByNumber((int) $rawId);
+        return $id < 100_000_000
+            ? $this->connector->getIncidentByNumber($id)
+            : $this->connector->getIncident($id);
+    }
+
+    /**
+     * Resolves a human-visible number to a full record by scanning pages.
+     * Works for changes and problems where the API id differs from the number.
+     */
+    private function findByNumber(int $number, string $label): array
+    {
+        $batch   = $this->listBatch([], 1, 100);
+        $maxNum  = (int) ($batch['records'][0]['number'] ?? 0);
+        if ($maxNum === 0) {
+            throw new \RuntimeException("Could not determine max $label number from API.");
         }
-        return $this->connector->getIncident((int) $rawId);
+
+        $startPage = max(1, (int) ceil(max(0, $maxNum - $number) / 100));
+
+        for ($p = max(1, $startPage - 2); $p <= $startPage + 5; $p++) {
+            $page = $p === 1 && $startPage <= 3 ? $batch : $this->listBatch([], $p, 100);
+            foreach ($page['records'] as $record) {
+                if ((int) ($record['number'] ?? 0) === $number) {
+                    return $record;
+                }
+            }
+            if (empty($page['records'])) {
+                break;
+            }
+            $lastNum = (int) ($page['records'][array_key_last($page['records'])]['number'] ?? 0);
+            if ($lastNum < $number - 200) {
+                break;
+            }
+        }
+
+        throw new \RuntimeException("$label #$number not found in SolarWinds (searched around page $startPage).");
     }
 
     /**
@@ -750,6 +788,20 @@ class MigrationEngine
                 continue;
             }
 
+            $taskType = trim((string) ($rawTask['task_type'] ?? ''));
+
+            if (strcasecmp($taskType, 'Approval') === 0) {
+                try {
+                    $result->measureStat('time_tasks_ms', function () use ($rawTask, $changeId): void {
+                        $this->createChangeValidation($rawTask, $changeId);
+                    });
+                    $result->incStat('approvals_created');
+                } catch (\Throwable) {
+                    $result->incStat('approvals_failed');
+                }
+                continue;
+            }
+
             try {
                 $result->measureStat('time_tasks_ms', function () use ($rawTask, $changeId, $result): void {
                     $taskInput = $this->normalizer->changeTaskToITILTask($rawTask);
@@ -775,6 +827,60 @@ class MigrationEngine
             } catch (\Throwable) {
                 $result->incStat('tasks_failed');
             }
+        }
+    }
+
+    private function createChangeValidation(array $rawTask, int $changeId): void
+    {
+        $approverData = $rawTask['approver'] ?? [];
+        $requester    = $rawTask['requester'] ?? [];
+
+        // Resolve who requested the approval
+        $requesterId = 0;
+        $requesterEmail = (string) ($requester['email'] ?? '');
+        if ($requesterEmail !== '') {
+            $requesterId = $this->resolver->resolveUserByEmail($requesterEmail) ?? 0;
+        }
+
+        // Resolve who should validate (the approver)
+        $validatorId = 0;
+        $approverAssignee = $approverData['assignee'] ?? $rawTask['assignee'] ?? [];
+        $approverEmail = (string) ($approverAssignee['email'] ?? '');
+        if ($approverEmail !== '') {
+            $validatorId = $this->resolver->resolveUserByEmail($approverEmail) ?? 0;
+        }
+
+        // Determine status: WAITING=2, ACCEPTED=3, REFUSED=4
+        $status = 2; // CommonITILValidation::WAITING
+        if (!empty($rawTask['rejected_at'])) {
+            $status = 4; // REFUSED
+        } elseif (!empty($rawTask['completed_at'])) {
+            $status = 3; // ACCEPTED
+        }
+
+        $submissionDate = $this->normalizer->parseDate($approverData['approve_requested_at'] ?? $rawTask['created_at'] ?? null);
+        $validationDate = $this->normalizer->parseDate($rawTask['completed_at'] ?? $rawTask['rejected_at'] ?? null);
+
+        $name     = trim((string) ($rawTask['name'] ?? ''));
+        $response = trim((string) ($rawTask['response'] ?? $approverData['response'] ?? ''));
+
+        $input = [
+            'changes_id'         => $changeId,
+            'users_id'           => $requesterId,
+            'users_id_validate'  => $validatorId,
+            'status'             => $status,
+            'submission_date'    => $submissionDate ?? date('Y-m-d H:i:s'),
+            'validation_date'    => $validationDate,
+            'comment_submission' => $name !== '' ? "[ SD task #{$rawTask['id']} ] {$name}" : '',
+            'comment_validation' => $response,
+            'timeline_position'  => 1,
+            '_disablenotif'      => true,
+        ];
+
+        $validation = new \ChangeValidation();
+        $valId = (int) $validation->add($input);
+        if ($valId <= 0) {
+            throw new \RuntimeException('ChangeValidation::add() returned ' . $valId);
         }
     }
 

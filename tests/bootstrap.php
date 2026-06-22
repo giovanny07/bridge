@@ -129,6 +129,19 @@ if (!class_exists('ChangeTask')) {
     }
 }
 
+if (!class_exists('ChangeValidation')) {
+    class ChangeValidation extends CommonDBTM
+    {
+        public static array $addedInputs = [];
+
+        public function add(array $input): int|false
+        {
+            self::$addedInputs[] = $input;
+            return count(self::$addedInputs);
+        }
+    }
+}
+
 if (!class_exists('ITILFollowup')) {
     class ITILFollowup extends CommonDBTM {}
 }
