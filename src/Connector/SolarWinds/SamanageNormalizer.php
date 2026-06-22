@@ -321,9 +321,6 @@ class SamanageNormalizer implements NormalizerInterface
         }
 
         $meta = [];
-        if ($type !== '') {
-            $meta[] = 'Type: ' . htmlspecialchars($type, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
-        }
         if ($response !== '') {
             $meta[] = 'Response: ' . htmlspecialchars($response, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
         }

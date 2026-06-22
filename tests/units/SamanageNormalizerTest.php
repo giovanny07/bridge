@@ -509,7 +509,7 @@ class SamanageNormalizerTest extends TestCase
 
         $this->assertStringContainsString('[SolarWinds task #123] Approve deployment', $result['content']);
         $this->assertStringContainsString('Review request', $result['content']);
-        $this->assertStringContainsString('Type: approval', $result['content']);
+        $this->assertStringNotContainsString('Type:', $result['content']);
         $this->assertStringContainsString('Response: Approved', $result['content']);
         $this->assertSame(123, $result['_source_id']);
         $this->assertSame('https://api.samanage.com/tasks/123', $result['_source_href']);

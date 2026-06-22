@@ -882,6 +882,15 @@ class MigrationEngine
         if ($valId <= 0) {
             throw new \RuntimeException('ChangeValidation::add() returned ' . $valId);
         }
+
+        // GLPI's add() forces submission_date=NOW() and status=WAITING;
+        // override via direct DB update to preserve the original dates/status.
+        global $DB;
+        $DB->update('glpi_changevalidations', [
+            'status'          => $status,
+            'submission_date' => $submissionDate ?? date('Y-m-d H:i:s'),
+            'validation_date' => $validationDate,
+        ], ['id' => $valId]);
     }
 
     private function resolveChangeTaskActors(array &$taskInput): void
@@ -1070,6 +1079,11 @@ class MigrationEngine
             $file = $result->measureStat('time_attachments_ms', fn() => $this->connector->downloadAttachment($originalUrl));
             if ($file === null) {
                 $result->incStat('attachments_failed');
+                // Map failed relative URLs to a transparent pixel so they don't
+                // show as broken images pointing at GLPI's own /attachments/ path.
+                if (str_starts_with($originalUrl, '/')) {
+                    $urlMap[$originalUrl] = 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7';
+                }
                 continue;
             }
 
