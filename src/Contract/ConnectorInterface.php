@@ -118,6 +118,24 @@ interface ConnectorInterface
      */
     public function getUser(int $id): array;
 
+    /**
+     * Fetches multiple pages of the given resource type.
+     * Implementations that support curl_multi will fetch them in parallel;
+     * others fall back to sequential calls.
+     *
+     * A page result with status_code=429 signals rate limiting — the caller
+     * must detect this via HttpBatch::hasRateLimitResponse() and retry.
+     *
+     * Results are indexed by page number so callers can zip by key.
+     *
+     * @param  string   $resourceType  'incidents' | 'changes' | 'problems'
+     * @param  array    $filters       Same filter array used by listXxx()
+     * @param  int[]    $pageNumbers   Page numbers to fetch
+     * @param  int      $perPage       Records per page
+     * @return array<int, array{endpoint:string, status_code:int, total:int, page:int, per_page:int, count:int, records:array}>
+     */
+    public function listPagesBatch(string $resourceType, array $filters, array $pageNumbers, int $perPage): array;
+
     /** Factory method — builds the connector from a stored Connection record. */
     public static function fromConnection(Connection $connection): static;
 }

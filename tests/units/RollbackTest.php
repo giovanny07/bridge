@@ -277,6 +277,13 @@ class RollbackTest extends TestCase
             public function getProblem(int $id): array            { return []; }
             public function listUsers(array $f = [], int $p = 1, int $pp = 100): array   { return ['total'=>0,'page'=>1,'per_page'=>100,'count'=>0,'records'=>[]]; }
             public function getUser(int $id): array               { return []; }
+            public function listPagesBatch(string $resourceType, array $filters, array $pageNumbers, int $perPage): array {
+                $batches = [];
+                foreach ($pageNumbers as $pageNum) {
+                    $batches[$pageNum] = $this->listIncidents($filters, $pageNum, $perPage);
+                }
+                return $batches;
+            }
             public static function fromConnection($c): static     { return new static([]); }
         };
 

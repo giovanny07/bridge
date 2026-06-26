@@ -4,15 +4,13 @@ Bridge is a **GLPI 11** plugin for migrating ITSM data from external platforms i
 
 ---
 
-## Status — v1.1.2
-
-> **First stable release.** All core migration features, background job system, and UX hardening are complete.
+## Status — v1.5.0
 
 | Feature | Status |
 |---------|--------|
 | Plugin base (setup, hooks, PSR-4 autoload) | Done |
 | Connection management with GLPIKey encryption | Done |
-| Inline connection test | Done |
+| Inline connection test with visible result | Done |
 | Multi-resource discovery scan (read-only) | Done |
 | Entity / category / group / user resolver | Done |
 | Fuzzy entity matching (accents, legal suffixes, parentheticals, abbreviations, quotes) | Done |
@@ -20,6 +18,7 @@ Bridge is a **GLPI 11** plugin for migrating ITSM data from external platforms i
 | Incident migration — Ticket + followups + solution + attachments | Done |
 | Problem migration — ITILProblem + cause + symptoms + workaround | Done |
 | Change migration — ITILChange + rollout + backout + checklist plans | Done |
+| Change task migration | Done |
 | Migration by ticket number or internal ID | Done |
 | Source traceability prefix `[ SD #N ]` in title | Done |
 | Public / private comment preservation (`is_private`) | Done |
@@ -31,12 +30,14 @@ Bridge is a **GLPI 11** plugin for migrating ITSM data from external platforms i
 | **Migration preflight** — read-only sample, dedupe, candidate blocking before job creation | Done |
 | **Mapping quality report** — clean / fallback / unresolved summary with warning details | Done |
 | **Preflight CSV export** — portable remediation report for mapping cleanup | Done |
-| **Background job system** — BridgeJob + GLPI CronTask (60s polling) | Done |
-| **Resumable migrations** — cursor-based chunked processing (40 pages/chunk) | Done |
+| **Background job system** — BridgeJob + GLPI CronTask (60 s polling) | Done |
+| **Parallel cron slots** — ProcessIncidents / ProcessChanges / ProcessProblems run concurrently | Done |
+| **Resumable migrations** — cursor-based chunked processing | Done |
 | **Live progress UI** — real-time feed, stats, logs per chunk | Done |
 | **Job management** — cancel, retry job, retry failed records, job list | Done |
 | **Hardening** — concurrent job blocking, input validation, cascade delete | Done |
-| Readable scan results with state/priority badges | Done |
+| **Parallel API pages** — configurable per-connection concurrency (1–8) via `curl_multi_exec` | Done |
+| **Rate-limit backoff** — automatic retry with sleep on HTTP 429 | Done |
 
 ---
 
@@ -84,7 +85,14 @@ The installation creates the following tables:
 - `glpi_plugin_bridge_jobs` — background migration job queue
 - `glpi_plugin_bridge_job_logs` — operational log per chunk
 
-It also registers a GLPI automatic action **Bridge ProcessJobs** that processes queued migration jobs.
+It also registers four GLPI automatic actions:
+
+| Action | Role |
+|--------|------|
+| `Bridge ProcessIncidents` | Processes queued incident migration jobs |
+| `Bridge ProcessChanges` | Processes queued change migration jobs |
+| `Bridge ProcessProblems` | Processes queued problem migration jobs |
+| `Bridge ProcessJobs` | Legacy no-op slot (kept for upgrade safety) |
 
 > **Important:** After installing, set up the OS-level cron so GLPI automatic actions run:
 >
@@ -105,9 +113,11 @@ bridge/
 ├── setup.php                          Plugin declaration and GLPI hooks
 ├── hook.php                           Table install / uninstall
 ├── ajax/
-│   └── test_connection.php            AJAX connectivity check
+│   ├── edit_form.php                  AJAX endpoint — returns connection form HTML
+│   ├── job_status.php                 AJAX endpoint — returns live job progress JSON
+│   └── test_connection.php            AJAX endpoint — connectivity check
 ├── front/
-│   ├── config.php                     Redirect to Bridge tab
+│   ├── config.php                     Redirect entry point to Bridge Config tab
 │   ├── config.form.php                POST handler (add / update / purge connection)
 │   ├── scan.php                       Read-only discovery scan
 │   ├── dryrun.php                     Dry-run preview
@@ -124,21 +134,26 @@ bridge/
 │   │   └── NormalizerInterface.php    Contract for field mapping per system
 │   ├── Connector/
 │   │   ├── ConnectorFactory.php       Builds connector / normalizer by system_type
+│   │   ├── HttpBatch.php              curl_multi_exec wrapper for parallel HTTP requests
 │   │   └── SolarWinds/
-│   │       ├── SolarWindsClient.php   HTTP client for Samanage API
+│   │       ├── SolarWindsClient.php   HTTP client for Samanage API (sequential + batch)
 │   │       └── SamanageNormalizer.php Field mapping for SolarWinds
 │   ├── Resolver/
 │   │   └── GlpiResolver.php           Resolves entities / categories / groups / users by name
 │   ├── Migration/
+│   │   ├── BridgeJob.php              Background job record (CommonDBTM) + lifecycle
+│   │   ├── BridgeJobConfig.php        Central constants (chunk sizes, timeouts, concurrency)
 │   │   ├── IncidentMapper.php         Combines normalizer + resolver into GLPI input
+│   │   ├── JobLog.php                 Operational log record (CommonDBTM)
 │   │   ├── MappedIncident.php         Value object: ITIL item + followups + solution + warnings
-│   │   ├── MigrationEngine.php        Orchestrates the full migration with deduplication
+│   │   ├── MigrationCursor.php        Resumable pagination cursor (CommonDBTM)
+│   │   ├── MigrationEngine.php        Orchestrates migration with wave-based API fetching
 │   │   ├── MigrationRecord.php        Audit log (CommonDBTM)
-│   │   ├── MigrationResult.php        Result: created / failed / skipped counts
+│   │   ├── MigrationResult.php        Result: created / failed / skipped counts + timing stats
 │   │   ├── UserSyncer.php             Synchronises source users into GLPI
 │   │   └── UserSyncResult.php         User sync result value object
 │   └── Page/
-│       ├── ConfigPage.php             UI: connection list and form
+│       ├── ConfigPage.php             UI: connection list and AJAX-loaded edit form
 │       ├── DryRunPage.php             UI: resource selector and resolution table
 │       ├── MigratePage.php            UI: migration form and results
 │       ├── HistoryPage.php            UI: history with search, pagination, and actions
@@ -343,6 +358,26 @@ Every migrated record is written to `glpi_plugin_bridge_migrations` with its `so
 
 ---
 
+## Parallel API pages
+
+By default the migration engine fetches API pages one at a time (`PARALLEL_API_PAGES = 1`). Enable concurrent fetching by setting a higher value on the connection form.
+
+| Setting | Where | Description |
+|---------|-------|-------------|
+| `parallel_api_pages` | Connection form (1–8) | Pages fetched simultaneously per cron wave |
+| `BridgeJobConfig::PARALLEL_API_MAX` | `BridgeJobConfig.php` | Hard ceiling — never exceeded regardless of connection config |
+| `BridgeJobConfig::RATE_LIMIT_BACKOFF_SECONDS` | `BridgeJobConfig.php` | Seconds to sleep before retrying a 429 page (default 5) |
+
+**How waves work**
+
+Each cron tick processes up to `CHUNK_PAGES` pages. With `parallel_api_pages = N`, the engine groups those pages into waves of N and fires them in parallel via `curl_multi_exec`. Pages that return HTTP 429 are re-fetched sequentially after the backoff sleep. Result order is preserved regardless of which response arrived first.
+
+**Tuning advice**
+
+Start at 1 (sequential). Raise to 2–4 only after confirming the target API tolerates burst requests. SolarWinds Service Desk (Samanage) may rate-limit aggressively on large instances — monitor for 429 responses in the job log before increasing further.
+
+---
+
 ## Adding a new source system
 
 1. Implement `ConnectorInterface` at `src/Connector/{System}/{System}Client.php`.
@@ -357,7 +392,7 @@ The resolver, migration engine, UI, and history work without further changes.
 ## Tests
 
 ```bash
-# Unit tests (159 tests, no network, no GLPI instance required)
+# Unit tests (262 tests, no network, no GLPI instance required)
 composer test
 
 # Contract tests against a live API

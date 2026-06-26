@@ -42,6 +42,7 @@ class MigrationEngine
         private readonly int                 $fallbackGroupId,
         private readonly int                 $fallbackRequesterId = 0,
         private readonly string              $resourceType = 'incidents',
+        private readonly int                 $parallelApiPages = BridgeJobConfig::PARALLEL_API_PAGES,
     ) {}
 
     public function setJobId(int $id): void
@@ -232,53 +233,69 @@ class MigrationEngine
             );
         }
 
-        $pagesThisRun  = 0;
+        $pagesThisRun   = 0;
         $maxPagesPerRun = $chronologicalFromDate ? BridgeJobConfig::CHUNK_PAGES : PHP_INT_MAX;
+        $continueLoop   = true;
 
-        while ($this->attemptedTotal($result) < $limit && $pagesThisRun < $maxPagesPerRun) {
-            $batch = $result->measureStat(
-                'time_api_ms',
-                fn() => $this->listBatch($filters, $page, $perPage)
-            );
-            $result->incStat('api_pages');
-            $result->incStat('scanned', count($batch['records'] ?? []));
-            $pagesThisRun++;
-
-            if (empty($batch['records'])) {
+        while ($continueLoop && $this->attemptedTotal($result) < $limit && $pagesThisRun < $maxPagesPerRun) {
+            $wavePages = $this->buildWavePages($page, $chronologicalFromDate, $pagesThisRun, $maxPagesPerRun);
+            if ($wavePages === []) {
                 break;
             }
 
-            $records = $chronologicalFromDate
-                ? array_reverse($batch['records'])
-                : $batch['records'];
-            [$records, $alreadyMigrated] = $this->prepareBatchRecords($records, $options, $isDryRun, $result);
+            $waveBatches = $this->listBatchWave($filters, $wavePages, $perPage, $result);
 
-            foreach ($records as $incident) {
-                if ($this->attemptedTotal($result) >= $limit) {
+            foreach ($wavePages as $wPage) {
+                if ($this->attemptedTotal($result) >= $limit || $pagesThisRun >= $maxPagesPerRun) {
+                    $continueLoop = false;
                     break;
                 }
-                $this->processIncident($incident, $mapper, $includeComm, $includeAtt, $keepPrivate, $isDryRun, $result, $alreadyMigrated);
-            }
 
-            if ($chronologicalFromDate) {
-                $page--;
-                if ($page < 1) {
-                    // Exhausted the entire date range
-                    if ($cursor !== null) {
-                        $cursor->advance(0, count($result->created), (int) ($result->stats['scanned'] ?? 0));
-                        $cursor->complete();
+                $batch = $waveBatches[$wPage] ?? ['records' => [], 'total' => 0];
+                $result->incStat('api_pages');
+                $result->incStat('scanned', count($batch['records'] ?? []));
+                $pagesThisRun++;
+
+                if (empty($batch['records'])) {
+                    $continueLoop = false;
+                    break;
+                }
+
+                $records = $chronologicalFromDate
+                    ? array_reverse($batch['records'])
+                    : $batch['records'];
+                [$records, $alreadyMigrated] = $this->prepareBatchRecords($records, $options, $isDryRun, $result);
+
+                foreach ($records as $incident) {
+                    if ($this->attemptedTotal($result) >= $limit) {
+                        break;
                     }
-                    break;
+                    $this->processIncident($incident, $mapper, $includeComm, $includeAtt, $keepPrivate, $isDryRun, $result, $alreadyMigrated);
                 }
-            } else {
-                if (count($batch['records']) < $perPage) {
-                    break;
+
+                if ($chronologicalFromDate) {
+                    $page--;
+                    if ($page < 1) {
+                        // Exhausted the entire date range
+                        if ($cursor !== null) {
+                            $cursor->advance(0, count($result->created), (int) ($result->stats['scanned'] ?? 0));
+                            $cursor->complete();
+                        }
+                        $continueLoop = false;
+                        break;
+                    }
+                } else {
+                    if (count($batch['records']) < $perPage) {
+                        $continueLoop = false;
+                        break;
+                    }
+                    $totalPages = (int) ceil(max(0, (int) ($batch['total'] ?? 0)) / $perPage);
+                    if ($totalPages > 0 && $wPage >= $totalPages) {
+                        $continueLoop = false;
+                        break;
+                    }
+                    $page++;
                 }
-                $totalPages = (int) ceil(max(0, (int) ($batch['total'] ?? 0)) / $perPage);
-                if ($totalPages > 0 && $page >= $totalPages) {
-                    break;
-                }
-                $page++;
             }
         }
 
@@ -446,6 +463,65 @@ class MigrationEngine
             $result->incStat('tasks_failed');
             return ['tasks_count' => isset($record['tasks']) && is_array($record['tasks']) ? count($record['tasks']) : null];
         }
+    }
+
+    /**
+     * Returns the next wave of page numbers to fetch, respecting concurrency limits.
+     * For chronological (backward) scans: descending from $startPage.
+     * For forward scans: ascending from $startPage.
+     */
+    private function buildWavePages(int $startPage, bool $chronological, int $pagesThisRun, int $maxPagesPerRun): array
+    {
+        $cap      = max(1, min($this->parallelApiPages, BridgeJobConfig::PARALLEL_API_MAX));
+        $waveSize = min($cap, $maxPagesPerRun - $pagesThisRun);
+
+        $pages = [];
+        $p     = $startPage;
+        for ($i = 0; $i < $waveSize; $i++) {
+            if ($chronological && $p < 1) {
+                break;
+            }
+            $pages[] = $p;
+            $p       = $chronological ? $p - 1 : $p + 1;
+        }
+        return $pages;
+    }
+
+    /**
+     * Fetches a wave of pages, in parallel when PARALLEL_API_PAGES > 1.
+     * Falls back to sequential when concurrency is 1 (default) or a single page is requested.
+     * Any 429 pages are re-fetched sequentially after the wave completes.
+     * Returns array<pageNumber, batch> indexed by page number.
+     */
+    private function listBatchWave(array $filters, array $pageNumbers, int $perPage, MigrationResult $result): array
+    {
+        // Sequential path: single page or concurrency=1 — identical to previous behaviour
+        if (count($pageNumbers) === 1 || $this->parallelApiPages <= 1) {
+            $batches = [];
+            foreach ($pageNumbers as $p) {
+                $batches[$p] = $result->measureStat('time_api_ms', fn() => $this->listBatch($filters, $p, $perPage));
+            }
+            return $batches;
+        }
+
+        // Parallel path: measure total wall-clock time for the whole wave
+        $start   = hrtime(true);
+        $batches = $this->connector->listPagesBatch($this->resourceType, $filters, $pageNumbers, $perPage);
+        $ms      = (int) round((hrtime(true) - $start) / 1_000_000);
+        $result->incStat('time_api_ms', $ms);
+
+        // Fallback: re-fetch any rate-limited pages sequentially with backoff
+        $rateLimited = array_filter($batches, fn($b) => ($b['status_code'] ?? 0) === 429);
+        if ($rateLimited !== []) {
+            if (BridgeJobConfig::RATE_LIMIT_BACKOFF_SECONDS > 0) {
+                sleep(BridgeJobConfig::RATE_LIMIT_BACKOFF_SECONDS);
+            }
+            foreach (array_keys($rateLimited) as $p) {
+                $batches[$p] = $result->measureStat('time_api_ms', fn() => $this->listBatch($filters, $p, $perPage));
+            }
+        }
+
+        return $batches;
     }
 
     private function listBatch(array $filters, int $page, int $perPage): array

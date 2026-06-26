@@ -432,6 +432,7 @@ class BridgeJob extends CommonDBTM
                 (int) ($connection->fields['default_groups_id'] ?? 0),
                 (int) ($options['default_requesters_id'] ?? 0),
                 $job->resourceType(),
+                max(1, min(BridgeJobConfig::PARALLEL_API_MAX, (int) ($connection->fields['parallel_api_pages'] ?? BridgeJobConfig::PARALLEL_API_PAGES))),
             );
 
             $engine->setJobId($job->id());

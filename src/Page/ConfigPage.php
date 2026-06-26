@@ -12,23 +12,15 @@ class ConfigPage
 {
     public static function show(): void
     {
-        $selectedId = (int) ($_GET['bridge_connection_id'] ?? 0);
-        $selected = null;
-
-        if ($selectedId > 0) {
-            $connection = new Connection();
-            if ($connection->getFromDB($selectedId)) {
-                $selected = $connection;
-            }
-        }
+        $ajaxBase = Connection::getPluginBaseURL();
 
         echo '<div class="container-fluid p-3">';
         echo '<div class="row g-3">';
         echo '<div class="col-xl-5">';
-        self::showConnectionsList($selectedId);
+        self::showConnectionsList();
         echo '</div>';
-        echo '<div class="col-xl-7">';
-        self::showConnectionForm($selected);
+        echo '<div class="col-xl-7" id="bridge-connection-form-panel" data-ajax-base="' . self::h($ajaxBase) . '">';
+        self::showConnectionForm(null);
         echo '</div>';
         echo '</div>';
         echo '</div>';
@@ -260,19 +252,144 @@ class ConfigPage
         echo '</div>';
     }
 
-    private static function showConnectionsList(int $selectedId): void
+    public static function showConnectionForm(?Connection $connection): void
+    {
+        $fields = $connection?->fields ?? [
+            'id'                 => 0,
+            'name'               => '',
+            'system_type'        => Connection::TYPE_SOLARWINDS,
+            'base_url'           => '',
+            'auth_type'          => Connection::AUTH_BEARER,
+            'auth_user'          => '',
+            'custom_header_name' => '',
+            'entities_id'        => $_SESSION['glpiactive_entity'] ?? 0,
+            'default_groups_id'  => 0,
+            'parallel_api_pages' => \GlpiPlugin\Bridge\Migration\BridgeJobConfig::PARALLEL_API_PAGES,
+            'is_active'          => 1,
+            'comment'            => '',
+            'auth_secret'        => '',
+        ];
+
+        $isEdit = (int) ($fields['id'] ?? 0) > 0;
+
+        echo '<div class="card">';
+        echo '<div class="card-header fw-semibold">';
+        echo '<i class="ti ti-' . ($isEdit ? 'edit' : 'plus') . ' me-1"></i>';
+        echo self::h($isEdit ? __('Edit connection', 'bridge') : __('New connection', 'bridge'));
+        echo '</div>';
+        echo '<div class="card-body">';
+        echo '<form method="post" action="' . self::h(Connection::getConfigFormURL()) . '">';
+        echo Html::hidden('_glpi_csrf_token', ['value' => Session::getNewCSRFToken()]);
+
+        if ($isEdit) {
+            echo Html::hidden('id', ['value' => (int) $fields['id']]);
+        }
+
+        echo '<div class="row g-3">';
+
+        echo '<div class="col-md-6">';
+        self::showInput('name', __('Name', 'bridge'), (string) $fields['name'], true, __('e.g. SolarWinds Production', 'bridge'));
+        echo '</div>';
+        echo '<div class="col-md-6">';
+        self::showSelect('system_type', __('Source system', 'bridge'), Connection::getSupportedSystems(), (string) $fields['system_type']);
+        echo '</div>';
+
+        echo '<div class="col-12">';
+        self::showInput('base_url', __('Base URL', 'bridge'), (string) $fields['base_url'], true, 'https://your-instance.example.com');
+        echo '</div>';
+
+        echo '<div class="col-md-6">';
+        self::showSelect('auth_type', __('Authentication', 'bridge'), Connection::getAuthTypes(), (string) $fields['auth_type']);
+        echo '</div>';
+        echo '<div class="col-md-6">';
+        self::showInput('auth_user', __('User', 'bridge'), (string) ($fields['auth_user'] ?? ''), false, __('Required for Basic auth', 'bridge'));
+        echo '</div>';
+
+        echo '<div class="col-md-6">';
+        $secretLabel = $isEdit && !empty($fields['auth_secret'])
+            ? __('Secret / token (leave blank to keep current)', 'bridge')
+            : __('Secret or token', 'bridge');
+        self::showPassword('auth_secret_plain', $secretLabel);
+        echo '</div>';
+        echo '<div class="col-md-6">';
+        self::showInput('custom_header_name', __('Custom header name', 'bridge'), (string) ($fields['custom_header_name'] ?? ''), false, __('Required for Custom header auth', 'bridge'));
+        echo '</div>';
+
+        echo '<div class="col-md-6">';
+        echo '<label class="form-label">' . self::h(__('Fallback entity', 'bridge')) . '</label>';
+        echo '<div class="form-text text-muted mb-1" style="font-size:.78rem">' . self::h(__('Used when a site cannot be matched by name.', 'bridge')) . '</div>';
+        \Entity::dropdown([
+            'name'   => 'entities_id',
+            'value'  => (int) ($fields['entities_id'] ?? 0),
+            'entity' => $_SESSION['glpiactiveentities'] ?? -1,
+        ]);
+        echo '</div>';
+
+        echo '<div class="col-md-6">';
+        echo '<label class="form-label">' . self::h(__('Fallback group', 'bridge')) . '</label>';
+        echo '<div class="form-text text-muted mb-1" style="font-size:.78rem">' . self::h(__('Used when an assignee group cannot be matched by name.', 'bridge')) . '</div>';
+        \Group::dropdown([
+            'name'  => 'default_groups_id',
+            'value' => (int) ($fields['default_groups_id'] ?? 0),
+        ]);
+        echo '</div>';
+
+        echo '<div class="col-md-6">';
+        $parallelVal = max(1, min(\GlpiPlugin\Bridge\Migration\BridgeJobConfig::PARALLEL_API_MAX, (int) ($fields['parallel_api_pages'] ?? \GlpiPlugin\Bridge\Migration\BridgeJobConfig::PARALLEL_API_PAGES)));
+        echo '<label class="form-label" for="bridge-parallel_api_pages">' . self::h(__('Parallel API pages', 'bridge')) . '</label>';
+        echo '<div class="form-text text-muted mb-1" style="font-size:.78rem">' . self::h(sprintf(__('Pages fetched simultaneously per cron tick (1–%d). 1 = sequential.', 'bridge'), \GlpiPlugin\Bridge\Migration\BridgeJobConfig::PARALLEL_API_MAX)) . '</div>';
+        echo '<input class="form-control" type="number" id="bridge-parallel_api_pages" name="parallel_api_pages"';
+        echo ' value="' . (int) $parallelVal . '" min="1" max="' . (int) \GlpiPlugin\Bridge\Migration\BridgeJobConfig::PARALLEL_API_MAX . '">';
+        echo '</div>';
+
+        echo '<div class="col-md-6 d-flex align-items-end pb-1">';
+        $checked = (int) ($fields['is_active'] ?? 1) ? ' checked' : '';
+        echo '<div class="form-check form-switch">';
+        echo '<input class="form-check-input" type="checkbox" role="switch" id="bridge-is_active" name="is_active" value="1"' . $checked . '>';
+        echo '<label class="form-check-label" for="bridge-is_active">' . self::h(__('Active', 'bridge')) . '</label>';
+        echo '</div>';
+        echo '</div>';
+
+        echo '<div class="col-12">';
+        echo '<label class="form-label" for="bridge-comment">' . self::h(__('Notes', 'bridge')) . '</label>';
+        echo '<textarea class="form-control" id="bridge-comment" name="comment" rows="2">';
+        echo self::h((string) ($fields['comment'] ?? ''));
+        echo '</textarea>';
+        echo '</div>';
+
+        echo '</div>';
+
+        echo '<div class="d-flex gap-2 mt-4">';
+        echo '<button type="submit" name="' . ($isEdit ? 'update' : 'add') . '" class="btn btn-primary">';
+        echo '<i class="ti ti-device-floppy me-1"></i>' . self::h(__('Save', 'bridge'));
+        echo '</button>';
+
+        if ($isEdit) {
+            echo '<button type="submit" name="purge" class="btn btn-outline-danger ms-auto"';
+            echo ' data-bridge-confirm="' . self::h(__('Delete this connection?', 'bridge')) . '">';
+            echo '<i class="ti ti-trash me-1"></i>' . self::h(__('Delete', 'bridge'));
+            echo '</button>';
+        }
+
+        echo '</div>';
+        echo '</form>';
+        echo '</div>';
+        echo '</div>';
+    }
+
+    private static function showConnectionsList(): void
     {
         global $DB;
 
-        $rows    = iterator_to_array($DB->request(['FROM' => Connection::getTable(), 'ORDER' => ['name ASC']]));
-        $base        = Connection::getPluginBaseURL();
+        $rows       = iterator_to_array($DB->request(['FROM' => Connection::getTable(), 'ORDER' => ['name ASC']]));
+        $base       = Connection::getPluginBaseURL();
         $ajaxUrl    = self::h($base . '/ajax/test_connection.php');
-        $scanUrl     = self::h(Connection::getScanURL());
-        $dryRunUrl   = self::h($base . '/front/dryrun.php');
-        $migrateUrl  = self::h($base . '/front/migrate.php');
-        $historyUrl  = self::h($base . '/front/migration_history.php');
-        $syncUsrUrl  = self::h($base . '/front/sync_users.php');
-        $jobsUrl     = self::h($base . '/front/jobs.php');
+        $scanUrl    = self::h(Connection::getScanURL());
+        $dryRunUrl  = self::h($base . '/front/dryrun.php');
+        $migrateUrl = self::h($base . '/front/migrate.php');
+        $historyUrl = self::h($base . '/front/migration_history.php');
+        $syncUsrUrl = self::h($base . '/front/sync_users.php');
+        $jobsUrl    = self::h($base . '/front/jobs.php');
 
         echo '<div class="card h-100">';
         echo '<div class="card-header fw-semibold">';
@@ -295,14 +412,12 @@ class ConfigPage
             echo '</tr></thead><tbody>';
 
             foreach ($rows as $row) {
-                $id         = (int) $row['id'];
-                $isActive   = (bool) ($row['is_active'] ?? true);
-                $isSelected = ($id === $selectedId);
-                $classes    = array_filter(['table-active' => $isSelected, 'opacity-50' => !$isActive]);
-                $rowClass   = !empty($classes) ? ' class="' . implode(' ', array_keys($classes)) . '"' : '';
-                $editUrl    = Connection::getConfigURL($id);
-                $host       = parse_url((string) $row['base_url'], PHP_URL_HOST) ?: $row['base_url'];
-                $csrfToken  = Session::getNewCSRFToken();
+                $id        = (int) $row['id'];
+                $isActive  = (bool) ($row['is_active'] ?? true);
+                $classes   = array_filter(['opacity-50' => !$isActive]);
+                $rowClass  = !empty($classes) ? ' class="' . implode(' ', array_keys($classes)) . '"' : '';
+                $host      = parse_url((string) $row['base_url'], PHP_URL_HOST) ?: $row['base_url'];
+                $csrfToken = Session::getNewCSRFToken();
 
                 // Job summary for this connection
                 $jobSummary  = \GlpiPlugin\Bridge\Migration\BridgeJob::getConnectionSummary($id);
@@ -311,12 +426,14 @@ class ConfigPage
 
                 echo '<tr' . $rowClass . '>';
 
-                // Name + host
+                // Name + host; clicking the name loads the edit form via AJAX into the right panel
                 echo '<td>';
-                echo '<a class="fw-semibold text-decoration-none" href="' . self::h($editUrl) . '">';
+                echo '<button type="button" class="btn btn-link fw-semibold text-decoration-none p-0 text-start"';
+                echo ' data-bridge-edit-id="' . $id . '">';
                 echo self::h($row['name']);
-                echo '</a>';
+                echo '</button>';
                 echo '<div class="text-muted small">' . self::h($host) . '</div>';
+                echo '<div id="bridge-test-result-' . $id . '" class="mt-1 small"></div>';
                 echo '</td>';
 
                 // Migration status column
@@ -410,10 +527,9 @@ class ConfigPage
 
                 echo '<div class="dropdown-divider"></div>';
 
-                echo '<a href="' . self::h($editUrl) . '"';
-                echo ' class="dropdown-item">';
+                echo '<button type="button" class="dropdown-item" data-bridge-edit-id="' . $id . '">';
                 echo '<i class="ti ti-pencil me-2"></i>' . self::h(__('Edit connection', 'bridge'));
-                echo '</a>';
+                echo '</button>';
 
                 $configFormUrl = Connection::getConfigFormURL();
                 echo '<form method="post" action="' . self::h($configFormUrl) . '">';
@@ -438,122 +554,6 @@ class ConfigPage
 
         echo '</div>';
 
-    }
-
-    private static function showConnectionForm(?Connection $connection): void
-    {
-        $fields = $connection?->fields ?? [
-            'id'                 => 0,
-            'name'               => '',
-            'system_type'        => Connection::TYPE_SOLARWINDS,
-            'base_url'           => '',
-            'auth_type'          => Connection::AUTH_BEARER,
-            'auth_user'          => '',
-            'custom_header_name' => '',
-            'entities_id'        => $_SESSION['glpiactive_entity'] ?? 0,
-            'default_groups_id'  => 0,
-            'is_active'          => 1,
-            'comment'            => '',
-            'auth_secret'        => '',
-        ];
-
-        $isEdit = (int) ($fields['id'] ?? 0) > 0;
-
-        echo '<div class="card">';
-        echo '<div class="card-header fw-semibold">';
-        echo '<i class="ti ti-' . ($isEdit ? 'edit' : 'plus') . ' me-1"></i>';
-        echo self::h($isEdit ? __('Edit connection', 'bridge') : __('New connection', 'bridge'));
-        echo '</div>';
-        echo '<div class="card-body">';
-        echo '<form method="post" action="' . self::h(Connection::getConfigFormURL()) . '">';
-        echo Html::hidden('_glpi_csrf_token', ['value' => Session::getNewCSRFToken()]);
-
-        if ($isEdit) {
-            echo Html::hidden('id', ['value' => (int) $fields['id']]);
-        }
-
-        echo '<div class="row g-3">';
-
-        echo '<div class="col-md-6">';
-        self::showInput('name', __('Name', 'bridge'), (string) $fields['name'], true, __('e.g. SolarWinds Production', 'bridge'));
-        echo '</div>';
-        echo '<div class="col-md-6">';
-        self::showSelect('system_type', __('Source system', 'bridge'), Connection::getSupportedSystems(), (string) $fields['system_type']);
-        echo '</div>';
-
-        echo '<div class="col-12">';
-        self::showInput('base_url', __('Base URL', 'bridge'), (string) $fields['base_url'], true, 'https://your-instance.example.com');
-        echo '</div>';
-
-        echo '<div class="col-md-6">';
-        self::showSelect('auth_type', __('Authentication', 'bridge'), Connection::getAuthTypes(), (string) $fields['auth_type']);
-        echo '</div>';
-        echo '<div class="col-md-6">';
-        self::showInput('auth_user', __('User', 'bridge'), (string) ($fields['auth_user'] ?? ''), false, __('Required for Basic auth', 'bridge'));
-        echo '</div>';
-
-        echo '<div class="col-md-6">';
-        $secretLabel = $isEdit && !empty($fields['auth_secret'])
-            ? __('Secret / token (leave blank to keep current)', 'bridge')
-            : __('Secret or token', 'bridge');
-        self::showPassword('auth_secret_plain', $secretLabel);
-        echo '</div>';
-        echo '<div class="col-md-6">';
-        self::showInput('custom_header_name', __('Custom header name', 'bridge'), (string) ($fields['custom_header_name'] ?? ''), false, __('Required for Custom header auth', 'bridge'));
-        echo '</div>';
-
-        echo '<div class="col-md-6">';
-        echo '<label class="form-label">' . self::h(__('Fallback entity', 'bridge')) . '</label>';
-        echo '<div class="form-text text-muted mb-1" style="font-size:.78rem">' . self::h(__('Used when a site cannot be matched by name.', 'bridge')) . '</div>';
-        Entity::dropdown([
-            'name'   => 'entities_id',
-            'value'  => (int) ($fields['entities_id'] ?? 0),
-            'entity' => $_SESSION['glpiactiveentities'] ?? -1,
-        ]);
-        echo '</div>';
-
-        echo '<div class="col-md-6">';
-        echo '<label class="form-label">' . self::h(__('Fallback group', 'bridge')) . '</label>';
-        echo '<div class="form-text text-muted mb-1" style="font-size:.78rem">' . self::h(__('Used when an assignee group cannot be matched by name.', 'bridge')) . '</div>';
-        \Group::dropdown([
-            'name'  => 'default_groups_id',
-            'value' => (int) ($fields['default_groups_id'] ?? 0),
-        ]);
-        echo '</div>';
-
-        echo '<div class="col-md-6 d-flex align-items-end pb-1">';
-        $checked = (int) ($fields['is_active'] ?? 1) ? ' checked' : '';
-        echo '<div class="form-check form-switch">';
-        echo '<input class="form-check-input" type="checkbox" role="switch" id="bridge-is_active" name="is_active" value="1"' . $checked . '>';
-        echo '<label class="form-check-label" for="bridge-is_active">' . self::h(__('Active', 'bridge')) . '</label>';
-        echo '</div>';
-        echo '</div>';
-
-        echo '<div class="col-12">';
-        echo '<label class="form-label" for="bridge-comment">' . self::h(__('Notes', 'bridge')) . '</label>';
-        echo '<textarea class="form-control" id="bridge-comment" name="comment" rows="2">';
-        echo self::h((string) ($fields['comment'] ?? ''));
-        echo '</textarea>';
-        echo '</div>';
-
-        echo '</div>';
-
-        echo '<div class="d-flex gap-2 mt-4">';
-        echo '<button type="submit" name="' . ($isEdit ? 'update' : 'add') . '" class="btn btn-primary">';
-        echo '<i class="ti ti-device-floppy me-1"></i>' . self::h(__('Save', 'bridge'));
-        echo '</button>';
-
-        if ($isEdit) {
-            echo '<button type="submit" name="purge" class="btn btn-outline-danger ms-auto"';
-            echo ' data-bridge-confirm="' . self::h(__('Delete this connection?', 'bridge')) . '">';
-            echo '<i class="ti ti-trash me-1"></i>' . self::h(__('Delete', 'bridge'));
-            echo '</button>';
-        }
-
-        echo '</div>';
-        echo '</form>';
-        echo '</div>';
-        echo '</div>';
     }
 
     private static function showInput(string $name, string $label, string $value, bool $required, string $placeholder = ''): void

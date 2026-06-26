@@ -6,7 +6,7 @@ use GlpiPlugin\Bridge\Connection;
 use GlpiPlugin\Bridge\Migration\BridgeJob;
 use GlpiPlugin\Bridge\Migration\BridgeJobConfig;
 
-define('PLUGIN_BRIDGE_VERSION', '1.4.7');
+define('PLUGIN_BRIDGE_VERSION', '1.5.0');
 define('PLUGIN_BRIDGE_MIN_GLPI', '11.0.0');
 define('PLUGIN_BRIDGE_MAX_GLPI', '11.0.99');
 

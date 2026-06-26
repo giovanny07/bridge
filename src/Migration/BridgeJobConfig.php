@@ -53,12 +53,18 @@ final class BridgeJobConfig
     // Eje 2 — parallel API pages (activated in Etapa 5)
     // ------------------------------------------------------------------ //
 
-    /** Number of API pages fetched concurrently within a single job chunk via
-     *  curl_multi. 1 = fully sequential (safe default for rate-limit compliance).
-     *  Raise to 4 in Etapa 5 after confirming SolarWinds allows burst requests. */
+    /** Global default for the number of API pages fetched concurrently within a
+     *  single job chunk via curl_multi. 1 = fully sequential (safe default).
+     *  Individual connections override this via their parallel_api_pages field.
+     *  Raise only after confirming the target system allows burst requests. */
     public const PARALLEL_API_PAGES = 1;
 
     /** Hard ceiling for PARALLEL_API_PAGES — never exceed this regardless of
-     *  user configuration to avoid API bans. */
+     *  per-connection configuration, to avoid API bans. */
     public const PARALLEL_API_MAX = 8;
+
+    /** Seconds to sleep before retrying a page that returned HTTP 429.
+     *  Gives the remote API time to reset its rate-limit window.
+     *  Set to 0 to disable the pause (not recommended in production). */
+    public const RATE_LIMIT_BACKOFF_SECONDS = 5;
 }

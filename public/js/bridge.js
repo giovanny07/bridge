@@ -109,6 +109,70 @@
         });
     }
 
+    function executeScripts(element) {
+        element.querySelectorAll('script').forEach(function (oldScript) {
+            var newScript = document.createElement('script');
+            Array.from(oldScript.attributes).forEach(function (attr) {
+                newScript.setAttribute(attr.name, attr.value);
+            });
+            newScript.textContent = oldScript.textContent;
+            oldScript.parentNode.replaceChild(newScript, oldScript);
+        });
+    }
+
+    function loadEditForm(id) {
+        var panel = document.getElementById('bridge-connection-form-panel');
+        if (!panel) return;
+        var ajaxBase = panel.dataset.ajaxBase;
+        if (!ajaxBase) return;
+
+        panel.innerHTML = '<div class="d-flex justify-content-center p-5">'
+            + '<div class="spinner-border text-secondary" role="status">'
+            + '<span class="visually-hidden">Loading...</span>'
+            + '</div></div>';
+
+        fetch(ajaxBase + '/ajax/edit_form.php?id=' + encodeURIComponent(id), {
+            headers: { 'X-Requested-With': 'XMLHttpRequest' }
+        })
+            .then(function (r) {
+                if (!r.ok) throw new Error('HTTP ' + r.status);
+                return r.text();
+            })
+            .then(function (html) {
+                panel.innerHTML = html;
+                executeScripts(panel);
+                // Re-init confirm buttons in the injected form
+                initConfirmButtons(panel);
+            })
+            .catch(function (err) {
+                panel.innerHTML = '<div class="alert alert-danger m-3">Could not load form: ' + err.message + '</div>';
+            });
+    }
+
+    function initEditForm() {
+        if (window.bridgeEditFormBound) return;
+        window.bridgeEditFormBound = true;
+
+        document.addEventListener('click', function (event) {
+            var btn = event.target.closest('[data-bridge-edit-id]');
+            if (!btn) return;
+            event.preventDefault();
+            loadEditForm(btn.dataset.bridgeEditId);
+        });
+    }
+
+    function initConfirmButtons(root) {
+        (root || document).querySelectorAll('[data-bridge-confirm]').forEach(function (el) {
+            if (el.dataset.bridgeConfirmBound) return;
+            el.dataset.bridgeConfirmBound = '1';
+            el.addEventListener('click', function (event) {
+                if (!window.confirm(el.dataset.bridgeConfirm)) {
+                    event.preventDefault();
+                }
+            });
+        });
+    }
+
     function initCopyButtons() {
         document.querySelectorAll('.bridge-copy-btn').forEach(function (btn) {
             btn.addEventListener('click', function () {
@@ -412,20 +476,16 @@
             });
         });
 
-        document.querySelectorAll('[data-bridge-confirm]').forEach(function (el) {
-            el.addEventListener('click', function (event) {
-                if (!window.confirm(el.dataset.bridgeConfirm)) {
-                    event.preventDefault();
-                }
-            });
-        });
+        initConfirmButtons();
     }
 
     ready(function () {
         initConnectionTests();
+        initEditForm();
         initCopyButtons();
         initMigrateForm();
         initUserSyncForm();
         initHistoryBulk();
+        initConfirmButtons();
     });
 })();

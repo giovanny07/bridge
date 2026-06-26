@@ -6,6 +6,7 @@ use CommonDBTM;
 use Config;
 use DBConnection;
 use GLPIKey;
+use GlpiPlugin\Bridge\Migration\BridgeJobConfig;
 use Html;
 use Migration;
 use Session;
@@ -229,6 +230,7 @@ class Connection extends CommonDBTM
                 `custom_header_name` varchar(255) DEFAULT NULL,
                 `entities_id` int {$default_key_sign} NOT NULL DEFAULT 0,
                 `default_groups_id` int {$default_key_sign} NOT NULL DEFAULT 0,
+                `parallel_api_pages` tinyint unsigned NOT NULL DEFAULT 1,
                 `is_active` tinyint NOT NULL DEFAULT 1,
                 `comment` text,
                 `date_creation` timestamp NULL DEFAULT NULL,
@@ -252,6 +254,13 @@ class Connection extends CommonDBTM
             $migration->addKey($table, 'default_groups_id');
             $migration->executeMigration();
         }
+
+        // Upgrade: add parallel_api_pages if missing (existing installations)
+        if (!$DB->fieldExists($table, 'parallel_api_pages')) {
+            $migration->displayMessage("Upgrading $table: adding parallel_api_pages");
+            $migration->addField($table, 'parallel_api_pages', 'tinyint unsigned NOT NULL DEFAULT 1', ['after' => 'default_groups_id']);
+            $migration->executeMigration();
+        }
     }
 
     public static function uninstall(Migration $migration): void
@@ -271,6 +280,7 @@ class Connection extends CommonDBTM
             'custom_header_name' => trim((string) ($input['custom_header_name'] ?? '')),
             'entities_id'        => (int) ($input['entities_id'] ?? 0),
             'default_groups_id'  => (int) ($input['default_groups_id'] ?? 0),
+            'parallel_api_pages' => max(1, min(BridgeJobConfig::PARALLEL_API_MAX, (int) ($input['parallel_api_pages'] ?? BridgeJobConfig::PARALLEL_API_PAGES))),
             'is_active'          => isset($input['is_active']) ? 1 : 0,
             'comment'            => trim((string) ($input['comment'] ?? '')),
         ];

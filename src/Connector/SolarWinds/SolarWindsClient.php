@@ -4,6 +4,8 @@ namespace GlpiPlugin\Bridge\Connector\SolarWinds;
 
 use GlpiPlugin\Bridge\Connection;
 use GlpiPlugin\Bridge\Contract\ConnectorInterface;
+use GlpiPlugin\Bridge\Connector\HttpBatch;
+use GlpiPlugin\Bridge\Migration\BridgeJobConfig;
 use RuntimeException;
 
 /**
@@ -306,6 +308,89 @@ class SolarWindsClient implements ConnectorInterface
     {
         $response = $this->request("/problems/{$id}.json");
         return $response['json'];
+    }
+
+    /**
+     * Fetches multiple pages of the given resource type in parallel via HttpBatch.
+     * Pages with status_code=429 are returned as-is (rate-limit surface);
+     * any other non-2xx throws immediately.
+     *
+     * The $batch parameter is null in production (creates a default HttpBatch)
+     * and is injected in tests to avoid real network calls.
+     */
+    public function listPagesBatch(
+        string    $resourceType,
+        array     $filters,
+        array     $pageNumbers,
+        int       $perPage,
+        ?HttpBatch $batch = null
+    ): array {
+        if ($this->secret === '' && $this->authType !== Connection::AUTH_BASIC) {
+            throw new RuntimeException('This connection has no authentication secret configured.');
+        }
+
+        $endpoint = match ($resourceType) {
+            'problems' => '/problems.json',
+            'changes'  => '/changes.json',
+            default    => '/incidents.json',
+        };
+
+        $headers = array_merge([
+            'Accept: application/vnd.samanage.v2.1+json',
+            'Content-Type: application/json',
+        ], $this->buildAuthHeaders());
+
+        $requests = [];
+        foreach ($pageNumbers as $pageNum) {
+            $query = array_merge(['per_page' => $perPage, 'page' => $pageNum], $filters);
+            $requests[$pageNum] = ['url' => $this->buildUrl($endpoint, $query), 'headers' => $headers];
+        }
+
+        $httpBatch  = $batch ?? new HttpBatch(BridgeJobConfig::PARALLEL_API_PAGES);
+        $rawResults = $httpBatch->fetchAll($requests);
+
+        $results = [];
+        foreach ($rawResults as $pageNum => $raw) {
+            $statusCode = (int) ($raw['status_code'] ?? 0);
+            $url        = $requests[$pageNum]['url'];
+
+            if ($statusCode === 429) {
+                $results[$pageNum] = [
+                    'endpoint'    => $url,
+                    'status_code' => 429,
+                    'total'       => 0,
+                    'page'        => $pageNum,
+                    'per_page'    => $perPage,
+                    'count'       => 0,
+                    'records'     => [],
+                ];
+                continue;
+            }
+
+            if (($raw['error'] ?? '') !== '' || $statusCode < 200 || $statusCode >= 300) {
+                $detail = ($raw['error'] ?? '') ?: substr($raw['body'] ?? '', 0, 200);
+                throw new RuntimeException("SolarWinds HTTP $statusCode on page $pageNum: $detail");
+            }
+
+            $json = json_decode($raw['body'] ?? '', true);
+            if (!is_array($json)) {
+                throw new RuntimeException("SolarWinds returned non-JSON for page $pageNum.");
+            }
+
+            $records = $this->extractRecords($json, $resourceType);
+
+            $results[$pageNum] = [
+                'endpoint'    => $url,
+                'status_code' => $statusCode,
+                'total'       => 0, // X-Total-Count not captured in batch mode; stop detection uses empty-batch check
+                'page'        => $pageNum,
+                'per_page'    => $perPage,
+                'count'       => count($records),
+                'records'     => $records,
+            ];
+        }
+
+        return $results;
     }
 
     public function listUsers(array $filters = [], int $page = 1, int $perPage = 100): array
