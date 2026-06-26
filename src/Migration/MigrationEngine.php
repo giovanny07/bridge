@@ -238,7 +238,8 @@ class MigrationEngine
         $continueLoop   = true;
 
         while ($continueLoop && $this->attemptedTotal($result) < $limit && $pagesThisRun < $maxPagesPerRun) {
-            $wavePages = $this->buildWavePages($page, $chronologicalFromDate, $pagesThisRun, $maxPagesPerRun);
+            $remaining = $limit - $this->attemptedTotal($result);
+            $wavePages = $this->buildWavePages($page, $chronologicalFromDate, $pagesThisRun, $maxPagesPerRun, $remaining);
             if ($wavePages === []) {
                 break;
             }
@@ -469,10 +470,21 @@ class MigrationEngine
      * Returns the next wave of page numbers to fetch, respecting concurrency limits.
      * For chronological (backward) scans: descending from $startPage.
      * For forward scans: ascending from $startPage.
+     *
+     * $remainingLimit caps the wave to the minimum pages needed to fill the limit,
+     * avoiding unnecessary parallel fetches when limit < parallelApiPages × PER_PAGE.
      */
-    private function buildWavePages(int $startPage, bool $chronological, int $pagesThisRun, int $maxPagesPerRun): array
+    private function buildWavePages(int $startPage, bool $chronological, int $pagesThisRun, int $maxPagesPerRun, int $remainingLimit = PHP_INT_MAX): array
     {
-        $cap      = max(1, min($this->parallelApiPages, BridgeJobConfig::PARALLEL_API_MAX));
+        $cap = max(1, min($this->parallelApiPages, BridgeJobConfig::PARALLEL_API_MAX));
+
+        // Clamp the wave to the number of pages that can possibly fill the remaining limit.
+        // E.g. limit=10, PER_PAGE=50 → only 1 page needed, even with parallelApiPages=4.
+        if ($remainingLimit > 0 && $remainingLimit < PHP_INT_MAX) {
+            $pagesNeeded = (int) ceil($remainingLimit / BridgeJobConfig::PER_PAGE);
+            $cap = min($cap, max(1, $pagesNeeded));
+        }
+
         $waveSize = min($cap, $maxPagesPerRun - $pagesThisRun);
 
         $pages = [];

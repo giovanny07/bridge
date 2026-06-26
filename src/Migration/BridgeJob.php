@@ -501,6 +501,8 @@ class BridgeJob extends CommonDBTM
     private static function recoverZombies(object $DB): void
     {
         $cutoff = date('Y-m-d H:i:s', strtotime('-' . BridgeJobConfig::ZOMBIE_MINUTES . ' minutes'));
+
+        // Running jobs with a stale heartbeat
         $DB->update(self::getTable(), [
             'status'        => self::STATUS_FAILED,
             'finished_at'   => date('Y-m-d H:i:s'),
@@ -508,6 +510,16 @@ class BridgeJob extends CommonDBTM
         ], [
             'status'         => self::STATUS_RUNNING,
             'last_heartbeat' => ['<', $cutoff],
+        ]);
+
+        // Pending jobs never picked up — cron gap or scheduler outage
+        $DB->update(self::getTable(), [
+            'status'        => self::STATUS_FAILED,
+            'finished_at'   => date('Y-m-d H:i:s'),
+            'error_message' => 'Job stuck in pending for over ' . BridgeJobConfig::ZOMBIE_MINUTES . ' minutes. Check that the GLPI cron is running.',
+        ], [
+            'status'     => self::STATUS_PENDING,
+            'created_at' => ['<', $cutoff],
         ]);
     }
 

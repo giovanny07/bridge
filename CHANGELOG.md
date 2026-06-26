@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.5.1] - 2026-06-26
+
+### Fixed
+- **Wave over-fetching** — `buildWavePages` now caps the wave size to the minimum
+  number of pages needed to satisfy the remaining limit. Previously, a job with
+  `limit=10` and `parallel_api_pages=4` would fetch 4 pages in parallel even though
+  only 1 page is required; now it fetches exactly `ceil(remaining / PER_PAGE)` pages.
+- **Stale pending job recovery** — `recoverZombies` now also auto-fails `pending`
+  jobs that have not been picked up by the cron scheduler for more than
+  `ZOMBIE_MINUTES` (15 min). Previously only `running` jobs were recovered, so a
+  pending job could block all new job creation for that type indefinitely if the
+  scheduler stopped running.
+
 ## [1.5.0] - 2026-06-26
 
 ### Added
