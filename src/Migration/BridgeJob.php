@@ -669,6 +669,60 @@ class BridgeJob extends CommonDBTM
         return $summary;
     }
 
+    /**
+     * Returns all active (pending or running) jobs for a connection, one per
+     * resource type at most, ordered by resource_type for a stable display.
+     * Used by the jobs list UI to show the parallel-jobs banner.
+     *
+     * @return array<int, array{id:int, resource_type:string, status:string}>
+     */
+    public static function getActiveForConnection(int $connectionId): array
+    {
+        global $DB;
+        $rows = [];
+        foreach ($DB->request([
+            'SELECT' => ['id', 'resource_type', 'status'],
+            'FROM'   => self::getTable(),
+            'WHERE'  => [
+                'connections_id' => $connectionId,
+                'status'         => [self::STATUS_PENDING, self::STATUS_RUNNING],
+            ],
+            'ORDER'  => ['resource_type ASC', 'created_at ASC'],
+        ]) as $row) {
+            $rows[] = ['id' => (int) $row['id'], 'resource_type' => (string) $row['resource_type'], 'status' => (string) $row['status']];
+        }
+        return $rows;
+    }
+
+    /**
+     * Returns the Bootstrap badge CSS classes for a given resource type.
+     * Used in the jobs list and status pages for consistent colour coding.
+     */
+    public static function resourceTypeBadgeClass(string $type): string
+    {
+        return match ($type) {
+            'incidents'        => 'bg-primary',
+            'changes'          => 'bg-warning text-dark',
+            'problems'         => 'bg-danger',
+            'service_requests' => 'bg-info text-dark',
+            default            => 'bg-secondary',
+        };
+    }
+
+    /**
+     * Returns the cron slot name registered in setup.php for a resource type.
+     * Used to check the correct slot's last-run time in isCronHealthy().
+     */
+    public static function cronSlotName(string $resourceType): string
+    {
+        return match ($resourceType) {
+            'incidents' => 'ProcessIncidents',
+            'changes'   => 'ProcessChanges',
+            'problems'  => 'ProcessProblems',
+            default     => 'ProcessJobs',
+        };
+    }
+
     public static function getForConnection(int $connectionId, int $limit = 50): array
     {
         global $DB;

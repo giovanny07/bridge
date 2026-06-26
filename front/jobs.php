@@ -15,10 +15,11 @@ if (!$id || !$connection->getFromDB($id)) {
 
 Html::header(__('Migration jobs', 'bridge'), '', 'config', 'plugins');
 
-$jobs       = BridgeJob::getForConnection($id, 100);
-$_frontDir  = Connection::getPluginBaseURL() . '/front';
-$jobUrl     = $_frontDir . '/job_status.php';
-$migrateUrl = $_frontDir . '/migrate.php';
+$jobs        = BridgeJob::getForConnection($id, 100);
+$activeJobs  = BridgeJob::getActiveForConnection($id);
+$_frontDir   = Connection::getPluginBaseURL() . '/front';
+$jobUrl      = $_frontDir . '/job_status.php';
+$migrateUrl  = $_frontDir . '/migrate.php';
 
 $statusClass = [
     BridgeJob::STATUS_PENDING      => 'bg-secondary',
@@ -55,6 +56,34 @@ echo '<i class="ti ti-arrow-left me-1"></i>' . $h(__('Back', 'bridge')) . '</a>'
 echo '</div>';
 echo '</div>';
 
+// ── Parallel jobs banner ──────────────────────────────────────────────
+if (count($activeJobs) > 1) {
+    $runningTypes = array_map(static fn($j) => $j['resource_type'], $activeJobs);
+    echo '<div class="alert alert-primary border-0 shadow-sm d-flex align-items-center gap-2 mb-4 py-2">';
+    echo '<i class="ti ti-arrows-split-2 fs-5"></i>';
+    echo '<div class="flex-grow-1">';
+    echo '<strong>' . count($activeJobs) . ' ' . $h(__('parallel jobs active', 'bridge')) . '</strong>';
+    echo '<div class="d-flex gap-2 mt-1 flex-wrap">';
+    foreach ($activeJobs as $aj) {
+        $cls    = $statusClass[$aj['status']] ?? 'bg-secondary';
+        $typCls = BridgeJob::resourceTypeBadgeClass($aj['resource_type']);
+        echo '<a class="badge text-decoration-none ' . $typCls . '" href="' . $h($jobUrl . '?job_id=' . $aj['id']) . '">';
+        echo '<i class="ti ti-' . ($aj['status'] === BridgeJob::STATUS_RUNNING ? 'loader-2' : 'clock') . ' me-1"></i>';
+        echo $h($aj['resource_type']) . ' <span class="badge bg-white bg-opacity-25 ms-1">' . $h($statusLabel[$aj['status']] ?? $aj['status']) . '</span>';
+        echo '</a>';
+    }
+    echo '</div></div></div>';
+} elseif (count($activeJobs) === 1) {
+    $aj = $activeJobs[0];
+    echo '<div class="alert alert-light border mb-4 py-2 d-flex align-items-center gap-2">';
+    echo '<i class="ti ti-loader-2 text-primary"></i>';
+    echo '<div>';
+    echo '<a class="fw-semibold text-decoration-none" href="' . $h($jobUrl . '?job_id=' . $aj['id']) . '">';
+    echo $h(__('Job running', 'bridge')) . ': ' . $h($aj['resource_type']) . ' #' . $aj['id'];
+    echo '</a>';
+    echo '</div></div>';
+}
+
 if (empty($jobs)) {
     echo '<div class="alert alert-light border">';
     echo '<i class="ti ti-info-circle me-1"></i>' . $h(__('No migration jobs yet. Click "New migration" to start.', 'bridge'));
@@ -82,7 +111,8 @@ if (empty($jobs)) {
 
         echo '<tr' . $rowCls . '>';
         echo '<td class="text-muted">' . (int) $row['id'] . '</td>';
-        echo '<td><span class="badge bg-secondary bg-opacity-75">' . $h($row['resource_type'] ?? '') . '</span></td>';
+        $typBadge = BridgeJob::resourceTypeBadgeClass((string) ($row['resource_type'] ?? ''));
+        echo '<td><span class="badge ' . $typBadge . ' bg-opacity-85">' . $h($row['resource_type'] ?? '') . '</span></td>';
         echo '<td><span class="badge ' . ($statusClass[$status] ?? 'bg-secondary') . '">' . $h($statusLabel[$status] ?? $status) . '</span></td>';
         echo '<td class="text-muted">' . $h(substr($row['created_at'] ?? '', 0, 16)) . '</td>';
         echo '<td class="text-success fw-semibold">' . (int) ($stats['created']   ?? 0) . '</td>';

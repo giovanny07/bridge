@@ -119,16 +119,19 @@ class JobStatusPage
 
         // ── Cron notice ───────────────────────────────────────────────────
         if (!$isFinished) {
-            $cronOk      = self::isCronHealthy();
+            $cronOk      = self::isCronHealthy($job->resourceType());
+            $slotName    = BridgeJob::cronSlotName($job->resourceType());
             $alertClass  = $cronOk ? 'alert-light border' : 'alert-warning';
             $alertIcon   = $cronOk ? 'ti-info-circle text-primary' : 'ti-alert-triangle text-warning';
             echo '<div class="alert ' . $alertClass . ' small">';
             echo '<i class="ti ' . $alertIcon . ' me-1"></i>';
             if ($cronOk) {
-                echo self::h(__('The migration runs via the GLPI scheduler. It will start within 60 seconds and process chunks automatically until complete.', 'bridge'));
+                echo self::h(__('The migration runs via the GLPI scheduler.', 'bridge'));
+                echo ' <span class="text-muted ms-1">(' . self::h($slotName) . ')</span>';
+                echo ' ' . self::h(__('It will start within 60 seconds and process chunks automatically until complete.', 'bridge'));
             } else {
                 echo '<strong>' . self::h(__('GLPI scheduler may not be running.', 'bridge')) . '</strong> ';
-                echo self::h(__('The job is queued but will not start until the scheduler runs.', 'bridge'));
+                echo self::h(sprintf(__('The job is queued but will not start until the %s scheduler slot runs.', 'bridge'), $slotName));
                 echo ' <a href="' . self::h(\CronTask::getSearchURL(false)) . '" target="_blank" class="alert-link">';
                 echo self::h(__('Check Automatic Actions', 'bridge')) . '</a>.';
             }
@@ -426,23 +429,34 @@ JS;
     }
 
     /**
-     * Returns true when the GLPI cron has run within the last 5 minutes,
-     * meaning the scheduler is active and the job will be picked up soon.
+     * Returns true when any Bridge cron slot has run within the last 5 minutes.
+     * Checks the typed slot for $resourceType first (Etapa 2), then all others
+     * as a fallback so the notice is correct even when slot names change.
+     * Also accepts the legacy 'bridge' itemtype for installations that have not
+     * yet re-installed the plugin since the GLPI 11 PSR-4 migration.
      */
-    private static function isCronHealthy(): bool
+    private static function isCronHealthy(string $resourceType = ''): bool
     {
         global $DB;
+
+        // Prefer the typed slot; include all Bridge slots as fallback
+        $preferredSlot = BridgeJob::cronSlotName($resourceType);
+        $allSlots = [$preferredSlot, 'ProcessIncidents', 'ProcessChanges', 'ProcessProblems', 'ProcessJobs'];
+        $cutoff   = date('Y-m-d H:i:s', strtotime('-5 minutes'));
+
         foreach ($DB->request([
             'SELECT' => ['lastrun'],
             'FROM'   => 'glpi_crontasks',
-            'WHERE'  => ['itemtype' => 'bridge', 'name' => 'ProcessJobs'],
-            'LIMIT'  => 1,
+            'WHERE'  => [
+                'OR' => [
+                    ['itemtype' => BridgeJob::class, 'name' => $allSlots],
+                    ['itemtype' => 'bridge',          'name' => $allSlots],
+                ],
+            ],
         ]) as $row) {
-            if (empty($row['lastrun'])) {
-                return false; // never ran
+            if (!empty($row['lastrun']) && $row['lastrun'] > $cutoff) {
+                return true;
             }
-            $lastRun = strtotime((string) $row['lastrun']);
-            return (time() - $lastRun) < 300; // ran within 5 minutes
         }
         return false;
     }
