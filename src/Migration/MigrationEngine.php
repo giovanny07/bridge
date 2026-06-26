@@ -5,6 +5,7 @@ namespace GlpiPlugin\Bridge\Migration;
 use GlpiPlugin\Bridge\Contract\ConnectorInterface;
 use GlpiPlugin\Bridge\Contract\NormalizerInterface;
 use GlpiPlugin\Bridge\Resolver\GlpiResolver;
+use GlpiPlugin\Bridge\Migration\BridgeJobConfig;
 use GlpiPlugin\Bridge\Migration\MigrationCursor;
 
 /**
@@ -27,7 +28,6 @@ use GlpiPlugin\Bridge\Migration\MigrationCursor;
  */
 class MigrationEngine
 {
-    private const PER_PAGE     = 50;
     private const STATUS_SOLVED = 5;
     private const STATUS_CLOSED = 6;
 
@@ -93,7 +93,7 @@ class MigrationEngine
         }
 
         $filters = $this->buildFilters($options);
-        $perPage = min(self::PER_PAGE, max(1, $limit));
+        $perPage = min(BridgeJobConfig::PER_PAGE, max(1, $limit));
         $chronologicalFromDate = !empty($options['created_after']) && $startPage === 1;
         $page = $chronologicalFromDate
             ? $this->findCreatedAfterBoundaryPage($filters, (string) $options['created_after'], $perPage, $result)
@@ -158,7 +158,7 @@ class MigrationEngine
      * Runs the migration engine, optionally resuming from a saved cursor.
      *
      * In from_date (chronological) mode the engine processes at most
-     * MigrationCursor::CHUNK_PAGES pages per call to stay within PHP
+     * BridgeJobConfig::CHUNK_PAGES pages per call to stay within PHP
      * max_execution_time.  The caller is responsible for persisting the
      * returned cursor so the next run continues where this one stopped.
      *
@@ -204,7 +204,7 @@ class MigrationEngine
 
         // ── Paginated mode ────────────────────────────────────────────────
         $filters = $this->buildFilters($options);
-        $perPage = self::PER_PAGE;
+        $perPage = BridgeJobConfig::PER_PAGE;
 
         $chronologicalFromDate = !empty($options['created_after']) && $startPage === 1 && $cursor === null;
 
@@ -233,7 +233,7 @@ class MigrationEngine
         }
 
         $pagesThisRun  = 0;
-        $maxPagesPerRun = $chronologicalFromDate ? MigrationCursor::CHUNK_PAGES : PHP_INT_MAX;
+        $maxPagesPerRun = $chronologicalFromDate ? BridgeJobConfig::CHUNK_PAGES : PHP_INT_MAX;
 
         while ($this->attemptedTotal($result) < $limit && $pagesThisRun < $maxPagesPerRun) {
             $batch = $result->measureStat(

@@ -6,6 +6,7 @@ use CommonDBTM;
 use CronTask;
 use DBConnection;
 use GlpiPlugin\Bridge\Connector\ConnectorFactory;
+use GlpiPlugin\Bridge\Migration\BridgeJobConfig;
 use GlpiPlugin\Bridge\Migration\JobLog;
 use GlpiPlugin\Bridge\Resolver\GlpiResolver;
 use Migration;
@@ -30,7 +31,8 @@ class BridgeJob extends CommonDBTM
     public const STATUS_CANCELLED    = 'cancelled';
     public const STATUS_ROLLED_BACK  = 'rolled_back';
 
-    private const ZOMBIE_MINUTES = 15;
+    /** @deprecated Use BridgeJobConfig::ZOMBIE_MINUTES. Kept for back-compat. */
+    private const ZOMBIE_MINUTES = BridgeJobConfig::ZOMBIE_MINUTES;
 
     public static function getTable($classname = null): string
     {
@@ -258,50 +260,151 @@ class BridgeJob extends CommonDBTM
     // ------------------------------------------------------------------ //
 
     /**
-     * Registered as plugin_bridge_ProcessJobs cron action.
-     * Picks the oldest pending job, runs one chunk, and returns.
+     * Legacy single-slot cron action (Etapa 1 / back-compat).
+     * When BridgeJobConfig::PARALLEL_JOBS is false this is the only active slot
+     * and it picks any pending job regardless of resource type.
+     * Once PARALLEL_JOBS is true the typed slots below take over and this slot
+     * becomes a no-op so it can be safely removed in a future release.
      */
     public static function cronProcessJobs(CronTask $task): int
     {
         global $DB;
-
-        // Recover zombie jobs first
         self::recoverZombies($DB);
 
-        // Pick the oldest pending job
-        $job = null;
-        foreach ($DB->request([
-            'FROM'  => self::getTable(),
-            'WHERE' => ['status' => self::STATUS_PENDING],
-            'ORDER' => ['created_at ASC'],
-            'LIMIT' => 1,
-        ]) as $row) {
-            $job = new self();
-            $job->fields = $row;
+        if (BridgeJobConfig::PARALLEL_JOBS) {
+            return 0; // typed slots are active; this slot is retired
         }
 
+        $job = self::pickOldestPending();
         if ($job === null) {
-            return 0; // nothing to do
+            return 0;
         }
 
-        // Guard: do not run if another job for the same connection+type is already running
-        // (protects against cron overlap when two cron instances fire simultaneously)
-        foreach ($DB->request([
-            'FROM'  => self::getTable(),
-            'WHERE' => [
-                'connections_id' => $job->connectionId(),
-                'resource_type'  => $job->resourceType(),
-                'status'         => self::STATUS_RUNNING,
-                'NOT'            => ['id' => $job->id()],
-            ],
-            'LIMIT' => 1,
-        ]) as $_) {
-            $task->log('Job #' . $job->id() . ' skipped — another job for the same connection is already running.');
+        if (self::hasRunningJobForType($job->connectionId(), $job->resourceType(), $job->id())) {
+            $task->log('Job #' . $job->id() . ' skipped — another job for the same connection+type is already running.');
             return 0;
         }
 
         $task->addVolume(1);
         $task->log('Processing job #' . $job->id() . ' (' . $job->resourceType() . ')');
+
+        return self::processJobChunk($job, $task);
+    }
+
+    // ------------------------------------------------------------------ //
+    // Typed cron slots — Etapa 2 (parallel jobs per resource type)
+    // ------------------------------------------------------------------ //
+
+    /**
+     * Cron slot dedicated to incidents jobs.
+     * Runs as an independent OS process, parallel to changes and problems slots.
+     */
+    public static function cronProcessIncidents(CronTask $task): int
+    {
+        return self::cronForType($task, 'incidents');
+    }
+
+    /**
+     * Cron slot dedicated to changes jobs.
+     * Runs as an independent OS process, parallel to incidents and problems slots.
+     */
+    public static function cronProcessChanges(CronTask $task): int
+    {
+        return self::cronForType($task, 'changes');
+    }
+
+    /**
+     * Cron slot dedicated to problems jobs.
+     * Runs as an independent OS process, parallel to incidents and changes slots.
+     */
+    public static function cronProcessProblems(CronTask $task): int
+    {
+        return self::cronForType($task, 'problems');
+    }
+
+    /**
+     * Shared logic for typed cron slots: recover zombies, pick the oldest
+     * pending job for the given type, guard against overlap, then run a chunk.
+     */
+    private static function cronForType(CronTask $task, string $resourceType): int
+    {
+        global $DB;
+        self::recoverZombies($DB);
+
+        $job = self::pickOldestPending($resourceType);
+        if ($job === null) {
+            return 0;
+        }
+
+        if (self::hasRunningJobForType($job->connectionId(), $resourceType, $job->id())) {
+            $task->log('Job #' . $job->id() . ' skipped — another ' . $resourceType . ' job is already running.');
+            return 0;
+        }
+
+        $task->addVolume(1);
+        $task->log('Processing job #' . $job->id() . ' (' . $resourceType . ')');
+
+        return self::processJobChunk($job, $task);
+    }
+
+    // ------------------------------------------------------------------ //
+    // Internal cron helpers (also used by typed slots in Etapa 2)
+    // ------------------------------------------------------------------ //
+
+    /**
+     * Picks the oldest pending job, optionally filtered by resource type.
+     * Returns null when there is nothing to process.
+     */
+    private static function pickOldestPending(?string $resourceType = null): ?self
+    {
+        global $DB;
+        $where = ['status' => self::STATUS_PENDING];
+        if ($resourceType !== null) {
+            $where['resource_type'] = $resourceType;
+        }
+        foreach ($DB->request([
+            'FROM'  => self::getTable(),
+            'WHERE' => $where,
+            'ORDER' => ['created_at ASC'],
+            'LIMIT' => 1,
+        ]) as $row) {
+            $job = new self();
+            $job->fields = $row;
+            return $job;
+        }
+        return null;
+    }
+
+    /**
+     * Returns true when another job for the same connection + resource type
+     * is currently RUNNING. Prevents two cron instances from double-processing.
+     */
+    private static function hasRunningJobForType(int $connectionId, string $resourceType, int $excludeJobId): bool
+    {
+        global $DB;
+        foreach ($DB->request([
+            'FROM'  => self::getTable(),
+            'WHERE' => [
+                'connections_id' => $connectionId,
+                'resource_type'  => $resourceType,
+                'status'         => self::STATUS_RUNNING,
+                'NOT'            => ['id' => $excludeJobId],
+            ],
+            'LIMIT' => 1,
+        ]) as $_) {
+            return true;
+        }
+        return false;
+    }
+
+    /**
+     * Runs one migration chunk for the given job and updates DB state.
+     * Shared by all cron slot variants (typed in Etapa 2, generic here).
+     * Returns 1 so callers can forward it as the CronTask return value.
+     */
+    private static function processJobChunk(BridgeJob $job, CronTask $task): int
+    {
+        global $DB;
 
         $job->markRunning();
         $chunkStart = microtime(true);
@@ -312,9 +415,9 @@ class BridgeJob extends CommonDBTM
                 throw new \RuntimeException('Connection #' . $job->connectionId() . ' not found.');
             }
 
-            $options      = $job->options();
-            $optionsHash  = MigrationCursor::hashOptions($options);
-            $cursor       = MigrationCursor::findActive($job->connectionId(), $job->resourceType(), $optionsHash);
+            $options     = $job->options();
+            $optionsHash = MigrationCursor::hashOptions($options);
+            $cursor      = MigrationCursor::findActive($job->connectionId(), $job->resourceType(), $optionsHash);
 
             $connector  = ConnectorFactory::make($connection);
             $normalizer = ConnectorFactory::makeNormalizer((string) $connection->fields['system_type']);
@@ -336,29 +439,26 @@ class BridgeJob extends CommonDBTM
 
             $durationMs = (int) round((microtime(true) - $chunkStart) * 1000);
 
-            // Collect error messages from this chunk for the log
             $chunkErrors = array_map(
                 static fn(array $r) => sprintf('#%s %s: %s', $r['number'] ?? '?', mb_substr($r['name'] ?? '', 0, 40), $r['reason'] ?? ''),
                 $result->failed
             );
 
-            // Append operational log entry
             $chunkNumber = JobLog::chunkCount($job->id()) + 1;
             JobLog::append(
-                jobId:       $job->id(),
-                chunk:       $chunkNumber,
-                pagesRead:   (int) ($result->stats['api_pages'] ?? 0),
-                scanned:     (int) ($result->stats['scanned']   ?? 0),
-                created:     count($result->created),
-                failed:      count($result->failed),
-                skipped:     count($result->skipped),
-                durationMs:  $durationMs,
-                cursorPage:  $cursor?->currentPage() ?? 0,
-                errors:      $chunkErrors,
-                metrics:     $result->stats
+                jobId:      $job->id(),
+                chunk:      $chunkNumber,
+                pagesRead:  (int) ($result->stats['api_pages'] ?? 0),
+                scanned:    (int) ($result->stats['scanned']   ?? 0),
+                created:    count($result->created),
+                failed:     count($result->failed),
+                skipped:    count($result->skipped),
+                durationMs: $durationMs,
+                cursorPage: $cursor?->currentPage() ?? 0,
+                errors:     $chunkErrors,
+                metrics:    $result->stats
             );
 
-            // Merge stats with accumulated totals
             $prev  = $job->stats();
             $stats = $prev;
             foreach ($result->stats as $key => $value) {
@@ -379,7 +479,6 @@ class BridgeJob extends CommonDBTM
                 count($result->failed), $cursor?->currentPage() ?? 0
             ));
 
-            // Done when cursor is completed or no cursor was used (by-IDs / recent mode)
             $done = ($cursor === null || !$cursor->isActive());
 
             if ($done) {
@@ -387,7 +486,6 @@ class BridgeJob extends CommonDBTM
                 $task->log('Job #' . $job->id() . ' completed. Total: ' . $stats['created'] . ' created in ' . $chunkNumber . ' chunks.');
             } else {
                 $job->heartbeat($stats);
-                // Re-queue for next cron tick
                 $DB->update(self::getTable(), ['status' => self::STATUS_PENDING], ['id' => $job->id()]);
             }
 
@@ -401,11 +499,11 @@ class BridgeJob extends CommonDBTM
 
     private static function recoverZombies(object $DB): void
     {
-        $cutoff = date('Y-m-d H:i:s', strtotime('-' . self::ZOMBIE_MINUTES . ' minutes'));
+        $cutoff = date('Y-m-d H:i:s', strtotime('-' . BridgeJobConfig::ZOMBIE_MINUTES . ' minutes'));
         $DB->update(self::getTable(), [
             'status'        => self::STATUS_FAILED,
             'finished_at'   => date('Y-m-d H:i:s'),
-            'error_message' => 'Job timed out (no heartbeat for ' . self::ZOMBIE_MINUTES . ' minutes).',
+            'error_message' => 'Job timed out (no heartbeat for ' . BridgeJobConfig::ZOMBIE_MINUTES . ' minutes).',
         ], [
             'status'         => self::STATUS_RUNNING,
             'last_heartbeat' => ['<', $cutoff],

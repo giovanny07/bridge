@@ -95,6 +95,26 @@ if (!class_exists('Migration')) {
     }
 }
 
+if (!class_exists('CronTask')) {
+    class CronTask
+    {
+        public const STATE_WAITING = 0;
+        public const MODE_EXTERNAL = 2;
+        public const MODE_INTERNAL = 1;
+
+        public array $logs = [];
+
+        public static function register(string $class, string $name, int $interval, array $options = []): void {}
+
+        public function log(string $message): void
+        {
+            $this->logs[] = $message;
+        }
+
+        public function addVolume(int $volume): void {}
+    }
+}
+
 if (!class_exists('DBConnection')) {
     class DBConnection
     {

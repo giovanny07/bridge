@@ -5,6 +5,7 @@ namespace GlpiPlugin\Bridge\Migration;
 use CommonDBTM;
 use DBConnection;
 use Migration;
+use GlpiPlugin\Bridge\Migration\BridgeJobConfig;
 
 /**
  * Persistent cursor for resumable migrations.
@@ -26,9 +27,8 @@ class MigrationCursor extends CommonDBTM
     public const STATUS_COMPLETED = 'completed';
     public const STATUS_CANCELLED = 'cancelled';
 
-    /** Pages processed per run in chronological (from_date) mode.
-     *  20 pages × 50 records × ~300ms API = ~6 s per cron tick. */
-    public const CHUNK_PAGES = 20;
+    /** @deprecated Use BridgeJobConfig::CHUNK_PAGES. Kept for back-compat. */
+    public const CHUNK_PAGES = BridgeJobConfig::CHUNK_PAGES;
 
     public static function getTable($classname = null): string
     {

@@ -4,6 +4,7 @@ use Glpi\Plugin\Hooks;
 use GlpiPlugin\Bridge\Config;
 use GlpiPlugin\Bridge\Connection;
 use GlpiPlugin\Bridge\Migration\BridgeJob;
+use GlpiPlugin\Bridge\Migration\BridgeJobConfig;
 
 define('PLUGIN_BRIDGE_VERSION', '1.4.7');
 define('PLUGIN_BRIDGE_MIN_GLPI', '11.0.0');
@@ -17,17 +18,34 @@ function plugin_init_bridge(): void
     Plugin::registerClass(Config::class, ['addtabon' => \Config::class]);
     Plugin::registerClass(BridgeJob::class);
 
-    // Register background job processor (runs every 60 seconds).
-    // The itemtype must be the full class name so GLPI 11 (PSR-4) can
-    // locate the static method BridgeJob::cronProcessJobs().
-    // MODE_EXTERNAL: runs only via OS cron/CLI, NOT inside web requests.
-    // MODE_INTERNAL blocks GLPI since each chunk makes ~40 external API calls
-    // (~12 s) while holding a PHP worker thread.
-    CronTask::register(BridgeJob::class, 'ProcessJobs', 60, [
-        'state'          => CronTask::STATE_WAITING,
-        'mode'           => CronTask::MODE_EXTERNAL,
-        'logs_lifetime'  => 7,
-        'comment'        => 'Process pending Bridge migration jobs (external mode — run via OS cron)',
+    // ── Legacy single-slot (kept for back-compat; no-ops when PARALLEL_JOBS=true) ──
+    CronTask::register(BridgeJob::class, 'ProcessJobs', BridgeJobConfig::CRON_INTERVAL_SECONDS, [
+        'state'         => CronTask::STATE_WAITING,
+        'mode'          => CronTask::MODE_EXTERNAL,
+        'logs_lifetime' => BridgeJobConfig::CRON_LOGS_LIFETIME_DAYS,
+        'comment'       => 'Process pending Bridge migration jobs (legacy single-slot)',
+    ]);
+
+    // ── Typed parallel slots (Etapa 2) — each handles one resource type ──
+    // Running as separate OS cron processes gives true parallelism:
+    // incidents, changes, and problems migrate simultaneously.
+    CronTask::register(BridgeJob::class, 'ProcessIncidents', BridgeJobConfig::CRON_INTERVAL_SECONDS, [
+        'state'         => CronTask::STATE_WAITING,
+        'mode'          => CronTask::MODE_EXTERNAL,
+        'logs_lifetime' => BridgeJobConfig::CRON_LOGS_LIFETIME_DAYS,
+        'comment'       => 'Process pending incident migration jobs (parallel slot)',
+    ]);
+    CronTask::register(BridgeJob::class, 'ProcessChanges', BridgeJobConfig::CRON_INTERVAL_SECONDS, [
+        'state'         => CronTask::STATE_WAITING,
+        'mode'          => CronTask::MODE_EXTERNAL,
+        'logs_lifetime' => BridgeJobConfig::CRON_LOGS_LIFETIME_DAYS,
+        'comment'       => 'Process pending change migration jobs (parallel slot)',
+    ]);
+    CronTask::register(BridgeJob::class, 'ProcessProblems', BridgeJobConfig::CRON_INTERVAL_SECONDS, [
+        'state'         => CronTask::STATE_WAITING,
+        'mode'          => CronTask::MODE_EXTERNAL,
+        'logs_lifetime' => BridgeJobConfig::CRON_LOGS_LIFETIME_DAYS,
+        'comment'       => 'Process pending problem migration jobs (parallel slot)',
     ]);
 
     $PLUGIN_HOOKS['config_page']['bridge'] = 'front/config.php';
