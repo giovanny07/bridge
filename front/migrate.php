@@ -174,17 +174,6 @@ try {
         }
         [$result, $cursor] = $engine->run($options, $cursor);
         MigratePage::showResult($connection, $result, $resourceType, $historyUrl, $cursor);
-    } elseif (!isset($_POST['confirm_preflight'])) {
-        $preflight = $engine->preflight($options);
-        MigratePage::showPreflight(
-            $connection,
-            $preflight,
-            $resourceType,
-            $resourceTypes,
-            $options,
-            $migrateUrl,
-            $historyUrl
-        );
     } else {
         // Real migration: create a background job, then show a success page
         // with a direct link. Using Html::redirect() after Html::header() can

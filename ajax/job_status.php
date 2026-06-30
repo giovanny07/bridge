@@ -14,6 +14,7 @@ if ($jobId <= 0) {
 // Handle POST actions
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     Session::checkRight('config', UPDATE);
+    Session::checkCSRF($_POST, true);
     $job = BridgeJob::getById($jobId);
     if ($job) {
         if (isset($_POST['cancel']) && !$job->isFinished()) {

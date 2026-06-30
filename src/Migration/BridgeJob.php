@@ -482,6 +482,11 @@ class BridgeJob extends CommonDBTM
 
             $done = ($cursor === null || !$cursor->isActive());
 
+            if (self::isCancelledInDatabase($job->id())) {
+                $task->log('Job #' . $job->id() . ' was cancelled; chunk results were recorded but the job will not continue.');
+                return 1;
+            }
+
             if ($done) {
                 $job->complete($stats);
                 $task->log('Job #' . $job->id() . ' completed. Total: ' . $stats['created'] . ' created in ' . $chunkNumber . ' chunks.');
@@ -491,11 +496,21 @@ class BridgeJob extends CommonDBTM
             }
 
         } catch (\Throwable $e) {
+            if (self::isCancelledInDatabase($job->id())) {
+                $task->log('Job #' . $job->id() . ' was cancelled while handling an error: ' . $e->getMessage());
+                return 1;
+            }
             $job->fail($e->getMessage(), $job->stats());
             $task->log('Job #' . $job->id() . ' FAILED: ' . $e->getMessage());
         }
 
         return 1;
+    }
+
+    private static function isCancelledInDatabase(int $jobId): bool
+    {
+        $fresh = self::getById($jobId);
+        return $fresh !== null && $fresh->status() === self::STATUS_CANCELLED;
     }
 
     private static function recoverZombies(object $DB): void

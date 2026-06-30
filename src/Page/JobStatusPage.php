@@ -208,12 +208,14 @@ class JobStatusPage
             BridgeJob::getStatusPayload($jobId, true, true),
             JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT
         );
+        $csrfToken = self::h(\Session::getNewCSRFToken());
 
         echo <<<JS
 <script>
 (function () {
     var jobId      = {$jobId};
     var ajaxUrl    = '{$ajaxUrl}';
+    var csrfToken  = '{$csrfToken}';
     var finished   = {$initiallyFinished};
     var classes    = {$statusClasses};
     var labels     = {$statusLabels};
@@ -385,8 +387,25 @@ class JobStatusPage
         if (!confirm(confirmMsg)) return;
         var fd = new FormData();
         fd.append(action, '1');
-        fetch(ajaxUrl + '?job_id=' + jobId, { method: 'POST', body: fd, credentials: 'same-origin' })
-            .then(function(r) { return r.json(); })
+        fd.append('_glpi_csrf_token', csrfToken);
+        fetch(ajaxUrl + '?job_id=' + jobId, {
+            method: 'POST',
+            body: fd,
+            credentials: 'same-origin',
+            headers: {
+                'X-Requested-With': 'XMLHttpRequest',
+                'X-Glpi-Csrf-Token': csrfToken
+            }
+        })
+            .then(function(r) {
+                return r.text().then(function(text) {
+                    var data = text ? JSON.parse(text) : {};
+                    if (!r.ok) {
+                        throw new Error(data.error || data.message || ('HTTP ' + r.status));
+                    }
+                    return data;
+                });
+            })
             .then(function(data) {
                 if (data.redirected_job_id) {
                     // Retry created a new job — navigate to it
@@ -408,6 +427,9 @@ class JobStatusPage
                     return;
                 }
                 update(data);
+            })
+            .catch(function(error) {
+                alert(error.message || 'Job action failed.');
             });
     };
 
