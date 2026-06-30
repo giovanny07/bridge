@@ -58,6 +58,54 @@ if (!class_exists('Config')) {
     }
 }
 
+if (!class_exists('Profile')) {
+    class Profile extends CommonGLPI
+    {
+        public static $rightname = 'profile';
+        public function getID(): int { return 1; }
+        public function getFromDB(int $id): bool { return true; }
+        public function getField(string $field): mixed { return $field === 'interface' ? 'central' : null; }
+        public function getFormURL(bool $full = true): string { return '/front/profile.form.php'; }
+        public function displayRightsChoiceMatrix(array $rights, array $options = []): int { return 1; }
+    }
+}
+
+if (!class_exists('DbUtils')) {
+    class DbUtils
+    {
+        public function countElementsInTable(string $table, array $criteria = []): int { return 0; }
+    }
+}
+
+if (!class_exists('ProfileRight')) {
+    class ProfileRight extends CommonDBTM
+    {
+        public static array $addedRights = [];
+        public static array $deletedRights = [];
+
+        public static function addProfileRights(array $rights): bool
+        {
+            self::$addedRights = array_merge(self::$addedRights, $rights);
+            return true;
+        }
+
+        public static function deleteProfileRights(array $rights): bool
+        {
+            self::$deletedRights = array_merge(self::$deletedRights, $rights);
+            return true;
+        }
+    }
+}
+
+if (!class_exists('Html')) {
+    class Html
+    {
+        public static function hidden(string $name, array $options = []): string { return ''; }
+        public static function submit(string $name, array $options = []): string { return ''; }
+        public static function closeForm(): void {}
+    }
+}
+
 if (!class_exists('Plugin')) {
     class Plugin
     {
@@ -73,6 +121,8 @@ if (!class_exists('Session')) {
     class Session
     {
         public static function haveRight(string $right, int $value): bool { return true; }
+        public static function haveRightsOr(string $right, array $values): bool { return true; }
+        public static function checkRight(string $right, int $value): void {}
         public static function addMessageAfterRedirect(string $msg, bool $check = false, int $type = 0): void {}
         public static function getNewCSRFToken(): string { return 'test-token'; }
     }
@@ -172,6 +222,10 @@ if (!class_exists('ITILSolution')) {
 
 if (!function_exists('__')) {
     function __(string $str, string $domain = ''): string { return $str; }
+}
+
+if (!function_exists('_sx')) {
+    function _sx(string $context, string $str): string { return $str; }
 }
 
 if (!defined('READ'))   { define('READ',   1); }

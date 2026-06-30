@@ -2,8 +2,9 @@
 
 use GlpiPlugin\Bridge\Connection;
 use GlpiPlugin\Bridge\Connector\ConnectorFactory;
+use GlpiPlugin\Bridge\Profile;
 
-Session::checkRight('config', UPDATE);
+Profile::checkConfigure();
 Session::checkCSRF($_POST, true);
 
 header('Content-Type: application/json; charset=UTF-8');

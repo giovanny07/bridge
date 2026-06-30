@@ -3,8 +3,9 @@
 use GlpiPlugin\Bridge\Connection;
 use GlpiPlugin\Bridge\Migration\MigrationRecord;
 use GlpiPlugin\Bridge\Page\HistoryPage;
+use GlpiPlugin\Bridge\Profile;
 
-Session::checkRight('config', UPDATE);
+Profile::checkMigrate(READ);
 
 $id         = (int) ($_REQUEST['id'] ?? 0);
 $connection = new Connection();
@@ -20,6 +21,8 @@ $purgeUrl   = $_frontDir . '/migration_history.php';
 
 // Handle purge actions (POST only)
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    Profile::checkMigrate(PURGE);
+
     $action = (string) ($_POST['action'] ?? '');
 
     $purged = match ($action) {

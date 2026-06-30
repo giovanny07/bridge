@@ -4,9 +4,10 @@ use GlpiPlugin\Bridge\Connection;
 use GlpiPlugin\Bridge\Connector\ConnectorFactory;
 use GlpiPlugin\Bridge\Migration\IncidentMapper;
 use GlpiPlugin\Bridge\Page\DryRunPage;
+use GlpiPlugin\Bridge\Profile;
 use GlpiPlugin\Bridge\Resolver\GlpiResolver;
 
-Session::checkRight('config', UPDATE);
+Profile::checkMigrate(READ);
 
 $id         = (int) ($_REQUEST['id'] ?? 0);
 $connection = new Connection();

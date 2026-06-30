@@ -3,6 +3,7 @@
 namespace GlpiPlugin\Bridge\Tests\Units;
 
 use GlpiPlugin\Bridge\Connection;
+use GlpiPlugin\Bridge\Profile;
 use PHPUnit\Framework\TestCase;
 
 class ConnectionTest extends TestCase
@@ -121,12 +122,12 @@ class ConnectionTest extends TestCase
     // Rights
     // ------------------------------------------------------------------ //
 
-    public function testRightnameIsConfig(): void
+    public function testRightnameIsBridgeConfig(): void
     {
-        $this->assertSame('config', Connection::$rightname);
+        $this->assertSame(Profile::RIGHT_CONFIG, Connection::$rightname);
     }
 
-    public function testCanViewDelegatesToConfig(): void
+    public function testCanViewDelegatesToBridgeRights(): void
     {
         $this->assertTrue(Connection::canView());
     }

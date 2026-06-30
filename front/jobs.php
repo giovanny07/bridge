@@ -2,8 +2,9 @@
 
 use GlpiPlugin\Bridge\Connection;
 use GlpiPlugin\Bridge\Migration\BridgeJob;
+use GlpiPlugin\Bridge\Profile;
 
-Session::checkRight('config', READ);
+Profile::checkMigrate(READ);
 
 $id         = (int) ($_REQUEST['id'] ?? 0);
 $connection = new Connection();

@@ -22,12 +22,12 @@ class Config extends CommonGLPI
 
     public static function canView(): bool
     {
-        return Session::haveRight('config', READ);
+        return Profile::canConfigure() || Profile::canMigrate(READ);
     }
 
     public static function canUpdate(): bool
     {
-        return Session::haveRight('config', UPDATE);
+        return Profile::canConfigure();
     }
 
     public function getTabNameForItem(CommonGLPI $item, $withtemplate = 0): string

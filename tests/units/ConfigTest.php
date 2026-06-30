@@ -7,7 +7,7 @@ use PHPUnit\Framework\TestCase;
 
 class ConfigTest extends TestCase
 {
-    public function testRightnameIsConfig(): void
+    public function testRightnameRemainsConfigForGlpiTabCompatibility(): void
     {
         $this->assertSame('config', Config::$rightname);
     }

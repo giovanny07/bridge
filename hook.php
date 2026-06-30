@@ -5,6 +5,7 @@ use GlpiPlugin\Bridge\Migration\BridgeJob;
 use GlpiPlugin\Bridge\Migration\JobLog;
 use GlpiPlugin\Bridge\Migration\MigrationCursor;
 use GlpiPlugin\Bridge\Migration\MigrationRecord;
+use GlpiPlugin\Bridge\Profile as BridgeProfile;
 
 function plugin_bridge_install(): bool
 {
@@ -16,6 +17,10 @@ function plugin_bridge_install(): bool
     MigrationCursor::install($migration);
     BridgeJob::install($migration);
     JobLog::install($migration);
+    BridgeProfile::initProfile();
+    if (isset($_SESSION['glpiactiveprofile']['id'])) {
+        BridgeProfile::createFirstAccess((int) $_SESSION['glpiactiveprofile']['id']);
+    }
 
     return true;
 }
@@ -30,6 +35,7 @@ function plugin_bridge_uninstall(): bool
     MigrationCursor::uninstall($migration);
     BridgeJob::uninstall($migration);
     JobLog::uninstall($migration);
+    BridgeProfile::removeRights();
 
     return true;
 }

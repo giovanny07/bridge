@@ -2,8 +2,9 @@
 
 use GlpiPlugin\Bridge\Config;
 use GlpiPlugin\Bridge\Connection;
+use GlpiPlugin\Bridge\Profile;
 
-Session::checkRight('config', UPDATE);
+Profile::checkConfigure();
 
 $connection = new Connection();
 

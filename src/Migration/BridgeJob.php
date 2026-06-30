@@ -8,6 +8,7 @@ use DBConnection;
 use GlpiPlugin\Bridge\Connector\ConnectorFactory;
 use GlpiPlugin\Bridge\Migration\BridgeJobConfig;
 use GlpiPlugin\Bridge\Migration\JobLog;
+use GlpiPlugin\Bridge\Profile;
 use GlpiPlugin\Bridge\Resolver\GlpiResolver;
 use Migration;
 
@@ -22,7 +23,7 @@ use Migration;
  */
 class BridgeJob extends CommonDBTM
 {
-    public static $rightname = 'config';
+    public static $rightname = Profile::RIGHT_MIGRATION;
 
     public const STATUS_PENDING      = 'pending';
     public const STATUS_RUNNING      = 'running';

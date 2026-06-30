@@ -5,8 +5,9 @@ use GlpiPlugin\Bridge\Config;
 use GlpiPlugin\Bridge\Connection;
 use GlpiPlugin\Bridge\Migration\BridgeJob;
 use GlpiPlugin\Bridge\Migration\BridgeJobConfig;
+use GlpiPlugin\Bridge\Profile as BridgeProfile;
 
-define('PLUGIN_BRIDGE_VERSION', '1.6.1');
+define('PLUGIN_BRIDGE_VERSION', '1.7.0');
 define('PLUGIN_BRIDGE_MIN_GLPI', '11.0.0');
 define('PLUGIN_BRIDGE_MAX_GLPI', '11.0.99');
 
@@ -16,6 +17,7 @@ function plugin_init_bridge(): void
 
     Plugin::registerClass(Connection::class);
     Plugin::registerClass(Config::class, ['addtabon' => \Config::class]);
+    Plugin::registerClass(BridgeProfile::class, ['addtabon' => \Profile::class]);
     Plugin::registerClass(BridgeJob::class);
 
     // Backward-compatible single-slot action. It is inactive while typed slots are enabled.

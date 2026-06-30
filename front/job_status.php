@@ -3,8 +3,9 @@
 use GlpiPlugin\Bridge\Connection;
 use GlpiPlugin\Bridge\Migration\BridgeJob;
 use GlpiPlugin\Bridge\Page\JobStatusPage;
+use GlpiPlugin\Bridge\Profile;
 
-Session::checkRight('config', READ);
+Profile::checkMigrate(READ);
 
 $jobId = (int) ($_GET['job_id'] ?? 0);
 if ($jobId <= 0) {

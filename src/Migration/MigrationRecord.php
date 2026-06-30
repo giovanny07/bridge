@@ -4,6 +4,7 @@ namespace GlpiPlugin\Bridge\Migration;
 
 use CommonDBTM;
 use DBConnection;
+use GlpiPlugin\Bridge\Profile;
 use Migration;
 
 /**
@@ -18,7 +19,7 @@ use Migration;
  */
 class MigrationRecord extends CommonDBTM
 {
-    public static $rightname = 'config';
+    public static $rightname = Profile::RIGHT_MIGRATION;
 
     public const STATUS_SUCCESS = 'success';
     public const STATUS_FAILED  = 'failed';

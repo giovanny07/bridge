@@ -3,7 +3,6 @@
 namespace GlpiPlugin\Bridge;
 
 use CommonDBTM;
-use Config;
 use DBConnection;
 use GLPIKey;
 use GlpiPlugin\Bridge\Migration\BridgeJobConfig;
@@ -13,7 +12,7 @@ use Session;
 
 class Connection extends CommonDBTM
 {
-    public static $rightname = 'config';
+    public static $rightname = Profile::RIGHT_CONFIG;
 
     public const TYPE_SOLARWINDS = 'solarwinds';
 
@@ -28,27 +27,27 @@ class Connection extends CommonDBTM
 
     public static function canCreate(): bool
     {
-        return Config::canUpdate();
+        return Profile::canConfigure();
     }
 
     public static function canView(): bool
     {
-        return Config::canUpdate();
+        return Profile::canConfigure() || Profile::canMigrate(READ);
     }
 
     public static function canUpdate(): bool
     {
-        return Config::canUpdate();
+        return Profile::canConfigure();
     }
 
     public static function canDelete(): bool
     {
-        return Config::canUpdate();
+        return Profile::canConfigure();
     }
 
     public static function canPurge(): bool
     {
-        return Config::canUpdate();
+        return Profile::canConfigure();
     }
 
     public static function getConfigURL(int $selectedId = 0, bool $full = true): string

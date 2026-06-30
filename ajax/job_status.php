@@ -1,8 +1,9 @@
 <?php
 
 use GlpiPlugin\Bridge\Migration\BridgeJob;
+use GlpiPlugin\Bridge\Profile;
 
-Session::checkRight('config', READ);
+Profile::checkMigrate(READ);
 header('Content-Type: application/json');
 
 $jobId = (int) ($_GET['job_id'] ?? 0);
@@ -13,7 +14,7 @@ if ($jobId <= 0) {
 
 // Handle POST actions
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    Session::checkRight('config', UPDATE);
+    Profile::checkMigrate(UPDATE);
     Session::checkCSRF($_POST, true);
     $job = BridgeJob::getById($jobId);
     if ($job === null) {

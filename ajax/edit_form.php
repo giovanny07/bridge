@@ -2,8 +2,9 @@
 
 use GlpiPlugin\Bridge\Connection;
 use GlpiPlugin\Bridge\Page\ConfigPage;
+use GlpiPlugin\Bridge\Profile;
 
-Session::checkRight('config', UPDATE);
+Profile::checkConfigure();
 
 header('Content-Type: text/html; charset=UTF-8');
 

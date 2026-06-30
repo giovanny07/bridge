@@ -6,9 +6,15 @@ use GlpiPlugin\Bridge\Migration\BridgeJob;
 use GlpiPlugin\Bridge\Migration\MigrationCursor;
 use GlpiPlugin\Bridge\Migration\MigrationEngine;
 use GlpiPlugin\Bridge\Page\MigratePage;
+use GlpiPlugin\Bridge\Profile;
 use GlpiPlugin\Bridge\Resolver\GlpiResolver;
 
-Session::checkRight('config', UPDATE);
+$requestedAction = (string) ($_POST['action'] ?? '');
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && $requestedAction === 'migrate') {
+    Profile::checkMigrate(CREATE);
+} else {
+    Profile::checkMigrate(READ);
+}
 
 $normalizeDate = static function (string $date): string {
     $date = trim($date);
@@ -50,7 +56,7 @@ $startHtml = static function () use (&$htmlStarted): void {
 try {
     $client        = ConnectorFactory::make($connection);
     $resourceTypes = $client->getResourceTypes();
-    $action        = (string) ($_POST['action'] ?? '');
+    $action        = $requestedAction;
     $resourceType  = (string) ($_REQUEST['resource_type'] ?? '');
 
     $migrationMode = (string) ($_POST['migration_mode'] ?? 'filters');

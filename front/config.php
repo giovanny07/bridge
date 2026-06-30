@@ -1,8 +1,9 @@
 <?php
 
 use GlpiPlugin\Bridge\Page\ConfigPage;
+use GlpiPlugin\Bridge\Profile;
 
-Session::checkRight('config', UPDATE);
+Profile::checkConfigure();
 
 // Standalone connections management page. Rendered as a normal page (not a GLPI
 // tab) so that ?bridge_connection_id=N is available to ConfigPage::show() — GLPI

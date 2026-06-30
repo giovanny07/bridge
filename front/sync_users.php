@@ -4,9 +4,15 @@ use GlpiPlugin\Bridge\Connection;
 use GlpiPlugin\Bridge\Connector\ConnectorFactory;
 use GlpiPlugin\Bridge\Migration\UserSyncer;
 use GlpiPlugin\Bridge\Page\SyncUsersPage;
+use GlpiPlugin\Bridge\Profile;
 use GlpiPlugin\Bridge\Resolver\GlpiResolver;
 
-Session::checkRight('config', UPDATE);
+$requestedAction = (string) ($_POST['action'] ?? '');
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && $requestedAction === 'sync') {
+    Profile::checkMigrate(UPDATE);
+} else {
+    Profile::checkMigrate(READ);
+}
 
 $id         = (int) ($_REQUEST['id'] ?? 0);
 $connection = new Connection();
@@ -26,7 +32,7 @@ $syncUrl = Connection::getPluginBaseURL() . '/front/sync_users.php';
 Html::header(__('User sync', 'bridge'), '', 'config', 'plugins');
 
 try {
-    $action = (string) ($_POST['action'] ?? '');
+    $action = $requestedAction;
 
     if ($action === '' || $_SERVER['REQUEST_METHOD'] !== 'POST') {
         SyncUsersPage::showForm($connection, $syncUrl);

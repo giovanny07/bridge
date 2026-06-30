@@ -3,8 +3,9 @@
 use GlpiPlugin\Bridge\Connection;
 use GlpiPlugin\Bridge\Connector\ConnectorFactory;
 use GlpiPlugin\Bridge\Page\ConfigPage;
+use GlpiPlugin\Bridge\Profile;
 
-Session::checkRight('config', UPDATE);
+Profile::checkConfigure();
 
 $id = (int) ($_POST['id'] ?? 0);
 $connection = new Connection();

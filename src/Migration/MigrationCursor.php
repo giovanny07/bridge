@@ -4,6 +4,7 @@ namespace GlpiPlugin\Bridge\Migration;
 
 use CommonDBTM;
 use DBConnection;
+use GlpiPlugin\Bridge\Profile;
 use Migration;
 use GlpiPlugin\Bridge\Migration\BridgeJobConfig;
 
@@ -21,7 +22,7 @@ use GlpiPlugin\Bridge\Migration\BridgeJobConfig;
  */
 class MigrationCursor extends CommonDBTM
 {
-    public static $rightname = 'config';
+    public static $rightname = Profile::RIGHT_MIGRATION;
 
     public const STATUS_ACTIVE    = 'active';
     public const STATUS_COMPLETED = 'completed';
