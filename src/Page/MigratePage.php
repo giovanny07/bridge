@@ -595,41 +595,22 @@ class MigratePage
 
     private static function sectionCard(string $icon, string $title): string
     {
-        return '<div class="bridge-section-card">'
-            . '<div class="bridge-section-title"><i class="ti ' . $icon . '"></i>' . self::h($title) . '</div>';
+        return Ui::sectionCard($icon, $title);
     }
 
     private static function checkbox(string $id, string $name, string $label, string $icon, bool $checked): string
     {
-        $ch = $checked ? ' checked' : '';
-        return '<div class="form-check">'
-            . '<input class="form-check-input" type="checkbox" id="' . $id . '" name="' . $name . '" value="1"' . $ch . '>'
-            . '<label class="form-check-label small" for="' . $id . '">'
-            . '<i class="ti ' . $icon . ' me-1 text-muted"></i>' . $label
-            . '</label>'
-            . '</div>';
+        return Ui::checkbox($id, $name, $label, $icon, $checked);
     }
 
     private static function statCard(string $icon, string $color, int $value, string $label): void
     {
-        echo '<div class="col-md-4">';
-        echo '<div class="card border-0 shadow-sm h-100">';
-        echo '<div class="card-body py-3 d-flex align-items-center gap-3">';
-        echo '<div class="rounded-circle d-flex align-items-center justify-content-center text-' . $color . '" style="width:3rem;height:3rem;background:var(--bs-' . $color . '-bg-subtle,rgba(0,0,0,.05))">';
-        echo '<i class="ti ti-' . $icon . '" style="font-size:1.4rem"></i>';
-        echo '</div>';
-        echo '<div>';
-        echo '<div class="fw-bold fs-3 lh-1">' . $value . '</div>';
-        echo '<div class="text-muted small mt-1">' . self::h($label) . '</div>';
-        echo '</div>';
-        echo '</div></div></div>';
+        Ui::statCard($icon, $color, $value, $label, 'col-md-4');
     }
 
     private static function metricPill(string $label, int $value): void
     {
-        echo '<span class="badge bg-secondary-subtle text-secondary border">';
-        echo self::h($label) . ': <strong>' . $value . '</strong>';
-        echo '</span>';
+        Ui::metricPill($label, $value);
     }
 
     private static function showPreflightActionForm(
@@ -756,6 +737,6 @@ class MigratePage
 
     private static function h(mixed $v): string
     {
-        return htmlspecialchars((string) $v, ENT_QUOTES, 'UTF-8');
+        return Ui::h($v);
     }
 }

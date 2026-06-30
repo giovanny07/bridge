@@ -7,7 +7,7 @@ use GlpiPlugin\Bridge\Migration\BridgeJobConfig;
 use PHPUnit\Framework\TestCase;
 
 /**
- * Etapa 4 — Unit tests for HttpBatch.
+ * Unit tests for HttpBatch.
  *
  * All tests use the $transport callable injection so no real HTTP calls
  * or curl handles are created. The real curl_multi path is exercised only

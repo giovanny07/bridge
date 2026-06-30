@@ -260,7 +260,7 @@ class BridgeJob extends CommonDBTM
     // ------------------------------------------------------------------ //
 
     /**
-     * Legacy single-slot cron action (Etapa 1 / back-compat).
+     * Backward-compatible single-slot cron action.
      * When BridgeJobConfig::PARALLEL_JOBS is false this is the only active slot
      * and it picks any pending job regardless of resource type.
      * Once PARALLEL_JOBS is true the typed slots below take over and this slot
@@ -292,7 +292,7 @@ class BridgeJob extends CommonDBTM
     }
 
     // ------------------------------------------------------------------ //
-    // Typed cron slots — Etapa 2 (parallel jobs per resource type)
+    // Typed cron slots per resource type
     // ------------------------------------------------------------------ //
 
     /**
@@ -348,7 +348,7 @@ class BridgeJob extends CommonDBTM
     }
 
     // ------------------------------------------------------------------ //
-    // Internal cron helpers (also used by typed slots in Etapa 2)
+    // Internal cron helpers
     // ------------------------------------------------------------------ //
 
     /**
@@ -399,7 +399,7 @@ class BridgeJob extends CommonDBTM
 
     /**
      * Runs one migration chunk for the given job and updates DB state.
-     * Shared by all cron slot variants (typed in Etapa 2, generic here).
+     * Shared by all cron slot variants.
      * Returns 1 so callers can forward it as the CronTask return value.
      */
     private static function processJobChunk(BridgeJob $job, CronTask $task): int

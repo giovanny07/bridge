@@ -6,7 +6,7 @@ use GlpiPlugin\Bridge\Connection;
 use GlpiPlugin\Bridge\Migration\BridgeJob;
 use GlpiPlugin\Bridge\Migration\BridgeJobConfig;
 
-define('PLUGIN_BRIDGE_VERSION', '1.5.2');
+define('PLUGIN_BRIDGE_VERSION', '1.6.0');
 define('PLUGIN_BRIDGE_MIN_GLPI', '11.0.0');
 define('PLUGIN_BRIDGE_MAX_GLPI', '11.0.99');
 
@@ -18,7 +18,7 @@ function plugin_init_bridge(): void
     Plugin::registerClass(Config::class, ['addtabon' => \Config::class]);
     Plugin::registerClass(BridgeJob::class);
 
-    // ── Legacy single-slot (kept for back-compat; no-ops when PARALLEL_JOBS=true) ──
+    // Backward-compatible single-slot action. It is inactive while typed slots are enabled.
     CronTask::register(BridgeJob::class, 'ProcessJobs', BridgeJobConfig::CRON_INTERVAL_SECONDS, [
         'state'         => CronTask::STATE_WAITING,
         'mode'          => CronTask::MODE_EXTERNAL,
@@ -26,9 +26,7 @@ function plugin_init_bridge(): void
         'comment'       => 'Process pending Bridge migration jobs (legacy single-slot)',
     ]);
 
-    // ── Typed parallel slots (Etapa 2) — each handles one resource type ──
-    // Running as separate OS cron processes gives true parallelism:
-    // incidents, changes, and problems migrate simultaneously.
+    // Dedicated cron slots allow incidents, changes, and problems to progress independently.
     CronTask::register(BridgeJob::class, 'ProcessIncidents', BridgeJobConfig::CRON_INTERVAL_SECONDS, [
         'state'         => CronTask::STATE_WAITING,
         'mode'          => CronTask::MODE_EXTERNAL,

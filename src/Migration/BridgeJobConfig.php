@@ -41,7 +41,7 @@ final class BridgeJobConfig
     public const PER_PAGE = 50;
 
     // ------------------------------------------------------------------ //
-    // Eje 1 — parallel jobs (activated in Etapa 2)
+    // Parallel jobs
     // ------------------------------------------------------------------ //
 
     /** When true, separate cron slots (ProcessIncidents / ProcessChanges /
@@ -50,7 +50,7 @@ final class BridgeJobConfig
     public const PARALLEL_JOBS = true;
 
     // ------------------------------------------------------------------ //
-    // Eje 2 — parallel API pages (activated in Etapa 5)
+    // Parallel API pages
     // ------------------------------------------------------------------ //
 
     /** Global default for the number of API pages fetched concurrently within a

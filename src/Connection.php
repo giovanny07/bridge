@@ -144,11 +144,6 @@ class Connection extends CommonDBTM
      * is purged.  Without this, records in migrations/cursors/jobs/logs tables
      * become orphaned and pollute the database.
      */
-    /**
-     * Cascade-delete all plugin data associated with this connection when it
-     * is purged.  Without this, records in migrations/cursors/jobs/logs tables
-     * become orphaned and pollute the database.
-     */
     public function post_purgeItem(): void
     {
         global $DB;

@@ -305,13 +305,7 @@ class DryRunPage
 
     private static function showStatCard(string $icon, string $color, string $value, string $label): void
     {
-        echo '<div class="col-md-4">';
-        echo '<div class="card border-' . $color . '">';
-        echo '<div class="card-body py-2 d-flex align-items-center gap-3">';
-        echo '<i class="ti ti-' . $icon . ' text-' . $color . '" style="font-size:1.8rem"></i>';
-        echo '<div><div class="fw-bold fs-4">' . self::h($value) . '</div>';
-        echo '<div class="text-muted small">' . self::h($label) . '</div></div>';
-        echo '</div></div></div>';
+        Ui::statCard($icon, $color, $value, $label, 'col-md-4');
     }
 
     private static function statusLabel(int $status): string
@@ -329,6 +323,6 @@ class DryRunPage
 
     private static function h(mixed $value): string
     {
-        return htmlspecialchars((string) $value, ENT_QUOTES, 'UTF-8');
+        return Ui::h($value);
     }
 }

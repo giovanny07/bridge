@@ -82,6 +82,7 @@ class JobStatusPage
 
         // Error message
         echo '<div id="bridge-error-msg" class="alert alert-danger py-2 small" style="display:none"></div>';
+        echo '<div id="bridge-action-msg" class="alert py-2 small" style="display:none"></div>';
 
         // Actions
         $stats   = $job->stats();
@@ -89,16 +90,16 @@ class JobStatusPage
         echo '<div class="d-flex flex-wrap gap-2" id="bridge-job-actions">';
         $isRolledBack = $job->status() === BridgeJob::STATUS_ROLLED_BACK;
         if (!$isFinished) {
-            echo '<button class="btn btn-sm btn-outline-danger" onclick="bridgeJobAction(\'cancel\', \'' . self::h(__('Cancel this migration job?', 'bridge')) . '\')">';
+            echo '<button type="button" class="btn btn-sm btn-outline-danger" data-bridge-job-action="cancel" onclick="bridgeJobAction(\'cancel\', \'' . self::h(__('Cancel this migration job?', 'bridge')) . '\')">';
             echo '<i class="ti ti-player-stop me-1"></i>' . self::h(__('Cancel', 'bridge'));
             echo '</button>';
         } elseif (!$isRolledBack) {
-            echo '<button class="btn btn-sm btn-outline-primary" onclick="bridgeJobAction(\'retry\', \'' . self::h(__('Retry this job from the beginning?', 'bridge')) . '\')">';
+            echo '<button type="button" class="btn btn-sm btn-outline-primary" data-bridge-job-action="retry" onclick="bridgeJobAction(\'retry\', \'' . self::h(__('Retry this job from the beginning?', 'bridge')) . '\')">';
             echo '<i class="ti ti-refresh me-1"></i>' . self::h(__('Retry job', 'bridge'));
             echo '</button>';
         }
         if ($hasFailed && !$isRolledBack) {
-            echo '<button class="btn btn-sm btn-outline-warning" onclick="bridgeJobAction(\'retry_failed_records\', \'' . self::h(__('Retry failed records? This will allow them to be re-migrated.', 'bridge')) . '\')">';
+            echo '<button type="button" class="btn btn-sm btn-outline-warning" data-bridge-job-action="retry_failed_records" onclick="bridgeJobAction(\'retry_failed_records\', \'' . self::h(__('Retry failed records? This will allow them to be re-migrated.', 'bridge')) . '\')">';
             echo '<i class="ti ti-player-skip-forward me-1"></i>' . self::h(__('Retry failed records', 'bridge'));
             echo '</button>';
         }
@@ -109,7 +110,7 @@ class JobStatusPage
                 __('This will permanently delete the %d item(s) created by this job from GLPI and allow re-migration. Continue?', 'bridge'),
                 $createdCount
             ));
-            echo '<button class="btn btn-sm btn-outline-danger ms-auto" onclick="bridgeJobAction(\'rollback\', \'' . $rollbackMsg . '\')">';
+            echo '<button type="button" class="btn btn-sm btn-outline-danger ms-auto" data-bridge-job-action="rollback" onclick="bridgeJobAction(\'rollback\', \'' . $rollbackMsg . '\')">';
             echo '<i class="ti ti-rotate-clockwise me-1"></i>' . self::h(__('Rollback', 'bridge'));
             echo '</button>';
         }
@@ -202,6 +203,22 @@ class JobStatusPage
             BridgeJob::STATUS_CANCELLED    => __('Cancelled', 'bridge'),
             BridgeJob::STATUS_ROLLED_BACK  => __('Rolled back', 'bridge'),
         ]);
+        $actionBusyLabels = json_encode([
+            'cancel'               => __('Cancelling…', 'bridge'),
+            'retry'                => __('Creating retry…', 'bridge'),
+            'retry_failed_records' => __('Preparing retry…', 'bridge'),
+            'rollback'             => __('Rolling back…', 'bridge'),
+        ], JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT);
+        $actionSuccessLabels = json_encode([
+            'cancel'               => __('Cancel request sent. The current chunk may finish before the job stops.', 'bridge'),
+            'retry'                => __('Retry job created. Redirecting…', 'bridge'),
+            'retry_failed_records' => __('Failed records were cleared. Run a new migration to retry them.', 'bridge'),
+            'rollback'             => __('Rollback complete. Migration records were cleared for re-migration.', 'bridge'),
+        ], JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT);
+        $actionErrorLabel = json_encode(
+            __('Job action failed.', 'bridge'),
+            JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT
+        );
 
         $initiallyFinished = $isFinished ? 'true' : 'false';
         $initialPayload = json_encode(
@@ -219,8 +236,12 @@ class JobStatusPage
     var finished   = {$initiallyFinished};
     var classes    = {$statusClasses};
     var labels     = {$statusLabels};
+    var busyLabels = {$actionBusyLabels};
+    var successLabels = {$actionSuccessLabels};
+    var actionErrorLabel = {$actionErrorLabel};
     var pollTimer  = null;
     var initialData = {$initialPayload};
+    var actionInFlight = false;
 
     function update(data, clearActionsOnFinish) {
         if (data.error) return;
@@ -383,8 +404,79 @@ class JobStatusPage
             .catch(function() {});
     }
 
+    function refreshJob() {
+        return fetch(ajaxUrl + '?job_id=' + jobId + '&logs=1&recent=1', { credentials: 'same-origin' })
+            .then(function(r) {
+                return r.text().then(function(text) {
+                    var data = text ? JSON.parse(text) : {};
+                    if (!r.ok) {
+                        throw new Error(data.error || data.message || ('HTTP ' + r.status));
+                    }
+                    return data;
+                });
+            })
+            .then(function(data) {
+                update(data);
+                renderRecent(data.recent);
+                renderLogs(data.logs);
+                return data;
+            });
+    }
+
+    function setActionMessage(type, message) {
+        var el = document.getElementById('bridge-action-msg');
+        if (!el) return;
+        if (!message) {
+            el.style.display = 'none';
+            el.textContent = '';
+            return;
+        }
+        el.className = 'alert alert-' + type + ' py-2 small';
+        el.textContent = message;
+        el.style.display = '';
+    }
+
+    function setActionsDisabled(disabled, activeAction) {
+        var buttons = document.querySelectorAll('#bridge-job-actions button');
+        Array.prototype.forEach.call(buttons, function(button) {
+            if (disabled && !button.dataset.bridgeOriginalHtml) {
+                button.dataset.bridgeOriginalHtml = button.innerHTML;
+            }
+            button.disabled = disabled;
+            if (disabled && button.getAttribute('data-bridge-job-action') === activeAction) {
+                button.innerHTML = '<span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>'
+                    + (busyLabels[activeAction] || button.textContent.trim());
+            } else if (!disabled && button.dataset.bridgeOriginalHtml) {
+                button.innerHTML = button.dataset.bridgeOriginalHtml;
+                delete button.dataset.bridgeOriginalHtml;
+            }
+        });
+    }
+
+    function parseActionResponse(response) {
+        return response.text().then(function(text) {
+            var data = {};
+            if (text) {
+                try {
+                    data = JSON.parse(text);
+                } catch (e) {
+                    throw new Error('Invalid JSON response from GLPI.');
+                }
+            }
+            if (!response.ok) {
+                throw new Error(data.error || data.message || ('HTTP ' + response.status));
+            }
+            return data;
+        });
+    }
+
     window.bridgeJobAction = function(action, confirmMsg) {
+        if (actionInFlight) return;
         if (!confirm(confirmMsg)) return;
+        actionInFlight = true;
+        setActionMessage('info', busyLabels[action] || 'Processing…');
+        setActionsDisabled(true, action);
+
         var fd = new FormData();
         fd.append(action, '1');
         fd.append('_glpi_csrf_token', csrfToken);
@@ -397,39 +489,36 @@ class JobStatusPage
                 'X-Glpi-Csrf-Token': csrfToken
             }
         })
-            .then(function(r) {
-                return r.text().then(function(text) {
-                    var data = text ? JSON.parse(text) : {};
-                    if (!r.ok) {
-                        throw new Error(data.error || data.message || ('HTTP ' + r.status));
-                    }
-                    return data;
-                });
-            })
+            .then(parseActionResponse)
             .then(function(data) {
                 if (data.redirected_job_id) {
-                    // Retry created a new job — navigate to it
+                    setActionMessage('success', successLabels[action] || '');
                     window.location.href = window.location.pathname + '?job_id=' + data.redirected_job_id;
                     return;
                 }
                 if (data.purged_records !== undefined) {
-                    var msg = data.purged_records + ' failed record(s) purged. Run a new migration to retry them.';
-                    alert(msg);
-                    return;
+                    setActionMessage('success', data.purged_records + ' failed record(s) purged. Run a new migration to retry them.');
+                    return refreshJob();
                 }
                 if (data.rollback_result !== undefined) {
                     var r = data.rollback_result;
-                    alert('Rollback complete.\nDeleted: ' + r.purged + ' of ' + r.total + ' items.' +
-                        (r.failed > 0 ? '\nFailed to delete: ' + r.failed : '') +
-                        (r.not_found > 0 ? '\nNot found (already removed): ' + r.not_found : '') +
-                        '\nMigration records cleared — items can be re-migrated.');
-                    window.location.reload();
-                    return;
+                    var rollbackMessage = 'Rollback complete. Deleted: ' + r.purged + ' of ' + r.total + ' items.';
+                    if (r.failed > 0) rollbackMessage += ' Failed to delete: ' + r.failed + '.';
+                    if (r.not_found > 0) rollbackMessage += ' Not found: ' + r.not_found + '.';
+                    setActionMessage(r.failed > 0 ? 'warning' : 'success', rollbackMessage);
+                    return refreshJob();
                 }
                 update(data);
+                return refreshJob().then(function() {
+                    setActionMessage('success', successLabels[action] || '');
+                });
             })
             .catch(function(error) {
-                alert(error.message || 'Job action failed.');
+                setActionMessage('danger', error.message || actionErrorLabel);
+            })
+            .finally(function() {
+                actionInFlight = false;
+                setActionsDisabled(false);
             });
     };
 
@@ -452,7 +541,7 @@ JS;
 
     /**
      * Returns true when any Bridge cron slot has run within the last 5 minutes.
-     * Checks the typed slot for $resourceType first (Etapa 2), then all others
+     * Checks the typed slot for $resourceType first, then all others
      * as a fallback so the notice is correct even when slot names change.
      * Also accepts the legacy 'bridge' itemtype for installations that have not
      * yet re-installed the plugin since the GLPI 11 PSR-4 migration.
@@ -486,19 +575,16 @@ JS;
     private static function statBox(string $icon, string $color, int $value, string $label, string $id): void
     {
         echo '<div class="col-6 col-md-3">';
-        echo '<div class="border rounded p-2 text-center">';
-        echo '<div class="fw-bold fs-4 text-' . $color . '" id="' . $id . '">' . $value . '</div>';
-        echo '<div class="text-muted small"><i class="ti ti-' . $icon . ' me-1"></i>' . self::h($label) . '</div>';
-        echo '</div></div>';
+        echo '<div class="card border-0 shadow-sm h-100 bridge-stat-card bridge-stat-card-compact">';
+        echo '<div class="card-body py-2 text-center">';
+        echo '<div class="fw-bold fs-4 text-' . self::h($color) . '" id="' . self::h($id) . '">' . (int) $value . '</div>';
+        echo '<div class="text-muted small"><i class="ti ti-' . self::h($icon) . ' me-1"></i>' . self::h($label) . '</div>';
+        echo '</div></div></div>';
     }
 
     private static function metricPill(string $label, string $id): void
     {
-        echo '<div class="col-6 col-md-3">';
-        echo '<div class="d-flex align-items-center justify-content-between gap-2 border rounded px-2 py-1 bg-white">';
-        echo '<span class="text-muted text-truncate">' . self::h($label) . '</span>';
-        echo '<strong class="font-monospace" id="' . self::h($id) . '">0</strong>';
-        echo '</div></div>';
+        Ui::liveMetric($label, $id);
     }
 
     private static function statusClass(string $status): string
@@ -529,6 +615,6 @@ JS;
 
     private static function h(mixed $v): string
     {
-        return htmlspecialchars((string) $v, ENT_QUOTES, 'UTF-8');
+        return Ui::h($v);
     }
 }

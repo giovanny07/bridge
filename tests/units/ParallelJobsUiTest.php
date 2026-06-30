@@ -6,7 +6,7 @@ use GlpiPlugin\Bridge\Migration\BridgeJob;
 use PHPUnit\Framework\TestCase;
 
 /**
- * Etapa 3 — Verifies the UI helpers added to BridgeJob for the parallel-jobs
+ * Verifies the UI helpers added to BridgeJob for the parallel-jobs
  * observability features: coloured resource-type badges, active-job list, and
  * the cron-slot name resolver.
  */

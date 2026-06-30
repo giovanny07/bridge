@@ -8,7 +8,7 @@ use PHPUnit\Framework\TestCase;
 use RuntimeException;
 
 /**
- * Etapa 5 — Unit tests for SolarWindsClient::listPagesBatch().
+ * Unit tests for SolarWindsClient::listPagesBatch().
  *
  * All tests inject a fake HttpBatch via the optional $batch parameter
  * so no real curl handles or network calls are made.

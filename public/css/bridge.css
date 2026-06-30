@@ -175,3 +175,31 @@
     background: #fdecef;
     border-color: #f5c2c7;
 }
+
+.bridge-stat-card {
+    border-radius: .5rem;
+}
+
+.bridge-stat-card-compact {
+    min-height: 5rem;
+}
+
+.bridge-stat-icon {
+    width: 2.75rem;
+    height: 2.75rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 999px;
+    background: rgba(0, 0, 0, .045);
+    flex: 0 0 auto;
+}
+
+.bridge-stat-icon .ti {
+    font-size: 1.25rem;
+}
+
+.bridge-metric-pill {
+    border-radius: .375rem;
+    font-weight: 500;
+}

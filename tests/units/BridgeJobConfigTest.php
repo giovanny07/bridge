@@ -10,7 +10,7 @@ use ReflectionClass;
 use ReflectionMethod;
 
 /**
- * Etapa 0 — Verifies BridgeJobConfig is the single source of truth for all
+ * Verifies BridgeJobConfig is the single source of truth for all
  * operational constants and that dependent classes no longer define their own.
  */
 class BridgeJobConfigTest extends TestCase
@@ -51,7 +51,7 @@ class BridgeJobConfigTest extends TestCase
     }
 
     // ------------------------------------------------------------------ //
-    // Eje 1 / Eje 2 placeholders default to disabled
+    // Parallel job configuration
     // ------------------------------------------------------------------ //
 
     public function testParallelJobsIsBool(): void
@@ -61,10 +61,10 @@ class BridgeJobConfigTest extends TestCase
 
     public function testParallelJobsActivatesTypedCronSlots(): void
     {
-        // Etapa 2 complete: typed slots are active and legacy slot no-ops.
+        // Typed slots are active and the legacy slot no-ops.
         $this->assertTrue(
             BridgeJobConfig::PARALLEL_JOBS,
-            'Typed cron slots (Etapa 2) should be active. Set to false only to revert.'
+            'Typed cron slots should be active. Set to false only to revert.'
         );
     }
 
@@ -73,7 +73,7 @@ class BridgeJobConfigTest extends TestCase
         $this->assertSame(
             1,
             BridgeJobConfig::PARALLEL_API_PAGES,
-            'PARALLEL_API_PAGES must default to 1 (sequential) until Etapa 5.'
+            'PARALLEL_API_PAGES must default to 1 unless explicitly tuned.'
         );
     }
 
@@ -134,7 +134,7 @@ class BridgeJobConfigTest extends TestCase
     }
 
     // ------------------------------------------------------------------ //
-    // Etapa 2 — typed cron slot methods exist on BridgeJob
+    // Typed cron slot methods exist on BridgeJob
     // ------------------------------------------------------------------ //
 
     #[\PHPUnit\Framework\Attributes\DataProvider('typedCronMethodProvider')]
@@ -143,7 +143,7 @@ class BridgeJobConfigTest extends TestCase
         $rc = new ReflectionClass(BridgeJob::class);
         $this->assertTrue(
             $rc->hasMethod($method),
-            "BridgeJob must have a public static method $method() for Etapa 2 parallel cron slots."
+            "BridgeJob must have a public static method $method() for parallel cron slots."
         );
         $rm = new ReflectionMethod(BridgeJob::class, $method);
         $this->assertTrue($rm->isPublic(),  "$method must be public.");
